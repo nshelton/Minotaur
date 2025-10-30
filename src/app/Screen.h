@@ -15,4 +15,7 @@ public:
     virtual void onMouseButton(int /*button*/, int /*action*/, int /*mods*/, double /*x*/, double /*y*/) {}
     virtual void onCursorPos(double /*x*/, double /*y*/) {}
     virtual void onScroll(double /*xoffset*/, double /*yoffset*/, double /*x*/, double /*y*/) {}
+
+    // UI (ImGui) hook
+    virtual void onGui() {}
 };

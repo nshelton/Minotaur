@@ -10,6 +10,12 @@ public:
         m_height = height;
         glViewport(0, 0, width, height);
     }
+    void reset() {
+        m_offsetX = 0.0f;
+        m_offsetY = 0.0f;
+        m_zoom = 1.0f;
+        m_dragging = false;
+    }
 
     // Dragging
     void beginDrag(double x, double y) {
@@ -69,4 +75,3 @@ private:
     float m_minZoom{0.1f};
     float m_maxZoom{10.0f};
 };
-

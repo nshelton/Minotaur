@@ -2,6 +2,9 @@
 #include "Screen.h"
 
 #include <iostream>
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_opengl3.h>
 
 App::App(int width, int height, const char* title)
     : m_width(width), m_height(height) {
@@ -27,6 +30,8 @@ App::App(int width, int height, const char* title)
     glfwSetMouseButtonCallback(m_window, mouseButtonCallback);
     glfwSetCursorPosCallback(m_window, cursorPosCallback);
     glfwSetScrollCallback(m_window, scrollCallback);
+    glfwSetKeyCallback(m_window, keyCallback);
+    glfwSetCharCallback(m_window, charCallback);
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
         std::cerr << "Failed to initialize GLAD" << std::endl;
@@ -38,9 +43,20 @@ App::App(int width, int height, const char* title)
     glfwSwapInterval(1);
     glViewport(0, 0, width, height);
     glClearColor(0.1f, 0.1f, 0.12f, 1.0f);
+
+    // ImGui setup
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui::StyleColorsDark();
+    ImGui_ImplGlfw_InitForOpenGL(m_window, false);
+    ImGui_ImplOpenGL3_Init("#version 330 core");
 }
 
 App::~App() {
+    // ImGui shutdown
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
     if (m_window) {
         glfwDestroyWindow(m_window);
     }
@@ -58,10 +74,20 @@ void App::run(IScreen& screen) {
         double dt = now - lastTime;
         lastTime = now;
 
+        // New ImGui frame
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
         screen.onUpdate(dt);
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         screen.onRender();
+        screen.onGui();
+
+        // Render ImGui
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         glfwSwapBuffers(m_window);
         glfwPollEvents();
@@ -83,7 +109,11 @@ void App::framebufferSizeCallback(GLFWwindow* window, int width, int height) {
 
 void App::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
     auto* app = reinterpret_cast<App*>(glfwGetWindowUserPointer(window));
-    if (!app || !app->m_activeScreen) return;
+    if (!app) return;
+    ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
+    if (!app->m_activeScreen) return;
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.WantCaptureMouse) return;
     double x = 0.0, y = 0.0;
     glfwGetCursorPos(window, &x, &y);
     app->m_activeScreen->onMouseButton(button, action, mods, x, y);
@@ -92,13 +122,31 @@ void App::mouseButtonCallback(GLFWwindow* window, int button, int action, int mo
 void App::cursorPosCallback(GLFWwindow* window, double xpos, double ypos) {
     auto* app = reinterpret_cast<App*>(glfwGetWindowUserPointer(window));
     if (!app || !app->m_activeScreen) return;
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.WantCaptureMouse) return;
     app->m_activeScreen->onCursorPos(xpos, ypos);
 }
 
 void App::scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
     auto* app = reinterpret_cast<App*>(glfwGetWindowUserPointer(window));
-    if (!app || !app->m_activeScreen) return;
+    if (!app) return;
+    ImGui_ImplGlfw_ScrollCallback(window, xoffset, yoffset);
+    if (!app->m_activeScreen) return;
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.WantCaptureMouse) return;
     double x = 0.0, y = 0.0;
     glfwGetCursorPos(window, &x, &y);
     app->m_activeScreen->onScroll(xoffset, yoffset, x, y);
+}
+
+void App::keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    auto* app = reinterpret_cast<App*>(glfwGetWindowUserPointer(window));
+    (void)app;
+    ImGui_ImplGlfw_KeyCallback(window, key, scancode, action, mods);
+}
+
+void App::charCallback(GLFWwindow* window, unsigned int c) {
+    auto* app = reinterpret_cast<App*>(glfwGetWindowUserPointer(window));
+    (void)app;
+    ImGui_ImplGlfw_CharCallback(window, c);
 }
