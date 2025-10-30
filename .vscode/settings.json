@@ -1,0 +1,16 @@
+{
+  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+  "cmake.configureOnOpen": true,
+  "cmake.configurePreset": "msvc-vcpkg",
+  "cmake.buildPreset": "release",
+  "cmake.configureEnvironment": { "VCPKG_ROOT": "D:/vcpkg" },
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
+  "C_Cpp.default.includePath": [
+    "${workspaceFolder}/**",
+    "D:/vcpkg/installed/x64-windows/include"
+  ],
+  "C_Cpp.default.intelliSenseMode": "windows-msvc-x64",
+  "files.associations": {
+    "vector": "cpp"
+  }
+}

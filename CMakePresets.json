@@ -9,7 +9,8 @@
       "cacheVariables": {
         "CMAKE_TOOLCHAIN_FILE":  "D:/vcpkg/scripts/buildsystems/vcpkg.cmake",
         "VCPKG_TARGET_TRIPLET": "x64-windows",
-        "CMAKE_CXX_STANDARD": "17"
+        "CMAKE_CXX_STANDARD": "17",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       }
     }
   ],
