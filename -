@@ -1,0 +1,30 @@
+#include <cmath>
+#include "PlotController.h"
+
+bool PlotController::init() {
+    return m_view.init();
+}
+
+void PlotController::update(double /*dt*/) {
+    // Update model state if needed
+}
+
+void PlotController::render() {
+    if (m_lines && m_pageRenderer) {
+        m_view.render(m_model, *m_lines, *m_pageRenderer);
+    }
+}
+
+void PlotController::render(const A3Page& page) {
+    if (m_lines && m_pageRenderer) {
+        m_view.render(m_model, page, *m_lines, *m_pageRenderer);
+    }
+}
+
+void PlotController::shutdown() {
+    m_view.shutdown();
+}
+
+void PlotController::setTransform(float tx, float ty, float scale) {
+    if (m_lines) m_lines->setTransform(tx, ty, scale);
+}

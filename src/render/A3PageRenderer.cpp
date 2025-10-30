@@ -77,3 +77,35 @@ void A3PageRenderer::addGrid(const A3Page& page, LineRenderer& lines,
         lines.addLine(x0, y0, x1, y1, r, g, b, a);
     }
 }
+
+void A3PageRenderer::ndcToMm(const A3Page& page, float x_ndc, float y_ndc, float& x_mm, float& y_mm) const {
+    if (m_winW <= 0 || m_winH <= 0) { x_mm = 0.0f; y_mm = 0.0f; return; }
+
+    const float pageW = page.width_mm;
+    const float pageH = page.height_mm;
+    const float aw = static_cast<float>(m_winW) / static_cast<float>(m_winH);
+    const float ap = pageW / pageH;
+
+    float drawW_px = 0.0f, drawH_px = 0.0f;
+    if (aw >= ap) {
+        drawH_px = static_cast<float>(m_winH);
+        drawW_px = drawH_px * ap;
+    } else {
+        drawW_px = static_cast<float>(m_winW);
+        drawH_px = drawW_px / ap;
+    }
+
+    const float offX = (static_cast<float>(m_winW) - drawW_px) * 0.5f;
+    const float offY = (static_cast<float>(m_winH) - drawH_px) * 0.5f;
+
+    // NDC -> pixel
+    const float px = (x_ndc + 1.0f) * 0.5f * static_cast<float>(m_winW);
+    const float py = (1.0f - y_ndc) * 0.5f * static_cast<float>(m_winH);
+
+    // Pixel inside letterboxed rect -> normalized page coords
+    const float u = (px - offX) / drawW_px;   // 0..1 across page width
+    const float v = (py - offY) / drawH_px;   // 0..1 from top to bottom
+
+    x_mm = u * pageW;
+    y_mm = (1.0f - v) * pageH; // flip back to page up direction
+}

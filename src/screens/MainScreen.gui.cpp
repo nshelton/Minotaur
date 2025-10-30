@@ -1,4 +1,6 @@
-﻿#include "MainScreen.h"
+#include "MainScreen.h"
+#include "mvc/PathSetGenerator.h"
+#include <string>
 
 void MainScreen::onGui() {
     if (ImGui::Begin("Controls")) {
@@ -22,7 +24,40 @@ void MainScreen::onGui() {
         if (ImGui::SliderFloat("Outline Width", &lineW, 0.5f, 5.0f, "%.1f")) {
             m_lines.setLineWidth(lineW);
         }
+
+        ImGui::Separator();
+        ImGui::Text("Add Entities");
+        float cx = m_page.width_mm * 0.5f;
+        float cy = m_page.height_mm * 0.5f;
+        if (ImGui::Button("Add Circle")) {
+            auto ps = PathSetGenerator::Circle(cx, cy, 50.0f, 96, 0.9f, 0.2f, 0.2f, 1.0f);
+            m_plot.addPathSet(std::move(ps));
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Add Square")) {
+            auto ps = PathSetGenerator::Square(cx, cy, 80.0f, 0.2f, 0.7f, 0.9f, 1.0f);
+            m_plot.addPathSet(std::move(ps));
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Add Star")) {
+            auto ps = PathSetGenerator::Star(cx, cy, 60.0f, 30.0f, 5, 0.95f, 0.8f, 0.2f, 1.0f);
+            m_plot.addPathSet(std::move(ps));
+        }
     }
     ImGui::End();
-}
 
+    if (ImGui::Begin("Entities")) {
+        ImGui::TextWrapped("Click on entities in the viewport to select and drag them around.");
+        ImGui::Separator();
+        for (size_t i = 0; i < m_plot.model().entities.size(); ++i) {
+            ImGui::PushID(i);
+            bool selected = (m_plot.activeIndex() == i);
+            if (ImGui::Selectable(("Entity " + std::to_string(i)).c_str(), selected)) {
+                m_plot.setActiveIndex(i);
+            }
+            ImGui::PopID();
+        }
+    }
+    ImGui::End();
+
+}

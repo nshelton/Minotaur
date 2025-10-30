@@ -15,6 +15,7 @@ add_executable(minotaur
   src/screens/MainScreen.gui.cpp
   src/mvc/PlotView.cpp
   src/mvc/PlotController.cpp
+  src/mvc/PathSetGenerator.cpp
   src/render/LineRenderer.cpp
   src/render/A3PageRenderer.cpp
 )

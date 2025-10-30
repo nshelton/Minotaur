@@ -21,6 +21,16 @@ public:
         pageToNDC(page, x_mm, y_mm, x_ndc, y_ndc);
     }
 
+    // Convert window pixel coordinates to NDC
+    void pixelToNDC(float x_px, float y_px, float& x_ndc, float& y_ndc) const {
+        if (m_winW <= 0 || m_winH <= 0) { x_ndc = 0.0f; y_ndc = 0.0f; return; }
+        x_ndc = (x_px / static_cast<float>(m_winW)) * 2.0f - 1.0f;
+        y_ndc = 1.0f - (y_px / static_cast<float>(m_winH)) * 2.0f;
+    }
+
+    // Inverse mapping: NDC to page-space millimeters (letterboxed)
+    void ndcToMm(const A3Page& page, float x_ndc, float y_ndc, float& x_mm, float& y_mm) const;
+
 private:
     int m_winW{0};
     int m_winH{0};

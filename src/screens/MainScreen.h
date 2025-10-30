@@ -27,4 +27,5 @@ private:
     A3PageRenderer m_pageRenderer{};
     A3Page m_page{A3Page::Portrait()};
     PlotController m_plot{};
+    bool m_viewDragging{false};
 };
