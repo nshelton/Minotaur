@@ -45,10 +45,13 @@ bool TriangleView::init() {
 #version 330 core
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec3 aColor;
+uniform vec2 uTranslate;
+uniform float uScale;
 out vec3 vColor;
 void main() {
     vColor = aColor;
-    gl_Position = vec4(aPos, 1.0);
+    vec2 p = (aPos.xy + uTranslate) * uScale;
+    gl_Position = vec4(p, aPos.z, 1.0);
 }
 )";
 
@@ -72,6 +75,9 @@ void main() {
     glDeleteShader(vert);
     glDeleteShader(frag);
     if (m_program == 0) return false;
+
+    m_uTranslate = glGetUniformLocation(m_program, "uTranslate");
+    m_uScale = glGetUniformLocation(m_program, "uScale");
 
     float vertices[] = {
         // positions         // colors
@@ -99,6 +105,8 @@ void main() {
 
 void TriangleView::render() {
     glUseProgram(m_program);
+    if (m_uTranslate >= 0) glUniform2f(m_uTranslate, m_tx, m_ty);
+    if (m_uScale >= 0) glUniform1f(m_uScale, m_scale);
     glBindVertexArray(m_vao);
     glDrawArrays(GL_TRIANGLES, 0, 3);
     glBindVertexArray(0);
@@ -111,3 +119,8 @@ void TriangleView::shutdown() {
     m_vao = 0; m_vbo = 0; m_program = 0;
 }
 
+void TriangleView::setTransform(float tx, float ty, float scale) {
+    m_tx = tx;
+    m_ty = ty;
+    m_scale = scale;
+}

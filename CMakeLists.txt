@@ -13,6 +13,7 @@ add_executable(minotaur
   src/screens/MainScreen.cpp
   src/mvc/TriangleView.cpp
   src/mvc/TriangleController.cpp
+  src/render/LineRenderer.cpp
 )
 
 target_include_directories(minotaur PRIVATE src)

@@ -16,3 +16,6 @@ void TriangleController::shutdown() {
     m_view.shutdown();
 }
 
+void TriangleController::setTransform(float tx, float ty, float scale) {
+    m_view.setTransform(tx, ty, scale);
+}

@@ -24,6 +24,9 @@ App::App(int width, int height, const char* title)
     glfwMakeContextCurrent(m_window);
     glfwSetWindowUserPointer(m_window, this);
     glfwSetFramebufferSizeCallback(m_window, framebufferSizeCallback);
+    glfwSetMouseButtonCallback(m_window, mouseButtonCallback);
+    glfwSetCursorPosCallback(m_window, cursorPosCallback);
+    glfwSetScrollCallback(m_window, scrollCallback);
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
         std::cerr << "Failed to initialize GLAD" << std::endl;
@@ -78,3 +81,24 @@ void App::framebufferSizeCallback(GLFWwindow* window, int width, int height) {
     }
 }
 
+void App::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
+    auto* app = reinterpret_cast<App*>(glfwGetWindowUserPointer(window));
+    if (!app || !app->m_activeScreen) return;
+    double x = 0.0, y = 0.0;
+    glfwGetCursorPos(window, &x, &y);
+    app->m_activeScreen->onMouseButton(button, action, mods, x, y);
+}
+
+void App::cursorPosCallback(GLFWwindow* window, double xpos, double ypos) {
+    auto* app = reinterpret_cast<App*>(glfwGetWindowUserPointer(window));
+    if (!app || !app->m_activeScreen) return;
+    app->m_activeScreen->onCursorPos(xpos, ypos);
+}
+
+void App::scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
+    auto* app = reinterpret_cast<App*>(glfwGetWindowUserPointer(window));
+    if (!app || !app->m_activeScreen) return;
+    double x = 0.0, y = 0.0;
+    glfwGetCursorPos(window, &x, &y);
+    app->m_activeScreen->onScroll(xoffset, yoffset, x, y);
+}

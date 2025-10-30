@@ -10,5 +10,9 @@ public:
     virtual void onUpdate(double dt) = 0;
     virtual void onRender() = 0;
     virtual void onDetach() {}
-};
 
+    // Input (optional overrides)
+    virtual void onMouseButton(int /*button*/, int /*action*/, int /*mods*/, double /*x*/, double /*y*/) {}
+    virtual void onCursorPos(double /*x*/, double /*y*/) {}
+    virtual void onScroll(double /*xoffset*/, double /*yoffset*/, double /*x*/, double /*y*/) {}
+};
