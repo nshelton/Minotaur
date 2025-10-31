@@ -5,26 +5,25 @@ void PlotView::render(const PlotModel& model, LineRenderer& lines, const A3PageR
     for (const auto& ps : model.entities) {
         for (const auto& path : ps.paths) {
             if (path.points.size() < 2) continue;
-            float prevx_ndc = 0.0f, prevy_ndc = 0.0f;
+            Vec2 prev_ndc;
             bool havePrev = false;
             for (const auto& p : path.points) {
-                float ex = (p.x * ps.transform.scale) + ps.transform.tx;
-                float ey = (p.y * ps.transform.scale) + ps.transform.ty;
-                float x_ndc = 0.0f, y_ndc = 0.0f;
-                pageRenderer.mmToNDC(page, ex, ey, x_ndc, y_ndc);
+
+                Vec2 e = p * ps.transform.scale + ps.transform.pos;
+                Vec2 ndc;
+                pageRenderer.mmToNDC(page, e, ndc);
                 if (havePrev) {
-                    lines.addLine(prevx_ndc, prevy_ndc, x_ndc, y_ndc, ps.r, ps.g, ps.b, ps.a);
+                    lines.addLine(prev_ndc, ndc, ps.color);
                 } else {
                     havePrev = true;
                 }
-                prevx_ndc = x_ndc; prevy_ndc = y_ndc;
+                prev_ndc = ndc;
             }
             if (path.closed && havePrev && path.points.size() > 2) {
-                float sx = (path.points.front().x * ps.transform.scale) + ps.transform.tx;
-                float sy = (path.points.front().y * ps.transform.scale) + ps.transform.ty;
-                float sx_ndc=0, sy_ndc=0;
-                pageRenderer.mmToNDC(page, sx, sy, sx_ndc, sy_ndc);
-                lines.addLine(prevx_ndc, prevy_ndc, sx_ndc, sy_ndc, ps.r, ps.g, ps.b, ps.a);
+                Vec2 s_mm = path.points.front() * ps.transform.scale + ps.transform.pos;
+                Vec2 s_ndc;
+                pageRenderer.mmToNDC(page, s_mm, s_ndc);
+                lines.addLine(prev_ndc, s_ndc, ps.color);
             }
         }
     }
@@ -34,26 +33,26 @@ void PlotView::render(const PlotModel& model, const A3Page& page, LineRenderer& 
     for (const auto& ps : model.entities) {
         for (const auto& path : ps.paths) {
             if (path.points.size() < 2) continue;
-            float prevx_ndc = 0.0f, prevy_ndc = 0.0f;
+            Vec2 prev_ndc{0.0f, 0.0f};
             bool havePrev = false;
             for (const auto& p : path.points) {
-                float ex = (p.x * ps.transform.scale) + ps.transform.tx;
-                float ey = (p.y * ps.transform.scale) + ps.transform.ty;
-                float x_ndc = 0.0f, y_ndc = 0.0f;
-                pageRenderer.mmToNDC(page, ex, ey, x_ndc, y_ndc);
+                Vec2 e = p * ps.transform.scale + ps.transform.pos;
+                Vec2 ndc{0.0f, 0.0f};
+                pageRenderer.mmToNDC(page, e, ndc);
                 if (havePrev) {
-                    lines.addLine(prevx_ndc, prevy_ndc, x_ndc, y_ndc, ps.r, ps.g, ps.b, ps.a);
+                    lines.addLine(prev_ndc, ndc, ps.color);
                 } else {
                     havePrev = true;
                 }
-                prevx_ndc = x_ndc; prevy_ndc = y_ndc;
+                prev_ndc = ndc;
             }
             if (path.closed && havePrev && path.points.size() > 2) {
-                float sx = (path.points.front().x * ps.transform.scale) + ps.transform.tx;
-                float sy = (path.points.front().y * ps.transform.scale) + ps.transform.ty;
-                float sx_ndc=0, sy_ndc=0;
-                pageRenderer.mmToNDC(page, sx, sy, sx_ndc, sy_ndc);
-                lines.addLine(prevx_ndc, prevy_ndc, sx_ndc, sy_ndc, ps.r, ps.g, ps.b, ps.a);
+                Vec2 start = path.points.front() * ps.transform.scale + ps.transform.pos;
+                Vec2 start_ndc{0.0f, 0.0f};
+                pageRenderer.mmToNDC(page, start, start_ndc);
+                if (havePrev) {
+                    lines.addLine(prev_ndc, start_ndc, ps.color);
+                }
             }
         }
     }

@@ -6,6 +6,8 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 
+#include "core/Core.h"
+
 App::App(int width, int height, const char* title)
     : m_width(width), m_height(height) {
     if (!glfwInit()) {
@@ -116,7 +118,7 @@ void App::mouseButtonCallback(GLFWwindow* window, int button, int action, int mo
     if (io.WantCaptureMouse) return;
     double x = 0.0, y = 0.0;
     glfwGetCursorPos(window, &x, &y);
-    app->m_activeScreen->onMouseButton(button, action, mods, x, y);
+    app->m_activeScreen->onMouseButton(button, action, mods, Vec2{static_cast<float>(x), static_cast<float>(y)});
 }
 
 void App::cursorPosCallback(GLFWwindow* window, double xpos, double ypos) {
@@ -124,7 +126,7 @@ void App::cursorPosCallback(GLFWwindow* window, double xpos, double ypos) {
     if (!app || !app->m_activeScreen) return;
     ImGuiIO& io = ImGui::GetIO();
     if (io.WantCaptureMouse) return;
-    app->m_activeScreen->onCursorPos(xpos, ypos);
+    app->m_activeScreen->onCursorPos(Vec2{static_cast<float>(xpos), static_cast<float>(ypos)});
 }
 
 void App::scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
@@ -136,7 +138,7 @@ void App::scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
     if (io.WantCaptureMouse) return;
     double x = 0.0, y = 0.0;
     glfwGetCursorPos(window, &x, &y);
-    app->m_activeScreen->onScroll(xoffset, yoffset, x, y);
+    app->m_activeScreen->onScroll(xoffset, yoffset, Vec2{static_cast<float>(x), static_cast<float>(y)});
 }
 
 void App::keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {

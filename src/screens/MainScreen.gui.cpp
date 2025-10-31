@@ -27,20 +27,19 @@ void MainScreen::onGui() {
 
         ImGui::Separator();
         ImGui::Text("Add Entities");
-        float cx = m_page.width_mm * 0.5f;
-        float cy = m_page.height_mm * 0.5f;
+        Vec2 center = Vec2(m_page.width_mm, m_page.height_mm) * 0.5f;
         if (ImGui::Button("Add Circle")) {
-            auto ps = PathSetGenerator::Circle(cx, cy, 50.0f, 96, 0.9f, 0.2f, 0.2f, 1.0f);
+            auto ps = PathSetGenerator::Circle(center, 50.0f, 96, Color(0.9f, 0.2f, 0.2f, 1.0f));
             m_plot.addPathSet(std::move(ps));
         }
         ImGui::SameLine();
         if (ImGui::Button("Add Square")) {
-            auto ps = PathSetGenerator::Square(cx, cy, 80.0f, 0.2f, 0.7f, 0.9f, 1.0f);
+            auto ps = PathSetGenerator::Square(center, 80.0f, Color(0.2f, 0.7f, 0.9f, 1.0f));
             m_plot.addPathSet(std::move(ps));
         }
         ImGui::SameLine();
         if (ImGui::Button("Add Star")) {
-            auto ps = PathSetGenerator::Star(cx, cy, 60.0f, 30.0f, 5, 0.95f, 0.8f, 0.2f, 1.0f);
+            auto ps = PathSetGenerator::Star(center, 60.0f, 30.0f, 5, Color(0.95f, 0.8f, 0.2f, 1.0f));
             m_plot.addPathSet(std::move(ps));
         }
     }

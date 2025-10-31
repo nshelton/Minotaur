@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 class App;
+#include "core/core.h"
 
 class IScreen {
 public:
@@ -12,9 +13,9 @@ public:
     virtual void onDetach() {}
 
     // Input (optional overrides)
-    virtual void onMouseButton(int /*button*/, int /*action*/, int /*mods*/, double /*x*/, double /*y*/) {}
-    virtual void onCursorPos(double /*x*/, double /*y*/) {}
-    virtual void onScroll(double /*xoffset*/, double /*yoffset*/, double /*x*/, double /*y*/) {}
+    virtual void onMouseButton(int /*button*/, int /*action*/, int /*mods*/, Vec2 /*pixel_pos*/) {}
+    virtual void onCursorPos(Vec2 /*pixel_pos*/) {}
+    virtual void onScroll(double /*xoffset*/, double /*yoffset*/, Vec2 /*pixel_pos*/) {}
 
     // UI (ImGui) hook
     virtual void onGui() {}

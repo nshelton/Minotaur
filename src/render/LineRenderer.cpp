@@ -71,9 +71,9 @@ void main(){ FragColor = vColor; }
     glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
     glBufferData(GL_ARRAY_BUFFER, 0, nullptr, GL_DYNAMIC_DRAW);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLVertex), (void*)0);
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(2*sizeof(float)));
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(GLVertex), (void*)(2*sizeof(float)));
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
     return true;
@@ -89,26 +89,25 @@ void LineRenderer::shutdown() {
 
 void LineRenderer::clear() { m_vertices.clear(); }
 
-void LineRenderer::setTransform(float tx, float ty, float scale) {
-    m_tx = tx; m_ty = ty; m_scale = scale;
+void LineRenderer::setTransform(Vec2 pos, float scale) {
+    m_pos = pos; m_scale = scale;
 }
 
-void LineRenderer::addLine(float x1, float y1, float x2, float y2,
-                           float r, float g, float b, float a) {
-    m_vertices.push_back(Vertex{x1, y1, r, g, b, a});
-    m_vertices.push_back(Vertex{x2, y2, r, g, b, a});
+void LineRenderer::addLine(Vec2 p1, Vec2 p2, Color c) {
+    m_vertices.push_back(GLVertex{p1.x, p1.y, c.r, c.g, c.b, c.a});
+    m_vertices.push_back(GLVertex{p2.x, p2.y, c.r, c.g, c.b, c.a});
 }
 
 void LineRenderer::draw() {
     if (m_vertices.empty()) return;
 
     glUseProgram(m_program);
-    if (m_uTranslate >= 0) glUniform2f(m_uTranslate, m_tx, m_ty);
+    if (m_uTranslate >= 0) glUniform2f(m_uTranslate, m_pos.x, m_pos.y);
     if (m_uScale >= 0) glUniform1f(m_uScale, m_scale);
 
     glBindVertexArray(m_vao);
     glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
-    glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(m_vertices.size()*sizeof(Vertex)), m_vertices.data(), GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(m_vertices.size()*sizeof(GLVertex)), m_vertices.data(), GL_DYNAMIC_DRAW);
 
     if (m_lineWidth > 0.0f) glLineWidth(m_lineWidth);
     glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(m_vertices.size()));

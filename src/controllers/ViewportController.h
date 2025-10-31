@@ -11,32 +11,31 @@ public:
         glViewport(0, 0, width, height);
     }
     void reset() {
-        m_offsetX = 0.0f;
-        m_offsetY = 0.0f;
+        m_offset = Vec2(0.0f, 0.0f);
         m_zoom = 1.0f;
         m_dragging = false;
     }
 
     // Dragging
-    void beginDrag(double x, double y) {
+    void beginDrag(Vec2 pos) {
         m_dragging = true;
-        m_lastX = x; m_lastY = y;
+        m_last = pos;
     }
     void endDrag() { m_dragging = false; }
-    void onCursor(double x, double y) {
+    void onCursor(Vec2 pos) {
         if (!m_dragging || m_width == 0 || m_height == 0) return;
-        double dx = x - m_lastX;
-        double dy = y - m_lastY;
-        m_lastX = x; m_lastY = y;
-        float ndcDx = static_cast<float>(2.0 * dx / m_width);
-        float ndcDy = static_cast<float>(-2.0 * dy / m_height);
+        
+        Vec2 d = pos - m_last;
+        m_last = pos;
+
+        float ndcDx = static_cast<float>(2.0 * d.x / m_width);
+        float ndcDy = static_cast<float>(-2.0 * d.y / m_height);
         // Adjust by inverse zoom so drag feels consistent at all scales
-        m_offsetX += ndcDx / m_zoom;
-        m_offsetY += ndcDy / m_zoom;
+        m_offset = m_offset + Vec2(ndcDx / m_zoom, ndcDy / m_zoom);
     }
 
     // Mouse wheel zoom at cursor position
-    void onScroll(double xoffset, double yoffset, double x, double y) {
+    void onScroll(double xoffset, double yoffset, Vec2 pos) {
         (void)xoffset; // not used for now
         if (m_width == 0 || m_height == 0) return;
 
@@ -46,15 +45,15 @@ public:
         if (m_zoom == oldZoom) return;
 
         // Keep the point under the cursor fixed in NDC
-        float cx = static_cast<float>(2.0 * x / m_width - 1.0);
-        float cy = static_cast<float>(1.0 - 2.0 * y / m_height);
-        m_offsetX = m_offsetX + cx * (1.0f / m_zoom - 1.0f / oldZoom);
-        m_offsetY = m_offsetY + cy * (1.0f / m_zoom - 1.0f / oldZoom);
+        Vec2 c(static_cast<float>(2.0 * pos.x / m_width - 1.0),
+               static_cast<float>(1.0 - 2.0 * pos.y / m_height));
+
+        m_offset = m_offset + c * (1.0f / m_zoom - 1.0f / oldZoom);
     }
 
     // Current transform in NDC space: (p + offset) * zoom
-    float translateX() const { return m_offsetX; }
-    float translateY() const { return m_offsetY; }
+    float translateX() const { return m_offset.x; }
+    float translateY() const { return m_offset.y; }
     float scale() const { return m_zoom; }
 
     int width() const { return m_width; }
@@ -67,10 +66,8 @@ private:
     int m_height{0};
 
     bool m_dragging{false};
-    double m_lastX{0.0}, m_lastY{0.0};
-
-    float m_offsetX{0.0f};
-    float m_offsetY{0.0f};
+    Vec2 m_last;
+    Vec2 m_offset;
     float m_zoom{1.0f};
     float m_minZoom{0.1f};
     float m_maxZoom{10.0f};
