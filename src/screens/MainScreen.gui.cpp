@@ -5,8 +5,12 @@
 void MainScreen::onGui() {
     if (ImGui::Begin("Controls")) {
         ImGui::Text("Viewport");
-        float zoom = m_viewport.scale();
+        float zoom = m_viewport.Transform().scale;
         ImGui::Text("Zoom: %.2f", zoom);
+        ImGui::Text("mousePixelX: %.2f", m_plot.model().mousePos.x);
+        ImGui::Text("mousePixelY: %.2f", m_plot.model().mousePos.y);
+        ImGui::Text("mouseMmX: %.2f", m_plot.model().mouseMm.x);
+        ImGui::Text("mouseMmY: %.2f", m_plot.model().mouseMm.y);
         if (ImGui::Button("Reset View")) m_viewport.reset();
         ImGui::Separator();
 

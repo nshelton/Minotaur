@@ -32,12 +32,11 @@ void PlotController::shutdown()
     m_view.shutdown();
 }
 
-void PlotController::setTransform(Vec2 pos, float scale)
+void PlotController::setTransform(const Transform2D &t)
 {
     if (m_lines)
-        m_lines->setTransform(pos, scale);
-    m_viewportPos = pos;
-    m_vscale = scale;
+        m_lines->setTransform(t);
+    m_transform = t;
 }
 
 void PlotController::bindRenderers(LineRenderer *lines, A3PageRenderer *pageRenderer)
@@ -60,18 +59,22 @@ int PlotController::hitTestEntityAABB(const A3Page &page, Vec2 pixel) const
 {
     if (!m_pageRenderer)
         return -1;
-    Vec2 ndc{0.0f, 0.0f};
+
+    Vec2 ndc(0.0f, 0.0f);
     m_pageRenderer->pixelToNDC(pixel, ndc);
     // Undo viewport transform to get pre-viewport NDC
-    Vec2 pre_ndc = ndc - m_viewportPos / (m_vscale != 0.0f ? m_vscale : 1.0f);
+    Vec2 pre_ndc = m_transform * ndc;
     Vec2 mm;
+
     m_pageRenderer->ndcToMm(page, pre_ndc, mm);
+
     for (int i = static_cast<int>(m_model.entities.size()) - 1; i >= 0; --i)
     {
-        const PathSet &ps = m_model.entities[static_cast<size_t>(i)];
-        Vec2 pathMin, mathMax;
-        computeEntityAABBmm(ps, pathMin, mathMax);
-        if (mm.x >= pathMin.x && mm.x <= mathMax.x && mm.y >= pathMin.y && mm.y <= mathMax.y)
+        const PathSet &cps = m_model.entities[static_cast<size_t>(i)];
+        PathSet &ps = const_cast<PathSet&>(cps);
+
+        ps.computeAABB();
+        if (ps.aabb.contains(mm))
         {
             return i;
         }
@@ -79,35 +82,7 @@ int PlotController::hitTestEntityAABB(const A3Page &page, Vec2 pixel) const
     return -1;
 }
 
-void PlotController::computeEntityAABBmm(const PathSet &ps, Vec2 &min_p, Vec2 &max_p) const
-{
-    const float INF = 1.0e30f;
-    min_p = Vec2{INF, INF};
-    max_p = Vec2{-INF, -INF};
-    for (const auto &path : ps.paths)
-    {
-        for (const auto &p : path.points)
-        {
-            Vec2 e = p * ps.transform.scale + ps.transform.pos;
-            if (e.x < min_p.x)
-                min_p.x = e.x;
-
-            if (e.y < min_p.y)
-                min_p.y = e.y;
-
-            if (e.x > max_p.x)
-                max_p.x = e.x;
-    
-            if (e.y > max_p.y)
-                max_p.y = e.y;
-        }
-    }
-    if (!(min_p.x <= max_p.x && min_p.y <= max_p.y))
-    {
-        min_p = max_p = Vec2{0.0f, 0.0f};
-    }
-}
-
+// compute bounding box of pathset
 bool PlotController::onMouseButton(const A3Page &page, int button, int action, int /*mods*/, Vec2 px)
 {
     if (!m_pageRenderer)
@@ -127,7 +102,7 @@ bool PlotController::onMouseButton(const A3Page &page, int button, int action, i
             Vec2 ndc{0, 0};
             m_pageRenderer->pixelToNDC(px, ndc);
 
-            Vec2 pre_ndc = (ndc - m_viewportPos) / (m_vscale != 0.0f ? m_vscale : 1.0f);
+             Vec2 pre_ndc = m_transform / ndc;
             m_pageRenderer->ndcToMm(page, pre_ndc, m_dragStart_mm);
 
             const PathSet &ps = m_model.entities[static_cast<size_t>(m_activeIndex)];
@@ -150,13 +125,20 @@ bool PlotController::onMouseButton(const A3Page &page, int button, int action, i
 
 bool PlotController::onCursorPos(const A3Page &page, Vec2 px)
 {
+    m_model.mousePos = px;
+    Vec2 ndc;
+    m_pageRenderer->pixelToNDC(px, ndc);
+    Vec2 mm;
+    m_pageRenderer->ndcToMm(page, ndc, m_model.mouseMm);
+
     if (!m_pageRenderer)
         return false;
+
     if (m_dragging && m_activeIndex >= 0 && m_activeIndex < static_cast<int>(m_model.entities.size()))
     {
         Vec2 ndc;
         m_pageRenderer->pixelToNDC(px, ndc);
-        Vec2 pre_ndc = (ndc - m_viewportPos) / (m_vscale != 0.0f ? m_vscale : 1.0f);
+        Vec2 pre_ndc = m_transform / ndc;
         Vec2 mm;
         m_pageRenderer->ndcToMm(page, pre_ndc, mm);
         Vec2 delta = mm - m_dragStart_mm;
@@ -173,16 +155,14 @@ void PlotController::renderOverlays(const A3Page &page)
 {
     if (!m_lines || !m_pageRenderer)
         return;
+
     auto drawAABB = [&](const PathSet &ps, Color col)
     {
-        Vec2 path_min{0,0};
-        Vec2 path_max{0,0};
-        computeEntityAABBmm(ps, path_min, path_max);
         Vec2 a0, a1, b0, b1;
-        m_pageRenderer->mmToNDC(page, path_min, a0);
-        m_pageRenderer->mmToNDC(page, Vec2{path_max.x, path_min.y}, a1);
-        m_pageRenderer->mmToNDC(page, Vec2{path_min.x, path_max.y}, b0);
-        m_pageRenderer->mmToNDC(page, path_max, b1);
+        m_pageRenderer->mmToNDC(page, ps.aabb.min, a0);
+        m_pageRenderer->mmToNDC(page, Vec2{ps.aabb.max.x, ps.aabb.min.y}, a1);
+        m_pageRenderer->mmToNDC(page, Vec2{ps.aabb.min.x, ps.aabb.max.y}, b0);
+        m_pageRenderer->mmToNDC(page, ps.aabb.max, b1);
 
         m_lines->addLine(a0, a1, col);
         m_lines->addLine(b0, b1, col);
@@ -207,23 +187,26 @@ void PlotController::renderOverlays(const A3Page &page)
             m_pageRenderer->mmToNDC(page, h1, h1_mm);
             m_pageRenderer->mmToNDC(page, h2, h2_mm);
             m_pageRenderer->mmToNDC(page, h3, h3_mm);
+
             m_lines->addLine(h0_mm, h1_mm, col);
             m_lines->addLine(h1_mm, h2_mm, col);
             m_lines->addLine(h2_mm, h3_mm, col);
             m_lines->addLine(h3_mm, h0_mm, col);
         };
-        drawHandle(Vec2{path_min.x, path_min.y});
-        drawHandle(Vec2{path_max.x, path_min.y});
-        drawHandle(Vec2{path_max.x, path_max.y});
-        drawHandle(Vec2{path_min.x, path_max.y});
+        drawHandle(Vec2{ps.aabb.min.x, ps.aabb.min.y});
+        drawHandle(Vec2{ps.aabb.max.x, ps.aabb.min.y});
+        drawHandle(Vec2{ps.aabb.max.x, ps.aabb.max.y});
+        drawHandle(Vec2{ps.aabb.min.x, ps.aabb.max.y});
     };
 
     if (m_activeIndex >= 0 && m_activeIndex < static_cast<int>(m_model.entities.size()))
     {
+        m_model.entities[static_cast<size_t>(m_activeIndex)].computeAABB();
         drawAABB(m_model.entities[static_cast<size_t>(m_activeIndex)], Color(0.95f, 0.95f, 0.15f, 1.0f));
     }
     else if (m_hoverIndex >= 0 && m_hoverIndex < static_cast<int>(m_model.entities.size()))
     {
+        m_model.entities[static_cast<size_t>(m_hoverIndex)].computeAABB();
         drawAABB(m_model.entities[static_cast<size_t>(m_hoverIndex)], Color(0.2f, 0.7f, 0.9f, 1.0f));
     }
 }

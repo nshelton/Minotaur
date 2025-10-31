@@ -13,7 +13,7 @@ public:
     // Render with access to current page for mm->NDC mapping
     void render(const A3Page& page);
     void shutdown();
-    void setTransform(Vec2 pos, float scale);
+    void setTransform(const Transform2D &t);
 
     // Bind external renderers used by the view
     void bindRenderers(LineRenderer* lines, A3PageRenderer* pageRenderer);
@@ -41,19 +41,18 @@ private:
     PlotView m_view{};
     LineRenderer* m_lines{nullptr};
     A3PageRenderer* m_pageRenderer{nullptr};
-    // Current viewport transform (same as set on LineRenderer)
-    Vec2 m_viewportPos{0.0f, 0.0f};
-    float m_vscale{1.0f};
+    
+    // transform goes from screen NDC to pre-viewport NDC (what?)
+    Transform2D m_transform;
 
     // Interaction state
     int m_hoverIndex{-1};
     int m_activeIndex{-1};
     bool m_dragging{false};
-    Vec2 m_dragStart_mm{0.0f, 0.0f};
-    Vec2 m_entityStartPos_mm{0.0f, 0.0f};
+    Vec2 m_dragStart_mm;
+    Vec2 m_entityStartPos_mm;
     float m_entityStartScale{1.0f};
 
     // Helpers
     int hitTestEntityAABB(const A3Page& page, Vec2 px) const;
-    void computeEntityAABBmm(const PathSet& ps, Vec2& min_p, Vec2& max_p) const;
 };

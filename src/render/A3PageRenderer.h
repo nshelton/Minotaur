@@ -21,10 +21,10 @@ public:
     }
 
     // Convert window pixel coordinates to NDC
-    void pixelToNDC(Vec2 p_px, Vec2& ndc) const {
+    void pixelToNDC(Vec2 px, Vec2& ndc) const {
         if (m_winW <= 0 || m_winH <= 0) { ndc = Vec2{0.0f, 0.0f}; return; }
-        ndc.x = (p_px.x / static_cast<float>(m_winW)) * 2.0f - 1.0f;
-        ndc.y = 1.0f - (p_px.y / static_cast<float>(m_winH)) * 2.0f;
+        ndc.x = (px.x / static_cast<float>(m_winW)) * 2.0f - 1.0f;
+        ndc.y = 1.0f - (px.y / static_cast<float>(m_winH)) * 2.0f;
     }
 
     // Inverse mapping: NDC to page-space millimeters (letterboxed)

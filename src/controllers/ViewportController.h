@@ -11,8 +11,7 @@ public:
         glViewport(0, 0, width, height);
     }
     void reset() {
-        m_offset = Vec2(0.0f, 0.0f);
-        m_zoom = 1.0f;
+        m_viewTransform = Transform2D();
         m_dragging = false;
     }
 
@@ -28,10 +27,9 @@ public:
         Vec2 d = pos - m_last;
         m_last = pos;
 
-        float ndcDx = static_cast<float>(2.0 * d.x / m_width);
-        float ndcDy = static_cast<float>(-2.0 * d.y / m_height);
-        // Adjust by inverse zoom so drag feels consistent at all scales
-        m_offset = m_offset + Vec2(ndcDx / m_zoom, ndcDy / m_zoom);
+        Vec2 ndcd = Vec2(2, -2) * d / Vec2(m_width, m_height);
+
+        m_viewTransform.pos += ndcd / m_viewTransform.scale;
     }
 
     // Mouse wheel zoom at cursor position
@@ -39,22 +37,23 @@ public:
         (void)xoffset; // not used for now
         if (m_width == 0 || m_height == 0) return;
 
-        float oldZoom = m_zoom;
+        float oldZoom = m_viewTransform.scale;
         float factor = std::pow(1.1f, static_cast<float>(yoffset));
-        m_zoom = clamp(oldZoom * factor, m_minZoom, m_maxZoom);
-        if (m_zoom == oldZoom) return;
+        m_viewTransform.scale = clamp(oldZoom * factor, m_minZoom, m_maxZoom);
+        if (m_viewTransform.scale == oldZoom) return;
 
         // Keep the point under the cursor fixed in NDC
         Vec2 c(static_cast<float>(2.0 * pos.x / m_width - 1.0),
                static_cast<float>(1.0 - 2.0 * pos.y / m_height));
 
-        m_offset = m_offset + c * (1.0f / m_zoom - 1.0f / oldZoom);
+        m_viewTransform.pos +=  c * (1.0f / m_viewTransform.scale - 1.0f / oldZoom);
     }
 
     // Current transform in NDC space: (p + offset) * zoom
-    float translateX() const { return m_offset.x; }
-    float translateY() const { return m_offset.y; }
-    float scale() const { return m_zoom; }
+    // float translateX() const { return m_viewTransform.pos.x; }
+    // float translateY() const { return m_viewTransform.pos.y; }
+    // float scale() const { return m_viewTransform.scale; }
+    Transform2D Transform() const { return m_viewTransform; }
 
     int width() const { return m_width; }
     int height() const { return m_height; }
@@ -67,8 +66,8 @@ private:
 
     bool m_dragging{false};
     Vec2 m_last;
-    Vec2 m_offset;
-    float m_zoom{1.0f};
+    Transform2D m_viewTransform;
+ 
     float m_minZoom{0.1f};
     float m_maxZoom{10.0f};
 };

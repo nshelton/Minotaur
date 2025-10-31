@@ -22,7 +22,7 @@ void MainScreen::onUpdate(double /*dt*/) {}
 void MainScreen::onRender() {
     // A3 page grid + outline using line renderer with aspect-correct mapping
     m_lines.clear();
-    m_plot.setTransform( Vec2(m_viewport.translateX(), m_viewport.translateY()),  m_viewport.scale());
+    m_plot.setTransform(m_viewport.Transform());
     // 1 cm grid (10 mm)
     m_pageRenderer.addGrid(m_page, m_lines, 10.0f, Color(0.35f, 0.35f, 0.4f, 0.35f));
     m_pageRenderer.addOutline(m_page, m_lines, Color(1.0f, 1.0f, 1.0f, 1.0f));
