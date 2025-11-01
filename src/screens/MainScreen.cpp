@@ -12,8 +12,6 @@ void MainScreen::onAttach(App &app)
             50.0f,
             96,
             Color(0.2f, 0.8f, 0.3f, 1.0f)));
-
-    m_renderer.init();
 }
 
 void MainScreen::onResize(int width, int height)
@@ -31,7 +29,7 @@ void MainScreen::onRender()
 
 void MainScreen::onDetach()
 {
-    // m_renderer.shutdown();
+    m_renderer.shutdown();
 }
 
 void MainScreen::onMouseButton(int button, int action, int /*mods*/, Vec2 px)

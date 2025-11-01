@@ -2,10 +2,16 @@
 
 #include <algorithm>
 
+
+Renderer::Renderer()
+{
+    m_lines.init();
+}
+
 void Renderer::render(const Camera &camera, const PageModel &page, const InteractionState &uiState)
 {
    // draw page extent and grid
-   renderPage(camera, page, Color(0.8f, 0.8f, 0.8f, 1.0f));
+   renderPage(camera, page, Color(0.8f, 1.0f, 0.8f, 1.0f));
 
    for (const auto &ps : page.entities)
    {
@@ -24,15 +30,20 @@ void Renderer::render(const Camera &camera, const PageModel &page, const Interac
    m_lines.draw(camera.Transform());
 }
 
+void Renderer::shutdown()
+{
+    m_lines.shutdown();
+}
+
 void Renderer::renderPage(const Camera &camera, const PageModel &page, const Color &col)
 {
-   Vec2 p_min = Vec2(0, 0);
-   Vec2 p_max = Vec2(page.page_width_mm, page.page_height_mm);
-
-   Vec2 a0, a1, b0, b1;
+   Vec2 a0 = Vec2(0, 0);
+   Vec2 a1 = Vec2(page.page_width_mm, 0.0f);
+   Vec2 a2 = Vec2(page.page_width_mm, page.page_height_mm);
+   Vec2 a3 = Vec2(0.0f, page.page_height_mm);
 
    m_lines.addLine(a0, a1, col);
-   m_lines.addLine(a1, b0, col);
-   m_lines.addLine(b0, b1, col);
-   m_lines.addLine(b1, a0, col);
+   m_lines.addLine(a1, a2, col);
+   m_lines.addLine(a2, a3, col);
+   m_lines.addLine(a3, a0, col);
 }

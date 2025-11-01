@@ -2,7 +2,7 @@
   "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
   "cmake.configureOnOpen": true,
   "cmake.configurePreset": "msvc-vcpkg",
-  "cmake.buildPreset": "release",
+  "cmake.buildPreset": "debug",
   "cmake.configureEnvironment": { "VCPKG_ROOT": "D:/vcpkg" },
   "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
   "C_Cpp.default.includePath": [

@@ -10,8 +10,8 @@ void Camera::setSize(int width, int height)
 
     m_viewTransform = Transform2D();
     m_dragging = false;
-    m_viewTransform.pos = Vec2{-1.0f, 1.0f};
-    m_viewTransform.scale = 2.0f / std::max(width, height);
+    m_viewTransform.pos = Vec2{0,0};
+    m_viewTransform.scale = 1.0f / 500.0f;
 }
 
 void Camera::reset() {
@@ -28,7 +28,7 @@ void Camera::endDrag() { m_dragging = false; }
 
 void Camera::onCursor(Vec2 pos) {
     if (!m_dragging || m_width == 0 || m_height == 0) return;
-    
+
     Vec2 d = pos - m_last;
     m_last = pos;
 

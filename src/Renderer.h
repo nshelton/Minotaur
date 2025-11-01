@@ -9,7 +9,7 @@
 class Renderer
 {
 public:
-    void init() { m_lines.init(); }
+    Renderer();
 
     void render(const Camera &camera, const PageModel &page, const InteractionState &uiState);
 
@@ -20,6 +20,8 @@ public:
         m_winW = width;
         m_winH = height;
     }
+
+    void shutdown();
 
 private:
     LineRenderer m_lines{};
