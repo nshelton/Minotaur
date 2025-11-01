@@ -24,7 +24,9 @@ public:
     // Lightweight accessors for UI helpers
     const PlotModel& model() const { return m_model; }
     int activeIndex() const { return m_activeIndex; }
-    void setActiveIndex(int idx) { m_activeIndex = (idx >= 0 && idx < (int)m_model.entities.size()) ? idx : -1; }
+    void setActiveIndex(int idx) { 
+        m_activeIndex = (idx >= 0 && idx < (int)m_model.entities.size()) ? idx : -1; 
+    }
 
     // Input handling for hover/drag of entities
     // Returns true if the event is consumed by entity interaction

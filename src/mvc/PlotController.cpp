@@ -34,8 +34,6 @@ void PlotController::shutdown()
 
 void PlotController::setTransform(const Transform2D &t)
 {
-    if (m_lines)
-        m_lines->setTransform(t);
     m_transform = t;
 }
 
@@ -125,12 +123,6 @@ bool PlotController::onMouseButton(const A3Page &page, int button, int action, i
 
 bool PlotController::onCursorPos(const A3Page &page, Vec2 px)
 {
-    m_model.mousePos = px;
-    Vec2 ndc;
-    m_pageRenderer->pixelToNDC(px, ndc);
-    Vec2 mm;
-    m_pageRenderer->ndcToMm(page, ndc, m_model.mouseMm);
-
     if (!m_pageRenderer)
         return false;
 
@@ -142,10 +134,12 @@ bool PlotController::onCursorPos(const A3Page &page, Vec2 px)
         Vec2 mm;
         m_pageRenderer->ndcToMm(page, pre_ndc, mm);
         Vec2 delta = mm - m_dragStart_mm;
+
         PathSet &ps = m_model.entities[static_cast<size_t>(m_activeIndex)];
         ps.transform.pos = m_entityStartPos_mm + delta;
         return true;
     }
+
     int hit = hitTestEntityAABB(page, px);
     m_hoverIndex = hit;
     return (hit >= 0);

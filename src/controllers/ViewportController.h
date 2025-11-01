@@ -10,6 +10,7 @@ public:
         m_height = height;
         glViewport(0, 0, width, height);
     }
+
     void reset() {
         m_viewTransform = Transform2D();
         m_dragging = false;
@@ -49,10 +50,7 @@ public:
         m_viewTransform.pos +=  c * (1.0f / m_viewTransform.scale - 1.0f / oldZoom);
     }
 
-    // Current transform in NDC space: (p + offset) * zoom
-    // float translateX() const { return m_viewTransform.pos.x; }
-    // float translateY() const { return m_viewTransform.pos.y; }
-    // float scale() const { return m_viewTransform.scale; }
+    // Current transform from mm to NDC
     Transform2D Transform() const { return m_viewTransform; }
 
     int width() const { return m_width; }
@@ -66,6 +64,8 @@ private:
 
     bool m_dragging{false};
     Vec2 m_last;
+
+    // page to ndc transform
     Transform2D m_viewTransform;
  
     float m_minZoom{0.1f};

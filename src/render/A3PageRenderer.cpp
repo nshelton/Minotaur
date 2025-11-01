@@ -74,9 +74,9 @@ void A3PageRenderer::addGrid(const A3Page& page, LineRenderer& lines, float step
 }
 
 /// @brief  Convert NDC to page-space millimeters (inverse of pageToNDC)
-/// @param page 
-/// @param ndc 
-/// @param mm 
+/// @param page
+/// @param ndc
+/// @param mm
 void A3PageRenderer::ndcToMm(const A3Page& page, Vec2 ndc, Vec2& mm) const {
     if (m_winW <= 0 || m_winH <= 0) {mm = Vec2(0,0); return; }
 

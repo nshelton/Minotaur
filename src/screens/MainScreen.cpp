@@ -22,7 +22,6 @@ void MainScreen::onUpdate(double /*dt*/) {}
 void MainScreen::onRender() {
     // A3 page grid + outline using line renderer with aspect-correct mapping
     m_lines.clear();
-    m_plot.setTransform(m_viewport.Transform());
     // 1 cm grid (10 mm)
     m_pageRenderer.addGrid(m_page, m_lines, 10.0f, Color(0.35f, 0.35f, 0.4f, 0.35f));
     m_pageRenderer.addOutline(m_page, m_lines, Color(1.0f, 1.0f, 1.0f, 1.0f));
@@ -30,7 +29,7 @@ void MainScreen::onRender() {
     m_plot.render(m_page);
     // Overlays: selection bounds and handles
     m_plot.renderOverlays(m_page);
-    m_lines.draw();
+    m_lines.draw(m_viewport.Transform());
 }
 
 void MainScreen::onDetach() {
@@ -56,6 +55,15 @@ void MainScreen::onMouseButton(int button, int action, int /*mods*/, Vec2 px) {
 }
 
 void MainScreen::onCursorPos(Vec2 px) {
+    m_plot.model().mouse_pixel = px;
+    Vec2 ndc;
+    m_pageRenderer.pixelToNDC(px, ndc);
+    Vec2 mm;
+    m_pageRenderer.ndcToMm(m_page, ndc, mm);
+    m_plot.model().mouse_page_mm = m_viewport.Transform() * mm;
+
+    Vec2 mouse_pos_mm = this->m_plot.model().mouse_page_mm;
+
     if (!m_plot.onCursorPos(m_page, px)) {
         m_viewport.onCursor(px);
     }

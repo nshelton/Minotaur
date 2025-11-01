@@ -117,31 +117,26 @@ void LineRenderer::shutdown()
 
 void LineRenderer::clear() { m_vertices.clear(); }
 
-void LineRenderer::setTransform(Transform2D t)
-{
-    m_transform = t;
-}
-
 void LineRenderer::addLine(Vec2 p1, Vec2 p2, Color c)
 {
     m_vertices.push_back(GLVertex{p1.x, p1.y, c.r, c.g, c.b, c.a});
     m_vertices.push_back(GLVertex{p2.x, p2.y, c.r, c.g, c.b, c.a});
 }
 
-void LineRenderer::draw()
+void LineRenderer::draw( const Transform2D &page_to_NDC)
 {
     if (m_vertices.empty())
         return;
 
     glUseProgram(m_program);
-    if (m_uTranslate >= 0)
-        glUniform2f(m_uTranslate, m_transform.pos.x, m_transform.pos.y);
-    if (m_uScale >= 0)
-        glUniform1f(m_uScale, m_transform.scale);
+    glUniform2f(m_uTranslate, page_to_NDC.pos.x, page_to_NDC.pos.y);
+    glUniform1f(m_uScale, page_to_NDC.scale);
 
     glBindVertexArray(m_vao);
     glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
-    glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(m_vertices.size() * sizeof(GLVertex)), m_vertices.data(), GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER,
+        static_cast<GLsizeiptr>(m_vertices.size() * sizeof(GLVertex)),
+        m_vertices.data(), GL_DYNAMIC_DRAW);
 
     if (m_lineWidth > 0.0f)
         glLineWidth(m_lineWidth);
