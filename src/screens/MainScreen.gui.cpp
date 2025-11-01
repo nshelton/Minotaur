@@ -1,50 +1,42 @@
 #include "MainScreen.h"
-#include "mvc/PathSetGenerator.h"
+#include "utils/PathSetGenerator.h"
 #include <string>
 
 void MainScreen::onGui() {
     if (ImGui::Begin("Controls")) {
         ImGui::Text("Viewport");
-        float zoom = m_viewport.Transform().scale;
+        float zoom = m_camera.Transform().scale;
         ImGui::Text("Zoom: %.2f", zoom);
-        ImGui::Text("mousePixelX: %.2f", m_plot.model().mouse_pixel.x);
-        ImGui::Text("mousePixelY: %.2f", m_plot.model().mouse_pixel.y);
-        ImGui::Text("mouseMmX: %.2f", m_plot.model().mouse_page_mm.x);
-        ImGui::Text("mouse_mmY: %.2f", m_plot.model().mouse_page_mm.y);
-        if (ImGui::Button("Reset View")) m_viewport.reset();
+        ImGui::Text("mousePixelX: %.2f", m_page.mouse_pixel.x);
+        ImGui::Text("mousePixelY: %.2f", m_page.mouse_pixel.y);
+        ImGui::Text("mouseMmX: %.2f", m_page.mouse_page_mm.x);
+        ImGui::Text("mouse_mmY: %.2f", m_page.mouse_page_mm.y);
+        if (ImGui::Button("Reset View")) m_camera.reset();
         ImGui::Separator();
 
         ImGui::Text("A3 Page");
-        static int orient = 0; // 0 portrait, 1 landscape
-        if (m_page.width_mm > m_page.height_mm) orient = 1; else orient = 0;
-        int prev = orient;
-        ImGui::RadioButton("Portrait", &orient, 0); ImGui::SameLine();
-        ImGui::RadioButton("Landscape", &orient, 1);
-        if (orient != prev) {
-            m_page = (orient == 0) ? A3Page::Portrait() : A3Page::Landscape();
-        }
 
         static float lineW = 1.5f;
         if (ImGui::SliderFloat("Outline Width", &lineW, 0.5f, 5.0f, "%.1f")) {
-            m_lines.setLineWidth(lineW);
+            m_renderer.setLineWidth(lineW);
         }
 
         ImGui::Separator();
         ImGui::Text("Add Entities");
-        Vec2 center = Vec2(m_page.width_mm, m_page.height_mm) * 0.5f;
+        Vec2 center = Vec2(m_page.page_width_mm, m_page.page_height_mm) * 0.5f;
         if (ImGui::Button("Add Circle")) {
             auto ps = PathSetGenerator::Circle(center, 50.0f, 96, Color(0.9f, 0.2f, 0.2f, 1.0f));
-            m_plot.addPathSet(std::move(ps));
+            m_page.addPathSet(std::move(ps));
         }
         ImGui::SameLine();
         if (ImGui::Button("Add Square")) {
             auto ps = PathSetGenerator::Square(center, 80.0f, Color(0.2f, 0.7f, 0.9f, 1.0f));
-            m_plot.addPathSet(std::move(ps));
+            m_page.addPathSet(std::move(ps));
         }
         ImGui::SameLine();
         if (ImGui::Button("Add Star")) {
             auto ps = PathSetGenerator::Star(center, 60.0f, 30.0f, 5, Color(0.95f, 0.8f, 0.2f, 1.0f));
-            m_plot.addPathSet(std::move(ps));
+            m_page.addPathSet(std::move(ps));
         }
     }
     ImGui::End();
@@ -52,11 +44,11 @@ void MainScreen::onGui() {
     if (ImGui::Begin("Entities")) {
         ImGui::TextWrapped("Click on entities in the viewport to select and drag them around.");
         ImGui::Separator();
-        for (size_t i = 0; i < m_plot.model().entities.size(); ++i) {
+        for (size_t i = 0; i < m_page.entities.size(); ++i) {
             ImGui::PushID(i);
-            bool selected = (m_plot.activeIndex() == i);
+            bool selected = (m_interaction.state().activeId.has_value() && m_interaction.state().activeId.value() == i);
             if (ImGui::Selectable(("Entity " + std::to_string(i)).c_str(), selected)) {
-                m_plot.setActiveIndex(i);
+                m_interaction.SelectEntity(static_cast<int>(i));
             }
             ImGui::PopID();
         }

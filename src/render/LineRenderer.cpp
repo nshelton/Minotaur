@@ -117,20 +117,27 @@ void LineRenderer::shutdown()
 
 void LineRenderer::clear() { m_vertices.clear(); }
 
+/// @brief Add a line to the render list in mm page space
+/// @param p1 point in mm page space
+/// @param p2 point in mm page space
+/// @param c color
 void LineRenderer::addLine(Vec2 p1, Vec2 p2, Color c)
 {
     m_vertices.push_back(GLVertex{p1.x, p1.y, c.r, c.g, c.b, c.a});
     m_vertices.push_back(GLVertex{p2.x, p2.y, c.r, c.g, c.b, c.a});
 }
 
-void LineRenderer::draw( const Transform2D &page_to_NDC)
+/// @brief Draw the lines in the specified coordinate space. Lines are stored in mm page space,
+/// this controls how to render it to the screen.
+/// @param mm_to_ndc
+void LineRenderer::draw( const Transform2D &mm_to_ndc)
 {
     if (m_vertices.empty())
         return;
 
     glUseProgram(m_program);
-    glUniform2f(m_uTranslate, page_to_NDC.pos.x, page_to_NDC.pos.y);
-    glUniform1f(m_uScale, page_to_NDC.scale);
+    glUniform2f(m_uTranslate, mm_to_ndc.pos.x, mm_to_ndc.pos.y);
+    glUniform1f(m_uScale, mm_to_ndc.scale);
 
     glBindVertexArray(m_vao);
     glBindBuffer(GL_ARRAY_BUFFER, m_vbo);

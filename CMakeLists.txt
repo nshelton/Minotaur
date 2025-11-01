@@ -13,11 +13,15 @@ add_executable(minotaur
   src/app/App.cpp
   src/screens/MainScreen.cpp
   src/screens/MainScreen.gui.cpp
-  src/mvc/PlotView.cpp
-  src/mvc/PlotController.cpp
-  src/mvc/PathSetGenerator.cpp
+
+  src/Interaction.cpp
+  src/Renderer.cpp
+  src/Camera.cpp
+  src/Page.cpp
+
   src/render/LineRenderer.cpp
-  src/render/A3PageRenderer.cpp
+  src/utils/PathSetGenerator.cpp
+
 )
 
 target_include_directories(minotaur PRIVATE src)

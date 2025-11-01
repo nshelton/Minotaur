@@ -1,6 +1,5 @@
 #pragma once
-
-#include "Model.h"
+#include "core/core.h"
 
 namespace PathSetGenerator {
 

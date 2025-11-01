@@ -2,15 +2,13 @@
 
 #include "app/Screen.h"
 #include <imgui.h>
-#include "controllers/ViewportController.h"
-#include "render/LineRenderer.h"
-#include "render/A3PageRenderer.h"
-#include "models/A3Page.h"
-#include "mvc/PlotController.h"
+#include "Camera.h"
+#include "Renderer.h"
 
-class MainScreen : public IScreen {
+class MainScreen : public IScreen
+{
 public:
-    void onAttach(App& app) override;
+    void onAttach(App &app) override;
     void onResize(int width, int height) override;
     void onUpdate(double dt) override;
     void onRender() override;
@@ -21,11 +19,9 @@ public:
     void onGui() override;
 
 private:
-    App* m_app{nullptr};
-    ViewportController m_viewport{};
-    LineRenderer m_lines{};
-    A3PageRenderer m_pageRenderer{};
-    A3Page m_page{A3Page::Portrait()};
-    PlotController m_plot{};
-    bool m_viewDragging{false};
+    App *m_app{nullptr};
+    Camera m_camera{};
+    Renderer m_renderer{};
+    InteractionController m_interaction{};
+    PageModel m_page{};
 };
