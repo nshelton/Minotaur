@@ -9,6 +9,8 @@
 
 #include <glog/logging.h>
 
+
+#define HANDLE_RENDER_RADIUS_MM 3.0f
 class Renderer
 {
 public:

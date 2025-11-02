@@ -2,6 +2,7 @@
 #include "app/App.h"
 #include <GLFW/glfw3.h>
 #include "utils/PathSetGenerator.h"
+#include "utils/ImageLoader.h"
 #include <iostream>
 #include <glog/logging.h>
 #include "utils/Serialization.h"
@@ -51,6 +52,34 @@ void MainScreen::onDetach()
     if (!serialization::savePageModel(m_page, "page.json", &err))
     {
         LOG(ERROR) << "Failed to save page.json: " << err;
+    }
+}
+
+void MainScreen::onFilesDropped(const std::vector<std::string>& paths)
+{
+    for (const auto &p : paths)
+    {
+        // Try PGM first for minimal dependency
+        Bitmap bm;
+        std::string err;
+        if (ImageLoader::loadPGM(p, bm, &err, 0.5f))
+        {
+            m_page.addBitmap(bm);
+            LOG(INFO) << "Loaded PGM and added as bitmap: " << p;
+        }
+        else
+        {
+            // Try WIC (PNG, JPG, etc.)
+            if (ImageLoader::loadImage(p, bm, &err, 0.5f))
+            {
+                m_page.addBitmap(bm);
+                LOG(INFO) << "Loaded image and added as bitmap: " << p;
+            }
+            else
+            {
+                LOG(WARNING) << "Unsupported image or failed to load ('" << p << "'): " << err;
+            }
+        }
     }
 }
 

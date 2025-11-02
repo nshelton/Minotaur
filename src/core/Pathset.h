@@ -21,9 +21,9 @@ struct BoundingBox {
         if (point.y > max.y) max.y = point.y;
     }
 
-    bool contains(const Vec2& point) const {
-        return (point.x >= min.x && point.x <= max.x &&
-                point.y >= min.y && point.y <= max.y);
+    bool contains(const Vec2& point, float margin_mm=0) const {
+        return (point.x >= min.x - margin_mm && point.x <= max.x + margin_mm &&
+                point.y >= min.y - margin_mm && point.y <= max.y + margin_mm);
     }
 };
 

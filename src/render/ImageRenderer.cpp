@@ -193,6 +193,8 @@ void ImageRenderer::draw(const Mat3 &mm_to_ndc)
         };
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, q.texture);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_DYNAMIC_DRAW);
         glDrawArrays(GL_TRIANGLES, 0, 6);
     }

@@ -69,13 +69,12 @@ void Renderer::render(const Camera &camera, const PageModel &page, const Interac
              Vec2(minL.x, minL.y)  // SW
          };
 
-         //1 cm handle size
-        float sizeMm = 10.0f;
+         // handle render size
          Color hc = Color(0.2f, 0.9f, 0.2f, 1.0f);
          for (Vec2 pLocal : handles)
          {
              Vec2 p = entity.localToPage.apply(pLocal);
-             drawHandle(p, sizeMm, hc);
+             drawHandle(p, HANDLE_RENDER_RADIUS_MM, hc);
          }
       }
    }
@@ -106,12 +105,12 @@ void Renderer::render(const Camera &camera, const PageModel &page, const Interac
              Vec2(maxL.x, minL.y), // SE
              Vec2(minL.x, minL.y)  // SW
          };
-        float sizeMm = 6.0f;
+
          Color hc = Color(1.0f, 0.6f, 0.1f, 1.0f);
          for (Vec2 pLocal : handles)
          {
              Vec2 p = entity.localToPage.apply(pLocal);
-             drawHandle(p, sizeMm, hc);
+             drawHandle(p, HANDLE_RENDER_RADIUS_MM, hc);
          }
       }
    }

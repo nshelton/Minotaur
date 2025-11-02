@@ -36,9 +36,9 @@ struct Entity
         return bm.aabb();
     }
 
-    bool contains(const Vec2 &point) const
+    bool contains(const Vec2 &point, float margin_mm=0) const
     {
-        return boundsLocal().contains(localToPage / point);
+        return boundsLocal().contains(localToPage / point, margin_mm);
     }
 
     const PathSet *pathset() const { return std::get_if<PathSet>(&payload); }

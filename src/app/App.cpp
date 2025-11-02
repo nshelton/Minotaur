@@ -39,6 +39,7 @@ App::App(int width, int height, const char *title)
     glfwSetScrollCallback(m_window, scrollCallback);
     glfwSetKeyCallback(m_window, keyCallback);
     glfwSetCharCallback(m_window, charCallback);
+    glfwSetDropCallback(m_window, dropCallback);
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
@@ -181,4 +182,18 @@ void App::charCallback(GLFWwindow *window, unsigned int c)
     auto *app = reinterpret_cast<App *>(glfwGetWindowUserPointer(window));
     (void)app;
     ImGui_ImplGlfw_CharCallback(window, c);
+}
+
+void App::dropCallback(GLFWwindow *window, int count, const char **paths)
+{
+    auto *app = reinterpret_cast<App *>(glfwGetWindowUserPointer(window));
+    if (!app || !app->m_activeScreen)
+        return;
+    std::vector<std::string> files;
+    files.reserve(static_cast<size_t>(count));
+    for (int i = 0; i < count; ++i)
+    {
+        if (paths[i]) files.emplace_back(paths[i]);
+    }
+    app->m_activeScreen->onFilesDropped(files);
 }

@@ -17,6 +17,9 @@ public:
     virtual void onCursorPos(Vec2 /*pixel_pos*/) {}
     virtual void onScroll(double /*xoffset*/, double /*yoffset*/, Vec2 /*pixel_pos*/) {}
 
+    // OS file drop (paths are absolute or relative from OS drop event)
+    virtual void onFilesDropped(const std::vector<std::string>& /*paths*/) {}
+
     // UI (ImGui) hook
     virtual void onGui() {}
 };

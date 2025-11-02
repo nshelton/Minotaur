@@ -4,6 +4,7 @@
 #include <GLFW/glfw3.h>
 
 #include <string>
+#include <vector>
 
 class IScreen;
 
@@ -30,4 +31,5 @@ private:
     static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
     static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
     static void charCallback(GLFWwindow* window, unsigned int c);
+    static void dropCallback(GLFWwindow* window, int count, const char** paths);
 };

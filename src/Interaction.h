@@ -5,6 +5,8 @@
 #include "Camera.h"
 #include "Page.h"
 
+#define HANDLE_HITBOX_RADIUS 10.0f
+
 enum class InteractionMode
 {
     None,
@@ -60,7 +62,7 @@ public:
     void SelectEntity(int id) { m_state.activeId = id; }
     void ClearHover() { m_state.hoveredId.reset(); }
     void DeselectEntity() { m_state.activeId.reset(); }
-    
+
 private:
     std::optional<int> pick(const PageModel &scene, const Vec2 &world);
     ResizeHandle pickHandle(const Entity &entity, const Vec2 &world, float radiusMm) const;

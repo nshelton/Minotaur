@@ -13,8 +13,7 @@ void InteractionController::updateHover(const PageModel &scene, const Camera &ca
     if (m_state.hoveredId)
     {
         const Entity &e = scene.entities.at(*m_state.hoveredId);
-        // hit test handles with ~8mm radius
-        m_state.hoveredHandle = pickHandle(e, mouseWorld, 8.0f);
+        m_state.hoveredHandle = pickHandle(e, mouseWorld, HANDLE_HITBOX_RADIUS);
     }
 }
 
@@ -30,7 +29,7 @@ void InteractionController::onMouseDown(PageModel &scene, Camera &camera, const 
         m_state.activeId = hit;
         const Entity &e = scene.entities.at(*hit);
         // Prefer resizing if mouse is near a handle; otherwise drag
-        ResizeHandle handle = pickHandle(e, mouseWorld, 8.0f);
+        ResizeHandle handle = pickHandle(e, mouseWorld, HANDLE_HITBOX_RADIUS);
         if (handle != ResizeHandle::None)
         {
             m_state.mode = InteractionMode::ResizingEntity;
@@ -83,7 +82,7 @@ void InteractionController::onMouseDown(PageModel &scene, Camera &camera, const 
     else
     {
         // background → pan
-        m_state.activeId.reset();
+        // m_state.activeId.reset();
         m_state.mode = InteractionMode::PanningCamera;
         m_cameraStart = camera.Transform();
         m_cameraStartCenterMm = camera.center();
@@ -133,7 +132,6 @@ void InteractionController::onScroll(PageModel &scene, Camera &camera, float yof
 void InteractionController::onMouseUp()
 {
     m_state.mode = InteractionMode::None;
-    m_state.activeId.reset();
     m_state.activeHandle = ResizeHandle::None;
 }
 
@@ -141,7 +139,7 @@ std::optional<int> InteractionController::pick(const PageModel &scene, const Vec
 {
     for (const auto &[id, entity] : scene.entities)
     {
-        if (entity.contains(world))
+        if (entity.contains(world, 10.0f)) // 10mm tolerance
             return id;
     }
     return std::nullopt;
@@ -159,6 +157,7 @@ void InteractionController::computeHandlePointsLocal(const Entity &entity, Vec2 
     out[1] = Vec2(mid.x, minL.y);
     out[2] = Vec2(maxL.x, mid.y);
     out[3] = Vec2(minL.x, mid.y);
+
     // NE, NW, SE, SW
     out[4] = Vec2(maxL.x, maxL.y);
     out[5] = Vec2(minL.x, maxL.y);
