@@ -6,28 +6,27 @@
 #include "Page.h"
 #include "Camera.h"
 
+#include <glog/logging.h>
+
 class Renderer
 {
 public:
     Renderer();
 
+    void setSize(int width, int height)
+    {
+        LOG(INFO) << "GL size set to " << width << "x" << height;
+        glViewport(0, 0, width, height);
+    }
+
     void render(const Camera &camera, const PageModel &page, const InteractionState &uiState);
 
     void setLineWidth(float w) { m_lines.setLineWidth(w); }
-
-    void setWindowSize(int width, int height)
-    {
-        m_winW = width;
-        m_winH = height;
-    }
 
     void shutdown();
 
 private:
     LineRenderer m_lines{};
-
-    int m_winW{0};
-    int m_winH{0};
 
     void renderPage(const Camera &camera, const PageModel &page);
 };

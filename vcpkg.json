@@ -4,7 +4,9 @@
   "dependencies": [
     "glfw3",
     "glad",
-    { "name": "imgui", "features": ["glfw-binding", "opengl3-binding"] }
+    { "name": "imgui", "features": ["glfw-binding", "opengl3-binding"] },
+    "fmt",
+    "glog"
   ]
 }
 

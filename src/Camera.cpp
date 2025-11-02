@@ -1,6 +1,12 @@
-
-
 #include "Camera.h"
+#include <glog/logging.h>
+
+Camera::Camera()
+{
+    m_zoom = 200.0f; // initial zoom
+    m_aspect = 4.0f / 3.0f; // default aspect
+    reset();
+}
 
 void Camera::setSize(int width, int height) 
 {
@@ -8,56 +14,68 @@ void Camera::setSize(int width, int height)
     m_height = height;
     m_aspect = static_cast<float>(width) / static_cast<float>(height);
 
+    Vec2 center = Vec2(m_left + (m_right - m_left) * 0.5f, (m_bottom + m_top) * 0.5f);
+
+    m_left = center.x - m_aspect * m_zoom;
+    m_right = center.x + m_aspect * m_zoom;
+    m_bottom = center.y - m_zoom;
+    m_top = center.y + m_zoom;
+
+    m_viewTransform.setOrtho(m_left, m_right, m_bottom, m_top);
+    LOG(INFO) << "Camera setSize: " << width << "x" << height << ", aspect: " << m_aspect;
+}
+
+
+void Camera::move(Vec2 delta) {
+    m_left -= delta.x;
+    m_right -= delta.x;
+    m_bottom -= delta.y;
+    m_top -= delta.y;
+    m_viewTransform.setOrtho(m_left, m_right, m_bottom, m_top);
+    LOG(INFO) << "Camera moved: " << delta.x << ", " << delta.y;
+}
+
+void Camera::reset() {
+
     // initial 500mm half-width view
-    m_zoom = 500;
-    m_left = -m_aspect * m_zoom;
-    m_right = m_aspect * m_zoom;
-    m_bottom = -m_zoom;
-    m_top = m_zoom;
+    Vec2 center = Vec2(297.0f / 2.0f, 420.0f / 2.0f);
+    m_left = -m_aspect * m_zoom + center.x;
+    m_right = m_aspect * m_zoom + center.x;
+    m_bottom = -m_zoom + center.y;
+    m_top = m_zoom + center.y;
 
     m_viewTransform = Mat3();
     m_dragging = false;
 
     m_viewTransform.setOrtho(m_left, m_right, m_bottom, m_top);
-
-}
-
-void Camera::reset() {
-    m_viewTransform = Mat3();
     m_dragging = false;
 }
 
-void Camera::beginDrag(Vec2 pos) {
-    m_dragging = true;
-    m_last = pos;
-}
+void Camera::zoomAtPixel(const Vec2 &px, float wheelSteps)
+{
+    // convert pixel to NDC
+    Vec2 screen = getSize();
+    Vec2 ndc((px.x / screen.x) * 2.0f - 1.0f,
+             1.0f - (px.y / screen.y) * 2.0f);
 
-void Camera::endDrag() { m_dragging = false; }
+    // world point under cursor before zoom
+    Vec2 anchor = screenToWorld(px);
 
-void Camera::onCursor(Vec2 pos) {
-    if (!m_dragging || m_width == 0 || m_height == 0) return;
+    // zoom factor (>1 zooms in)
+    float factor = std::pow(1.1f, wheelSteps);
 
-    Vec2 d = pos - m_last;
-    m_last = pos;
+    // update zoom (vertical half-size in mm)
+    m_zoom = m_zoom / factor; // clamp here if you add sensible mm bounds
 
-    Vec2 ndcd = Vec2(2, -2) * d / Vec2(m_width, m_height);
+    // choose new center so anchor stays fixed under cursor
+    Vec2 newCenter;
+    newCenter.x = anchor.x - ndc.x * m_aspect * m_zoom;
+    newCenter.y = anchor.y - ndc.y * m_zoom;
 
-    m_viewTransform.SetTranslation(m_viewTransform.translation() + ndcd / m_viewTransform.scale().x);
-}
+    m_left   = newCenter.x - m_aspect * m_zoom;
+    m_right  = newCenter.x + m_aspect * m_zoom;
+    m_bottom = newCenter.y - m_zoom;
+    m_top    = newCenter.y + m_zoom;
 
-void Camera::onScroll(double xoffset, double yoffset, Vec2 pos) {
-    (void)xoffset; // not used for now
-    if (m_width == 0 || m_height == 0) return;
-
-    Vec2 screenSize(static_cast<float>(m_width), static_cast<float>(m_height));
-    Vec2 normalized = pos / screenSize;
-    Vec2 ndcPos(normalized.x * 2.0f - 1.0f, 1.0f - normalized.y * 2.0f);
-    Vec2 worldPoint = m_viewTransform.applyInverse(ndcPos);
-
-    Vec2 oldZoom = m_viewTransform.scale();
-    float factor = std::pow(1.1f, static_cast<float>(yoffset));
-    Vec2 newZoom = oldZoom * factor;
-    m_viewTransform.SetScale(newZoom);
-    Vec2 newTranslation = ndcPos - (worldPoint * newZoom);
-    m_viewTransform.SetTranslation(newTranslation);
+    m_viewTransform.setOrtho(m_left, m_right, m_bottom, m_top);
 }

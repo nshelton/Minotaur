@@ -47,4 +47,5 @@ struct Vec2
     }
     inline Vec2 operator*(const Vec2 &other) const { return Vec2{x * other.x, y * other.y}; }
     inline Vec2 operator/(const Vec2 &other) const { return Vec2{x / other.x, y / other.y}; }
+    inline Vec2 operator-() const { return Vec2{-x, -y}; }
 };

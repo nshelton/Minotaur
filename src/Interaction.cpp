@@ -8,17 +8,14 @@ void InteractionController::updateHover(const PageModel &scene, const Camera &ca
 {
     // Vec2 world = camera.screenToWorld(mousePx);
     // m_state.hoveredId = pick(scene, world);
-
 }
 
-void InteractionController::onMouseDown(PageModel &scene, Camera &camera, const Vec2 &mousePx)
+void InteractionController::onMouseDown(PageModel &scene, Camera &camera, const Vec2 &mouseWorld)
 {
-    // m_state.mouseDownScreen = mousePx;
-    // m_state.mouseDownWorld = camera.screenToWorld(mousePx);
+    m_state.mouseDownWorld = mouseWorld;
 
-    // // did we hit an entity?
-    // Vec2 world = m_state.mouseDownWorld;
-    // auto hit = pick(scene, world);
+    // did we hit an entity?
+    // auto hit = pick(scene, mouseWorld);
 
     // if (hit)
     // {
@@ -28,48 +25,51 @@ void InteractionController::onMouseDown(PageModel &scene, Camera &camera, const 
     // }
     // else
     // {
-    //     // background → pan
-    //     m_state.activeId.reset();
-    //     m_state.mode = InteractionMode::PanningCamera;
-    //     m_cameraStart = camera.getTransform(); // whatever you use
+    // background → pan
+    m_state.activeId.reset();
+    m_state.mode = InteractionMode::PanningCamera;
+    m_cameraStart = camera.Transform();
+    m_cameraStartCenterMm = camera.center();
     // }
 }
 
-void InteractionController::onCursorPos(PageModel &scene, Camera &camera, const Vec2 &mousePx)
+void InteractionController::onCursorPos(PageModel &scene, Camera &camera, const Vec2 &mouseWorld)
 {
-    // switch (m_state.mode)
-    // {
-    // case InteractionMode::PanningCamera:
-    // {
-    //     // pan in screen or world space
-    //     Vec2 curWorld = camera.screenToWorld(mousePx);
-    //     Vec2 delta = curWorld - m_state.mouseDownWorld;
-    //     camera.setCenter(m_cameraStart.center - delta); // invert if needed
-    //     break;
-    // }
-    // case InteractionMode::DraggingEntity:
-    // {
-    //     if (!m_state.activeId)
-    //         break;
-    //     Vec2 curWorld = camera.screenToWorld(mousePx);
-    //     Vec2 delta = curWorld - m_state.mouseDownWorld;
-    //     moveEntity(scene, *m_state.activeId, delta);
-    //     break;
-    // }
-    // case InteractionMode::ResizingEntity:
-    // {
-    //     if (!m_state.activeId)
-    //         break;
-    //     Vec2 curWorld = camera.screenToWorld(mousePx);
-    //     resizeEntity(scene, *m_state.activeId, curWorld);
-    //     break;
-    // }
-    // case InteractionMode::None:
-    // default:
-    //     // when idle, keep hover updated
-    //     updateHover(scene, camera, mousePx);
-    //     break;
-    // }
+    switch (m_state.mode)
+    {
+    case InteractionMode::PanningCamera:
+    {
+        // Pan in mm space using cached start center
+        Vec2 delta = (mouseWorld - m_state.mouseDownWorld);
+        camera.move(delta);
+        break;
+    }
+    case InteractionMode::DraggingEntity:
+    {
+        if (!m_state.activeId)
+            break;
+        Vec2 delta = mouseWorld - m_state.mouseDownWorld;
+        moveEntity(scene, *m_state.activeId, delta);
+        break;
+    }
+    case InteractionMode::ResizingEntity:
+    {
+        if (!m_state.activeId)
+            break;
+        resizeEntity(scene, *m_state.activeId, mouseWorld);
+        break;
+    }
+    case InteractionMode::None:
+    default:
+        // when idle, keep hover updated
+        updateHover(scene, camera, mouseWorld);
+        break;
+    }
+}
+
+void InteractionController::onScroll(PageModel &scene, Camera &camera, float yoffset, const Vec2 &px)
+{
+    camera.zoomAtPixel(px, static_cast<float>(yoffset));
 }
 
 void InteractionController::onMouseUp()

@@ -71,6 +71,11 @@ struct Mat3
         return r;
     }
 
+    Vec2 getCenter() const
+    {
+        return Vec2{m[6], m[7]};
+    }
+
     void SetTranslation(Vec2 t)
     {
         m[6] = t.x;

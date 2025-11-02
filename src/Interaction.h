@@ -20,7 +20,6 @@ struct InteractionState
     InteractionMode mode = InteractionMode::None;
 
     // cached for drags
-    Vec2 mouseDownScreen;
     Vec2 mouseDownWorld;
 };
 
@@ -31,6 +30,7 @@ public:
     void onMouseDown(PageModel &scene, Camera &camera, const Vec2 &px);
     void onMouseUp();
     void onCursorPos(PageModel &scene, Camera &camera, const Vec2 &px);
+    void onScroll(PageModel &scene, Camera &camera, float yoffset, const Vec2 &px);
 
     const InteractionState &state() const { return m_state; }
 
@@ -43,4 +43,5 @@ private:
 
     InteractionState m_state;
     Mat3 m_cameraStart;
+    Vec2 m_cameraStartCenterMm;
 };

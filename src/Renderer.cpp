@@ -44,7 +44,7 @@ void Renderer::renderPage(const Camera &camera, const PageModel &page)
    m_lines.addLine(a3, a0, outlineCol);
 
    // grid lines every 10mm
-   Color gridCol = Color(0.6f, 0.6f, 0.6f, 1.0f);
+   Color gridCol = Color(0.3f, 0.3f, 0.3f, 1.0f);
    for (float x = 10.0f; x < page.page_width_mm; x += 10.0f)
    {
       m_lines.addLine(Vec2(x, 0.0f), Vec2(x, page.page_height_mm), gridCol);
@@ -53,5 +53,5 @@ void Renderer::renderPage(const Camera &camera, const PageModel &page)
    {
       m_lines.addLine(Vec2(0.0f, y), Vec2(page.page_width_mm, y), gridCol);
    }
-   
+
 }

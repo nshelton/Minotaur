@@ -6,11 +6,15 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 
+#include <glog/logging.h>
+
 #include "core/Core.h"
 
-App::App(int width, int height, const char* title)
-    : m_width(width), m_height(height) {
-    if (!glfwInit()) {
+App::App(int width, int height, const char *title)
+    : m_width(width), m_height(height)
+{
+    if (!glfwInit())
+    {
         std::cerr << "Failed to initialize GLFW" << std::endl;
         throw std::runtime_error("GLFW init failed");
     }
@@ -20,7 +24,8 @@ App::App(int width, int height, const char* title)
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     m_window = glfwCreateWindow(width, height, title, nullptr, nullptr);
-    if (!m_window) {
+    if (!m_window)
+    {
         std::cerr << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
         throw std::runtime_error("Window creation failed");
@@ -35,7 +40,8 @@ App::App(int width, int height, const char* title)
     glfwSetKeyCallback(m_window, keyCallback);
     glfwSetCharCallback(m_window, charCallback);
 
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+    {
         std::cerr << "Failed to initialize GLAD" << std::endl;
         glfwDestroyWindow(m_window);
         glfwTerminate();
@@ -54,24 +60,28 @@ App::App(int width, int height, const char* title)
     ImGui_ImplOpenGL3_Init("#version 330 core");
 }
 
-App::~App() {
+App::~App()
+{
     // ImGui shutdown
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
-    if (m_window) {
+    if (m_window)
+    {
         glfwDestroyWindow(m_window);
     }
     glfwTerminate();
 }
 
-void App::run(IScreen& screen) {
+void App::run(IScreen &screen)
+{
     m_activeScreen = &screen;
     screen.onAttach(*this);
     screen.onResize(m_width, m_height);
 
     double lastTime = glfwGetTime();
-    while (!glfwWindowShouldClose(m_window)) {
+    while (!glfwWindowShouldClose(m_window))
+    {
         double now = glfwGetTime();
         double dt = now - lastTime;
         lastTime = now;
@@ -93,62 +103,82 @@ void App::run(IScreen& screen) {
 
         glfwSwapBuffers(m_window);
         glfwPollEvents();
+
+        ImGuiIO &io = ImGui::GetIO();
+        if (!io.WantCaptureKeyboard && ImGui::IsKeyPressed(ImGuiKey_Escape))
+        {
+            glfwSetWindowShouldClose(m_window, GLFW_TRUE); // or your platform’s close call
+        }
     }
 
     screen.onDetach();
     m_activeScreen = nullptr;
 }
 
-void App::framebufferSizeCallback(GLFWwindow* window, int width, int height) {
-    auto* app = reinterpret_cast<App*>(glfwGetWindowUserPointer(window));
-    if (!app) return;
+void App::framebufferSizeCallback(GLFWwindow *window, int width, int height)
+{
+    LOG(INFO) << "Framebuffer resized to " << width << "x" << height;
+    auto *app = reinterpret_cast<App *>(glfwGetWindowUserPointer(window));
+    if (!app)
+        return;
     app->m_width = width;
     app->m_height = height;
-    if (app->m_activeScreen) {
-        app->m_activeScreen->onResize(width, height);
-    }
+    app->m_activeScreen->onResize(width, height);
 }
 
-void App::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
-    auto* app = reinterpret_cast<App*>(glfwGetWindowUserPointer(window));
-    if (!app) return;
+void App::mouseButtonCallback(GLFWwindow *window, int button, int action, int mods)
+{
+    auto *app = reinterpret_cast<App *>(glfwGetWindowUserPointer(window));
+    if (!app)
+        return;
     ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
-    if (!app->m_activeScreen) return;
-    ImGuiIO& io = ImGui::GetIO();
-    if (io.WantCaptureMouse) return;
+    if (!app->m_activeScreen)
+        return;
+    ImGuiIO &io = ImGui::GetIO();
+    if (io.WantCaptureMouse)
+        return;
     double x = 0.0, y = 0.0;
     glfwGetCursorPos(window, &x, &y);
     app->m_activeScreen->onMouseButton(button, action, mods, Vec2{static_cast<float>(x), static_cast<float>(y)});
 }
 
-void App::cursorPosCallback(GLFWwindow* window, double xpos, double ypos) {
-    auto* app = reinterpret_cast<App*>(glfwGetWindowUserPointer(window));
-    if (!app || !app->m_activeScreen) return;
-    ImGuiIO& io = ImGui::GetIO();
-    if (io.WantCaptureMouse) return;
+void App::cursorPosCallback(GLFWwindow *window, double xpos, double ypos)
+{
+    auto *app = reinterpret_cast<App *>(glfwGetWindowUserPointer(window));
+    if (!app || !app->m_activeScreen)
+        return;
+    ImGuiIO &io = ImGui::GetIO();
+    if (io.WantCaptureMouse)
+        return;
     app->m_activeScreen->onCursorPos(Vec2{static_cast<float>(xpos), static_cast<float>(ypos)});
 }
 
-void App::scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
-    auto* app = reinterpret_cast<App*>(glfwGetWindowUserPointer(window));
-    if (!app) return;
+void App::scrollCallback(GLFWwindow *window, double xoffset, double yoffset)
+{
+    auto *app = reinterpret_cast<App *>(glfwGetWindowUserPointer(window));
+    if (!app)
+        return;
     ImGui_ImplGlfw_ScrollCallback(window, xoffset, yoffset);
-    if (!app->m_activeScreen) return;
-    ImGuiIO& io = ImGui::GetIO();
-    if (io.WantCaptureMouse) return;
+    if (!app->m_activeScreen)
+        return;
+    ImGuiIO &io = ImGui::GetIO();
+    if (io.WantCaptureMouse)
+        return;
     double x = 0.0, y = 0.0;
     glfwGetCursorPos(window, &x, &y);
     app->m_activeScreen->onScroll(xoffset, yoffset, Vec2{static_cast<float>(x), static_cast<float>(y)});
 }
 
-void App::keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-    auto* app = reinterpret_cast<App*>(glfwGetWindowUserPointer(window));
+void App::keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
+{
+    auto *app = reinterpret_cast<App *>(glfwGetWindowUserPointer(window));
     (void)app;
     ImGui_ImplGlfw_KeyCallback(window, key, scancode, action, mods);
 }
 
-void App::charCallback(GLFWwindow* window, unsigned int c) {
-    auto* app = reinterpret_cast<App*>(glfwGetWindowUserPointer(window));
+void App::charCallback(GLFWwindow *window, unsigned int c)
+{
+    auto *app = reinterpret_cast<App *>(glfwGetWindowUserPointer(window));
     (void)app;
     ImGui_ImplGlfw_CharCallback(window, c);
 }
