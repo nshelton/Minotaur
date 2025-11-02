@@ -118,6 +118,12 @@ struct Mat3
         m[8] = 1.0f;
     }
 
+    void translate(const Vec2 &t)
+    {
+        m[6] += t.x;
+        m[7] += t.y;
+    }
+
     Vec2 scale() const { return Vec2(m[0], m[4]); } // assuming uniform scale
 
     Vec2 transformPoint(const Vec2 &v) const
@@ -137,6 +143,12 @@ struct Mat3
                     m[1 * 3 + rIdx] * rhs.m[c * 3 + 1] +
                     m[2 * 3 + rIdx] * rhs.m[c * 3 + 2];
         return r;
+    }
+
+    Mat3 operator*=(const Mat3 &rhs)
+    {
+        *this = *this * rhs;
+        return *this;
     }
 
     Mat3(const Vec2 &position, float s)

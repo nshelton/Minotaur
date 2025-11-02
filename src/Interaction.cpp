@@ -5,10 +5,9 @@
 #include "core/core.h"
 #include <glog/logging.h>
 
-void InteractionController::updateHover(const PageModel &scene, const Camera &camera, const Vec2 &mousePx)
+void InteractionController::updateHover(const PageModel &scene, const Camera &camera, const Vec2 &mouseWorld)
 {
-    // Vec2 world = camera.screenToWorld(mousePx);
-    // m_state.hoveredId = pick(scene, world);
+    m_state.hoveredId = pick(scene, mouseWorld);
 }
 
 void InteractionController::onMouseDown(PageModel &scene, Camera &camera, const Vec2 &mouseWorld)
@@ -23,6 +22,7 @@ void InteractionController::onMouseDown(PageModel &scene, Camera &camera, const 
         m_state.activeId = hit;
         // for now just dragging; later you can detect "near resize handle"
         m_state.mode = InteractionMode::DraggingEntity;
+        m_state.dragEntityStartTransform = scene.entities.at(*hit).localToPage;
     }
     else
     {
@@ -82,17 +82,17 @@ void InteractionController::onMouseUp()
 
 std::optional<int> InteractionController::pick(const PageModel &scene, const Vec2 &world)
 {
-    for (const auto &entity : scene.entities)
+    for (const auto &[id, entity] : scene.entities)
     {
         if (entity.contains(world))
-            return entity.id;
+            return id;
     }
+    return std::nullopt;
 }
 
 void InteractionController::moveEntity(PageModel &scene, int id, const Vec2 &delta)
 {
-    // scene.get(id).position = original + delta;
-    // you can store original pos at mousedown if you want exact delta
+    scene.entities[id].localToPage.SetTranslation(m_state.dragEntityStartTransform.translation() + delta);
 }
 
 void InteractionController::resizeEntity(PageModel &scene, int id, const Vec2 &world)

@@ -28,26 +28,25 @@ struct BoundingBox {
 };
 
 struct PathSet {
-    Mat3 transform; // page-space transform (mm -> mm)
     std::vector<Path> paths;
     Color color {1.0f, 1.0f, 1.0f, 1.0f};
     mutable BoundingBox aabb;
 
     PathSet() = default;
 
+    /// @brief Compute the axis-aligned bounding box of the pathset, in local space
     void computeAABB() const  {
         aabb.min = Vec2(0,0);
         aabb.max = Vec2(0,0);
         bool first = true;
         for (const auto& path : paths) {
             for (const auto& p : path.points) {
-                Vec2 e = transform * p;
                 if (first) {
-                    aabb.min = e;
-                    aabb.max = e;
+                    aabb.min = p;
+                    aabb.max = p;
                     first = false;
                 } else {
-                    aabb.expandToInclude(e);
+                    aabb.expandToInclude(p);
                 }
             }
         }

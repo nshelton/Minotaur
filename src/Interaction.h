@@ -19,8 +19,8 @@ struct InteractionState
     std::optional<int> activeId; // the entity we grabbed
     InteractionMode mode = InteractionMode::None;
 
-    // cached for drags
-    Vec2 mouseDownWorld;
+    Mat3 dragEntityStartTransform; // cached for drags
+    Vec2 mouseDownWorld; // cached for drags
 };
 
 class InteractionController
@@ -39,7 +39,7 @@ public:
 
     void SelectEntity(int id) { m_state.activeId = id; }
 
-    private:
+private:
     std::optional<int> pick(const PageModel &scene, const Vec2 &world);
     void moveEntity(PageModel &scene, int id, const Vec2 &delta);
     void resizeEntity(PageModel &scene, int id, const Vec2 &world);

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <vector>
+#include <map>
 #include "core/core.h"
 
 struct PageModel
@@ -13,5 +13,6 @@ struct PageModel
 
     Vec2 mouse_pixel;
     Vec2 mouse_page_mm;
-    std::vector<Entity> entities;
+    std::map<int, Entity> entities;
+
 };

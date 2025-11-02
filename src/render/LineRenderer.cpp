@@ -117,7 +117,7 @@ void LineRenderer::clear() { m_vertices.clear(); }
 
 /// @brief Add a line to the render list in mm page space
 /// @param p1 point in mm page space
-/// @param p2 point in mm page space
+/// @param p2 point in mm page spaces
 /// @param c color
 void LineRenderer::addLine(Vec2 p1, Vec2 p2, Color c)
 {

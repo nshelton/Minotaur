@@ -15,6 +15,8 @@ public:
     // Add a colored line segment in plot mm page space
     void addLine(Vec2 a, Vec2 b, Color c);
 
+    int totalVertices() const { return static_cast<int>(m_vertices.size()); }
+
     void draw(const Mat3 &t);
 
 private:

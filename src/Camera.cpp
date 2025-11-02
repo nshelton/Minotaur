@@ -32,7 +32,6 @@ void Camera::move(Vec2 delta) {
     m_bottom -= delta.y;
     m_top -= delta.y;
     m_viewTransform.setOrtho(m_left, m_right, m_bottom, m_top);
-    LOG(INFO) << "Camera moved: " << delta.x << ", " << delta.y;
 }
 
 void Camera::reset() {

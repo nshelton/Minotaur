@@ -25,8 +25,11 @@ public:
 
     void shutdown();
 
+    int totalVertices() const { return static_cast<int>(m_lines.totalVertices()); }
+
 private:
     LineRenderer m_lines{};
 
     void renderPage(const Camera &camera, const PageModel &page);
+    void drawRect(const Vec2 &min, const Vec2 &max, const Color &col);
 };

@@ -6,7 +6,6 @@ namespace PathSetGenerator {
 PathSet Circle(Vec2 center_mm, float radius_mm, int segments, Color col) {
     if (segments < 3) segments = 3;
     PathSet ps{};
-    ps.transform = Mat3{}; // identity in page space
     ps.color = col;
     Path path{}; path.closed = true;
     const float twoPi = 6.28318530718f;
@@ -23,7 +22,6 @@ PathSet Circle(Vec2 center_mm, float radius_mm, int segments, Color col) {
 
 PathSet Square(Vec2 center_mm, float side_mm, Color col) {
     PathSet ps{};
-    ps.transform = Mat3{};
     ps.color = col;
     Path path{}; path.closed = true;
     float h = side_mm * 0.5f;
@@ -38,7 +36,6 @@ PathSet Square(Vec2 center_mm, float side_mm, Color col) {
 PathSet Star(Vec2 center_mm, float outer_radius_mm, float inner_radius_mm, int points, Color col) {
     if (points < 2) points = 2;
     PathSet ps{};
-    ps.transform = Mat3{};
     ps.color = col;
     Path path{}; path.closed = true;
     const float pi = 3.14159265359f;
