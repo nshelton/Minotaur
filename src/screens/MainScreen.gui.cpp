@@ -5,10 +5,10 @@
 void MainScreen::onGui() {
     if (ImGui::Begin("Controls")) {
         ImGui::Text("Viewport");
-        float zoom = m_camera.Transform().scale;
+        float zoom = m_camera.Transform().scale().x;
         ImGui::Text("scale: %.2f", zoom);
 
-        Vec2 camPos = m_camera.Transform().pos;
+        Vec2 camPos = m_camera.Transform().translation();
         ImGui::Text("camPosX: %.2f", camPos.x);
         ImGui::Text("camPosY: %.2f", camPos.y); 
         ImGui::Text("mousePixelX: %.2f", m_page.mouse_pixel.x);

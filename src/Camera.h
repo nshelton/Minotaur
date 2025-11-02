@@ -18,7 +18,7 @@ public:
     void onScroll(double xoffset, double yoffset, Vec2 pos);
 
     // Current transform from mm to NDC
-    Transform2D Transform() const { return m_viewTransform; }
+    Mat3 Transform() const { return m_viewTransform; }
     int width() const { return m_width; }
     int height() const { return m_height; }
 
@@ -32,8 +32,16 @@ private:
     Vec2 m_last;
 
     // page to ndc transform
-    Transform2D m_viewTransform;
- 
+    Mat3 m_viewTransform;
+
+    float m_zoom = 500;;
+
+    float m_left;
+    float m_right;
+    float m_top;
+    float m_bottom;
+    float m_aspect;
+
     float m_minZoom{0.1f};
     float m_maxZoom{10.0f};
 };

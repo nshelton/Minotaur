@@ -28,7 +28,7 @@ struct BoundingBox {
 };
 
 struct PathSet {
-    Transform2D transform; // page-space transform (mm -> mm)
+    Mat3 transform; // page-space transform (mm -> mm)
     std::vector<Path> paths;
     Color color {1.0f, 1.0f, 1.0f, 1.0f};
     BoundingBox aabb;

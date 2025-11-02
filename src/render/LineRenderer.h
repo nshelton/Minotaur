@@ -15,7 +15,7 @@ public:
     // Add a colored line segment in plot mm page space
     void addLine(Vec2 a, Vec2 b, Color c);
 
-    void draw(const Transform2D &t);
+    void draw(const Mat3 &t);
 
 private:
     struct GLVertex { float x, y, r, g, b, a; };
@@ -23,8 +23,7 @@ private:
     GLuint m_program{0};
     GLuint m_vao{0};
     GLuint m_vbo{0};
-    GLint m_uTranslate{-1};
-    GLint m_uScale{-1};
+    GLuint m_uProjMat{0};
 
     float m_lineWidth{1.0f};
 

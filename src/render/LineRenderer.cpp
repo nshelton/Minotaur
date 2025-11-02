@@ -51,13 +51,12 @@ bool LineRenderer::init()
 #version 330 core
 layout(location=0) in vec2 aPos;
 layout(location=1) in vec4 aColor;
-uniform vec2 uTranslate;
-uniform float uScale;
+uniform mat3 uProjectMat;
 out vec4 vColor;
 void main(){
-    vec2 p = (aPos + uTranslate) * uScale;
+    vec3 worldPos = uProjectMat * vec3(aPos, 1.0);
+    gl_Position = vec4(worldPos.xy, 0.0, 1.0);
     vColor = aColor;
-    gl_Position = vec4(p, 0.0, 1.0);
 }
 )";
 
@@ -83,8 +82,7 @@ void main(){ FragColor = vColor; }
     if (!m_program)
         return false;
 
-    m_uTranslate = glGetUniformLocation(m_program, "uTranslate");
-    m_uScale = glGetUniformLocation(m_program, "uScale");
+    m_uProjMat = glGetUniformLocation(m_program, "uProjectMat");
 
     glGenVertexArrays(1, &m_vao);
     glGenBuffers(1, &m_vbo);
@@ -130,14 +128,14 @@ void LineRenderer::addLine(Vec2 p1, Vec2 p2, Color c)
 /// @brief Draw the lines in the specified coordinate space. Lines are stored in mm page space,
 /// this controls how to render it to the screen.
 /// @param mm_to_ndc
-void LineRenderer::draw( const Transform2D &mm_to_ndc)
+void LineRenderer::draw( const Mat3 &mm_to_ndc)
 {
     if (m_vertices.empty())
         return;
 
     glUseProgram(m_program);
-    glUniform2f(m_uTranslate, mm_to_ndc.pos.x, mm_to_ndc.pos.y);
-    glUniform1f(m_uScale, mm_to_ndc.scale);
+    Vec2 pos = mm_to_ndc.translation();
+    glUniformMatrix3fv(m_uProjMat, 1, GL_FALSE, mm_to_ndc.m);
 
     glBindVertexArray(m_vao);
     glBindBuffer(GL_ARRAY_BUFFER, m_vbo);

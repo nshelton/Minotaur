@@ -29,5 +29,5 @@ private:
     int m_winW{0};
     int m_winH{0};
 
-    void renderPage(const Camera &camera, const PageModel &page, const Color &col);
+    void renderPage(const Camera &camera, const PageModel &page);
 };

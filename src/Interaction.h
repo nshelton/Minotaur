@@ -42,5 +42,5 @@ private:
     void resizeEntity(PageModel &scene, int id, const Vec2 &world);
 
     InteractionState m_state;
-    Transform2D m_cameraStart;
+    Mat3 m_cameraStart;
 };
