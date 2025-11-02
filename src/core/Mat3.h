@@ -71,30 +71,13 @@ struct Mat3
         return r;
     }
 
-    Vec2 getCenter() const
-    {
-        return Vec2{m[6], m[7]};
-    }
-
-    void SetTranslation(Vec2 t)
+    void setTranslation(Vec2 t)
     {
         m[6] = t.x;
         m[7] = t.y;
     }
 
-    void SetTranslation(float tx, float ty)
-    {
-        m[6] = tx;
-        m[7] = ty;
-    }
-
-    void SetScale(float sx, float sy)
-    {
-        m[0] = sx;
-        m[4] = sy;
-    }
-
-    void SetScale(Vec2 s)
+    void setScale(Vec2 s)
     {
         m[0] = s.x;
         m[4] = s.y;

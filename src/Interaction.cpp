@@ -190,7 +190,7 @@ ResizeHandle InteractionController::pickHandle(const Entity &entity, const Vec2 
 
 void InteractionController::moveEntity(PageModel &scene, int id, const Vec2 &delta)
 {
-    scene.entities[id].localToPage.SetTranslation(m_state.dragEntityStartTransform.translation() + delta);
+    scene.entities[id].localToPage.setTranslation(m_state.dragEntityStartTransform.translation() + delta);
 }
 
 void InteractionController::resizeEntity(PageModel &scene, int id, const Vec2 &world)
@@ -240,16 +240,15 @@ void InteractionController::resizeEntity(PageModel &scene, int id, const Vec2 &w
 
     // clamp to avoid degeneracy
     const float minScale = 1e-3f;
-    float sx = s0.x * k;
-    float sy = s0.y * k;
-    if (std::abs(sx) < minScale) sx = (sx < 0 ? -minScale : minScale);
-    if (std::abs(sy) < minScale) sy = (sy < 0 ? -minScale : minScale);
+    Vec2 scale = s0 * k;
+    if (std::abs(scale.x) < minScale) scale.x = (scale.x < 0 ? -minScale : minScale);
+    if (std::abs(scale.y) < minScale) scale.y = (scale.y < 0 ? -minScale : minScale);
 
     // new translation so anchor stays fixed
     Vec2 tPrime = Vec2(
-        m_state.resizeAnchorPage.x - sx * m_state.resizeAnchorLocal.x,
-        m_state.resizeAnchorPage.y - sy * m_state.resizeAnchorLocal.y);
+        m_state.resizeAnchorPage.x - scale.x * m_state.resizeAnchorLocal.x,
+        m_state.resizeAnchorPage.y - scale.y * m_state.resizeAnchorLocal.y);
 
-    e.localToPage.SetScale(sx, sy);
-    e.localToPage.SetTranslation(tPrime);
+    e.localToPage.setScale(scale);
+    e.localToPage.setTranslation(tPrime);
 }
