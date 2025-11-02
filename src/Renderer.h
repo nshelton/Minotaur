@@ -2,6 +2,7 @@
 
 #include "core/Core.h"
 #include "render/LineRenderer.h"
+#include "render/ImageRenderer.h"
 #include "Interaction.h"
 #include "Page.h"
 #include "Camera.h"
@@ -29,7 +30,9 @@ public:
 
 private:
     LineRenderer m_lines{};
+    ImageRenderer m_images{};
 
     void renderPage(const Camera &camera, const PageModel &page);
     void drawRect(const Vec2 &min, const Vec2 &max, const Color &col);
+    void drawHandle(const Vec2 &center, float sizeMm, const Color &col);
 };

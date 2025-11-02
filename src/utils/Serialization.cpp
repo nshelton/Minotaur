@@ -87,27 +87,64 @@ static void from_json(const json &j, PathSet &ps)
     // AABB can be recomputed lazily
 }
 
-static void to_json(json &j, const Entity &e)
+// Bitmap JSON
+static void to_json(json &j, const Bitmap &b)
 {
     j = json{
-        {"id", e.id},
-        {"name", e.name},
-        {"pathset", e.pathset},
-        {"localToPage", e.localToPage}};
+        {"w_px", b.width_px},
+        {"h_px", b.height_px},
+        {"pixel_size_mm", b.pixel_size_mm},
+        {"pixels", b.pixels}}; // store bytes as 0..255 ints
+}
+
+static void from_json(const json &j, Bitmap &b)
+{
+    b.width_px = j.value("w_px", 0);
+    b.height_px = j.value("h_px", 0);
+    b.pixel_size_mm = j.value("pixel_size_mm", 1.0f);
+    b.pixels = j.value("pixels", std::vector<uint8_t>{});
+}
+
+// Tagged Entity JSON
+static void to_json(json &j, const Entity &e)
+{
+    j["id"] = e.id;
+    j["name"] = e.name;
+    j["localToPage"] = e.localToPage;
+
+    if (e.pathset())
+    {
+        j["type"] = "pathset";
+        j["pathset"] = *e.pathset();
+    }
+    else
+    {
+        j["type"] = "bitmap";
+        j["bitmap"] = *e.bitmap();
+    }
 }
 
 static void from_json(const json &j, Entity &e)
 {
     e.id = j.value("id", 0);
     e.name = j.value("name", std::string{});
-    e.pathset = j.value("pathset", PathSet{});
     if (j.contains("localToPage"))
-    {
         e.localToPage = j.at("localToPage").get<Mat3>();
+    else
+        e.localToPage = Mat3();
+
+    // Backward compatible: default to pathset
+    std::string type = j.value("type", std::string("pathset"));
+    if (type == "bitmap" && j.contains("bitmap"))
+    {
+        e.payload = j.at("bitmap").get<Bitmap>();
     }
     else
     {
-        e.localToPage = Mat3();
+        if (j.contains("pathset"))
+            e.payload = j.at("pathset").get<PathSet>();
+        else
+            e.payload = PathSet{};
     }
 }
 

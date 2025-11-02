@@ -13,6 +13,19 @@ enum class InteractionMode
     ResizingEntity
 };
 
+enum class ResizeHandle
+{
+    None,
+    N,
+    S,
+    E,
+    W,
+    NE,
+    NW,
+    SE,
+    SW
+};
+
 struct InteractionState
 {
     std::optional<int> hoveredId;
@@ -21,6 +34,13 @@ struct InteractionState
 
     Mat3 dragEntityStartTransform; // cached for drags
     Vec2 mouseDownWorld; // cached for drags
+
+    // Resize state
+    ResizeHandle hoveredHandle{ResizeHandle::None};
+    ResizeHandle activeHandle{ResizeHandle::None};
+    Vec2 resizeAnchorLocal;   // local-space anchor corner point
+    Vec2 resizeHandleLocal;   // local-space handle point
+    Vec2 resizeAnchorPage;    // page-space anchor position at drag start
 };
 
 class InteractionController
@@ -38,9 +58,13 @@ public:
     std::optional<int> SelectedEntity() const { return m_state.activeId; }
 
     void SelectEntity(int id) { m_state.activeId = id; }
-
+    void ClearHover() { m_state.hoveredId.reset(); }
+    void DeselectEntity() { m_state.activeId.reset(); }
+    
 private:
     std::optional<int> pick(const PageModel &scene, const Vec2 &world);
+    ResizeHandle pickHandle(const Entity &entity, const Vec2 &world, float radiusMm) const;
+    void computeHandlePointsLocal(const Entity &entity, Vec2 (&out)[8]) const;
     void moveEntity(PageModel &scene, int id, const Vec2 &delta);
     void resizeEntity(PageModel &scene, int id, const Vec2 &world);
 

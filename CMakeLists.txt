@@ -24,7 +24,9 @@ add_executable(minotaur
   src/Page.cpp
 
   src/render/LineRenderer.cpp
+  src/render/ImageRenderer.cpp
   src/utils/PathSetGenerator.cpp
+  src/utils/BitmapGenerator.cpp
   src/utils/Serialization.cpp
 
 )
