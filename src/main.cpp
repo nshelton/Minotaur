@@ -4,7 +4,7 @@
 #include "screens/MainScreen.h"
 
 int main() {
-    App app(800, 600, "Minotaur");
+    App app(1800, 1600, "Minotaur");
     MainScreen screen;
     app.run(screen);
     return 0;

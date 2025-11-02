@@ -8,6 +8,8 @@
 void MainScreen::onAttach(App &app)
 {
     google::InitGoogleLogging("Minotaur");
+    google::SetStderrLogging(google::GLOG_INFO);
+
     m_app = &app;
     m_page.addPathSet(
         PathSetGenerator::Circle(
@@ -39,11 +41,12 @@ void MainScreen::onDetach()
 
 void MainScreen::onMouseButton(int button, int action, int /*mods*/, Vec2 px)
 {
+    LOG(INFO) << "MouseDown at pixel (" << px.x << ", " << px.y << ")";
+
     m_page.mouse_page_mm = m_camera.screenToWorld(px);
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
     {
         m_interaction.onMouseDown(m_page, m_camera, m_page.mouse_page_mm);
-        LOG(INFO) << "MouseDown at pixel (" << px.x << ", " << px.y << ")";
     }
     else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE)
     {

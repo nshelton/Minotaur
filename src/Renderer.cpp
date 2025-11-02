@@ -2,10 +2,9 @@
 
 #include <algorithm>
 
-
 Renderer::Renderer()
 {
-    m_lines.init();
+   m_lines.init();
 }
 
 void Renderer::render(const Camera &camera, const PageModel &page, const InteractionState &uiState)
@@ -13,11 +12,19 @@ void Renderer::render(const Camera &camera, const PageModel &page, const Interac
    // draw page extent and grid
    renderPage(camera, page);
 
-   for (const auto &ps : page.entities)
+   for (const auto &e : page.entities)
    {
-      for (const auto &path : ps.paths)
+      for (const auto &path : e.pathset.paths)
       {
-         // add lines from path here
+         Color pathCol = Color(0.9f, 1.0f, 0.9f, 1.0f);
+         for (size_t i = 1; i < path.points.size(); ++i)
+         {
+            m_lines.addLine(path.points[i - 1], path.points[i], pathCol);
+         }
+         if (path.closed && path.points.size() > 2)
+         {
+            m_lines.addLine(path.points.back(), path.points.front(), pathCol);
+         }
       }
    }
 
@@ -26,7 +33,7 @@ void Renderer::render(const Camera &camera, const PageModel &page, const Interac
 
 void Renderer::shutdown()
 {
-    m_lines.shutdown();
+   m_lines.shutdown();
 }
 
 void Renderer::renderPage(const Camera &camera, const PageModel &page)
@@ -53,5 +60,4 @@ void Renderer::renderPage(const Camera &camera, const PageModel &page)
    {
       m_lines.addLine(Vec2(0.0f, y), Vec2(page.page_width_mm, y), gridCol);
    }
-
 }

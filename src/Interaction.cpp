@@ -3,6 +3,7 @@
 #include "Page.h"
 #include "Camera.h"
 #include "core/core.h"
+#include <glog/logging.h>
 
 void InteractionController::updateHover(const PageModel &scene, const Camera &camera, const Vec2 &mousePx)
 {
@@ -14,27 +15,28 @@ void InteractionController::onMouseDown(PageModel &scene, Camera &camera, const 
 {
     m_state.mouseDownWorld = mouseWorld;
 
-    // did we hit an entity?
-    // auto hit = pick(scene, mouseWorld);
+    auto hit = pick(scene, mouseWorld);
+    LOG(INFO) << "CursorPos at (" << mouseWorld.x << ", " << mouseWorld.y << "), hit entity " << (hit ? std::to_string(*hit) : "none");
 
-    // if (hit)
-    // {
-    //     m_state.activeId = hit;
-    //     // for now just dragging; later you can detect "near resize handle"
-    //     m_state.mode = InteractionMode::DraggingEntity;
-    // }
-    // else
-    // {
-    // background → pan
-    m_state.activeId.reset();
-    m_state.mode = InteractionMode::PanningCamera;
-    m_cameraStart = camera.Transform();
-    m_cameraStartCenterMm = camera.center();
-    // }
+    if (hit)
+    {
+        m_state.activeId = hit;
+        // for now just dragging; later you can detect "near resize handle"
+        m_state.mode = InteractionMode::DraggingEntity;
+    }
+    else
+    {
+        // background → pan
+        m_state.activeId.reset();
+        m_state.mode = InteractionMode::PanningCamera;
+        m_cameraStart = camera.Transform();
+        m_cameraStartCenterMm = camera.center();
+    }
 }
 
 void InteractionController::onCursorPos(PageModel &scene, Camera &camera, const Vec2 &mouseWorld)
 {
+
     switch (m_state.mode)
     {
     case InteractionMode::PanningCamera:
@@ -80,8 +82,11 @@ void InteractionController::onMouseUp()
 
 std::optional<int> InteractionController::pick(const PageModel &scene, const Vec2 &world)
 {
-    // iterate scene items, find closest, check radius, etc.
-    return std::nullopt;
+    for (const auto &entity : scene.entities)
+    {
+        if (entity.contains(world))
+            return entity.id;
+    }
 }
 
 void InteractionController::moveEntity(PageModel &scene, int id, const Vec2 &delta)

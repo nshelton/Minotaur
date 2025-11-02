@@ -34,9 +34,12 @@ public:
 
     const InteractionState &state() const { return m_state; }
 
+    std::optional<int> HoveredEntity() const { return m_state.hoveredId; }
+    std::optional<int> SelectedEntity() const { return m_state.activeId; }
+
     void SelectEntity(int id) { m_state.activeId = id; }
 
-private:
+    private:
     std::optional<int> pick(const PageModel &scene, const Vec2 &world);
     void moveEntity(PageModel &scene, int id, const Vec2 &delta);
     void resizeEntity(PageModel &scene, int id, const Vec2 &world);

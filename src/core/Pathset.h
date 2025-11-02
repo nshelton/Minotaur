@@ -31,11 +31,11 @@ struct PathSet {
     Mat3 transform; // page-space transform (mm -> mm)
     std::vector<Path> paths;
     Color color {1.0f, 1.0f, 1.0f, 1.0f};
-    BoundingBox aabb;
+    mutable BoundingBox aabb;
 
     PathSet() = default;
 
-    void computeAABB() {
+    void computeAABB() const  {
         aabb.min = Vec2(0,0);
         aabb.max = Vec2(0,0);
         bool first = true;
