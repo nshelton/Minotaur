@@ -39,9 +39,9 @@ void Renderer::render(const Camera &camera, const PageModel &page, const Interac
       {
          const Entity &entity = page.entities.at(*uiState.hoveredId);
          drawRect(
-            entity.localToPage * entity.pathset.aabb.min,
-            entity.localToPage * entity.pathset.aabb.max,
-            Color(0, 0.5, 0, 0.5));
+             entity.localToPage * entity.pathset.aabb.min - 1,
+             entity.localToPage * entity.pathset.aabb.max + 1,
+             Color(0, 1, 0, 1));
       }
    }
 
@@ -52,9 +52,9 @@ void Renderer::render(const Camera &camera, const PageModel &page, const Interac
       {
          const Entity &entity = page.entities.at(*uiState.activeId);
          drawRect(
-            entity.localToPage * entity.pathset.aabb.min,
-            entity.localToPage * entity.pathset.aabb.max,
-            Color(0.8f, 0.8f, 0.0f, 0.8f));
+             entity.localToPage * entity.pathset.aabb.min - 1,
+             entity.localToPage * entity.pathset.aabb.max + 1,
+             Color(0.8f, 0.8f, 0.0f, 1.0f));
       }
    }
 

@@ -10,6 +10,7 @@ find_package(glad CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(fmt CONFIG REQUIRED)
 find_package(glog CONFIG REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
 
 add_executable(minotaur
   src/main.cpp
@@ -24,11 +25,12 @@ add_executable(minotaur
 
   src/render/LineRenderer.cpp
   src/utils/PathSetGenerator.cpp
+  src/utils/Serialization.cpp
 
 )
 
 target_include_directories(minotaur PRIVATE src)
 
 if (WIN32)
-  target_link_libraries(minotaur PRIVATE glad::glad glfw imgui::imgui opengl32 glog::glog fmt::fmt)
+  target_link_libraries(minotaur PRIVATE glad::glad glfw imgui::imgui opengl32 glog::glog fmt::fmt nlohmann_json::nlohmann_json)
 endif()

@@ -4,6 +4,7 @@
 #include "utils/PathSetGenerator.h"
 #include <iostream>
 #include <glog/logging.h>
+#include "utils/Serialization.h"
 
 void MainScreen::onAttach(App &app)
 {
@@ -11,12 +12,21 @@ void MainScreen::onAttach(App &app)
     google::SetStderrLogging(google::GLOG_INFO);
 
     m_app = &app;
-    m_page.addPathSet(
-        PathSetGenerator::Circle(
-            Vec2(297.0f / 2.0f, 420.0f / 2.0f),
-            50.0f,
-            96,
-            Color(0.2f, 0.8f, 0.3f, 1.0f)));
+    std::string err;
+    if (!serialization::loadPageModel(m_page, "page.json", &err))
+    {
+        if (!err.empty())
+        {
+            LOG(WARNING) << "Failed to load page.json: " << err;
+        }
+        // Fallback demo content
+        m_page.addPathSet(
+            PathSetGenerator::Circle(
+                Vec2(297.0f / 2.0f, 420.0f / 2.0f),
+                50.0f,
+                96,
+                Color(0.2f, 0.8f, 0.3f, 1.0f)));
+    }
 }
 
 void MainScreen::onResize(int width, int height)
@@ -37,6 +47,11 @@ void MainScreen::onRender()
 void MainScreen::onDetach()
 {
     m_renderer.shutdown();
+    std::string err;
+    if (!serialization::savePageModel(m_page, "page.json", &err))
+    {
+        LOG(ERROR) << "Failed to save page.json: " << err;
+    }
 }
 
 void MainScreen::onMouseButton(int button, int action, int /*mods*/, Vec2 px)
