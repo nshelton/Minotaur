@@ -117,6 +117,21 @@ public:
     {
         if (index >= m_filters.size())
             return false;
+
+        // If there is a downstream filter, ensure removing this filter would not
+        // break the input/output type compatibility for the next filter.
+        if (index + 1 < m_filters.size())
+        {
+            LayerKind newUpstreamKind = (index == 0)
+                                             ? baseKind()
+                                             : m_filters[index - 1]->outputKind();
+            LayerKind nextInputKind = m_filters[index + 1]->inputKind();
+            if (newUpstreamKind != nextInputKind)
+            {
+                return false;
+            }
+        }
+
         m_filters.erase(m_filters.begin() + static_cast<std::ptrdiff_t>(index));
         m_layers.erase(m_layers.begin() + static_cast<std::ptrdiff_t>(index));
         m_enabled.erase(m_enabled.begin() + static_cast<std::ptrdiff_t>(index));

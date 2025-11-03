@@ -340,6 +340,7 @@ void MainScreen::onGui()
             }
             ImGui::Separator();
 
+            bool deleteFailed = false;
             std::optional<size_t> deleteIndex;
             for (size_t i = 0; i < n; ++i)
             {
@@ -413,7 +414,15 @@ void MainScreen::onGui()
 
             if (deleteIndex.has_value())
             {
-                e.filterChain.removeFilter(*deleteIndex);
+                if (!e.filterChain.removeFilter(*deleteIndex))
+                {
+                    deleteFailed = true;
+                }
+            }
+
+            if (deleteFailed)
+            {
+                ImGui::TextColored(ImVec4(1, 0.3f, 0.3f, 1), "Cannot delete filter: would invalidate next filter's input type");
             }
         }
         else

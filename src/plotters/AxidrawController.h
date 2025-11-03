@@ -4,8 +4,8 @@
 #include "serial/SerialController.h"
 
 struct AxiDrawState {
-    int penUpPos{16000};
-    int penDownPos{12000};
+    int penUpPos{17548};
+    int penDownPos{14058};
     int upDownMs{100}; // computed as |up-down| * 0.06
 };
 
