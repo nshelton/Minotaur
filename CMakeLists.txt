@@ -34,6 +34,7 @@ add_executable(minotaur
   # Serial/Plotter
   src/serial/SerialController.cpp
   src/plotters/AxidrawController.cpp
+  src/plotters/MotionPlanner.cpp
   src/plotters/PlotSpooler.cpp
 
   # Filters

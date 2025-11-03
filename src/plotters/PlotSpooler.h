@@ -12,6 +12,7 @@
 #include "core/Vec2.h"
 #include "plotters/AxidrawController.h"
 #include "plotters/PlotterConfig.h"
+#include "plotters/MotionPlanner.h"
 #include "serial/SerialController.h"
 
 // Streams page geometry to AxiDraw using simple SM moves and pen commands.
@@ -69,6 +70,7 @@ private:
 
     // Build command queue from page paths
     bool buildQueue(const PageModel &page, bool liftPen);
+    bool buildQueuePlanned(const PageModel &page, bool liftPen);
 
     // Push helpers
     void pushPenUp();

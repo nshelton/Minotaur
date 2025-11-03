@@ -15,10 +15,10 @@ void MainScreen::onAttach(App &app)
 
     m_app = &app;
     std::string err;
-    PlotterConfig plotterCfg{};
-    plotterCfg.penUpPos = m_axState.penUpPos;
-    plotterCfg.penDownPos = m_axState.penDownPos;
-    if (!serialization::loadProject(m_page, m_camera, m_renderer, plotterCfg, "page.json", &err))
+    // Seed plotter config from current AxiDraw state before attempting to load
+    m_plotter.penUpPos = m_axState.penUpPos;
+    m_plotter.penDownPos = m_axState.penDownPos;
+    if (!serialization::loadProject(m_page, m_camera, m_renderer, m_plotter, "page.json", &err))
     {
         if (!err.empty())
         {
@@ -34,8 +34,9 @@ void MainScreen::onAttach(App &app)
     }
     else
     {
-        m_axState.penUpPos = plotterCfg.penUpPos;
-        m_axState.penDownPos = plotterCfg.penDownPos;
+        // Sync AxiDraw state from loaded plotter config
+        m_axState.penUpPos = m_plotter.penUpPos;
+        m_axState.penDownPos = m_plotter.penDownPos;
     }
 }
 
@@ -58,10 +59,11 @@ void MainScreen::onDetach()
 {
     m_renderer.shutdown();
     std::string err;
-    PlotterConfig plotterCfg{};
-    plotterCfg.penUpPos = m_axState.penUpPos;
-    plotterCfg.penDownPos = m_axState.penDownPos;
-    if (!serialization::saveProject(m_page, m_camera, m_renderer, plotterCfg, "page.json", &err))
+    // Persist the entire plotter configuration
+    // Keep pen positions in sync with the last known AxiDraw state
+    m_plotter.penUpPos = m_axState.penUpPos;
+    m_plotter.penDownPos = m_axState.penDownPos;
+    if (!serialization::saveProject(m_page, m_camera, m_renderer, m_plotter, "page.json", &err))
     {
         LOG(ERROR) << "Failed to save page.json: " << err;
     }

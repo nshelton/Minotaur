@@ -85,6 +85,7 @@ void MainScreen::onGui()
                                          tm.tm_hour,
                                          tm.tm_min,
                                          tm.tm_sec);
+
             auto ps = PathSetGenerator::Text(dt, center, 12.0f, 2.0f, theme::PathsetColor);
             m_page.addPathSet(std::move(ps));
         }
@@ -179,13 +180,21 @@ void MainScreen::onGui()
             {
                 m_axState.penUpPos = up;
                 m_plotter.penUpPos = up;
-                if (m_ax) { std::string e; m_ax->setPenUpValue(up, &e); }
+                if (m_ax)
+                {
+                    std::string e;
+                    m_ax->setPenUpValue(up, &e);
+                }
             }
             if (ImGui::SliderInt("Pen Down Position", &down, 8000, 20000))
             {
                 m_axState.penDownPos = down;
                 m_plotter.penDownPos = down;
-                if (m_ax) { std::string e; m_ax->setPenDownValue(down, &e); }
+                if (m_ax)
+                {
+                    std::string e;
+                    m_ax->setPenDownValue(down, &e);
+                }
             }
 
             // Speed sliders
@@ -199,6 +208,38 @@ void MainScreen::onGui()
             if (ImGui::SliderInt("Travel Speed (%)", &travelPct, 10, 300))
             {
                 m_plotter.travelSpeedPercent = travelPct;
+            }
+
+            if (ImGui::CollapsingHeader("Advanced Motion", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                float drawSpeed = m_plotter.drawSpeedMmPerS;
+                float travelSpeed = m_plotter.travelSpeedMmPerS;
+                float accelDraw = m_plotter.accelDrawMmPerS2;
+                float accelTravel = m_plotter.accelTravelMmPerS2;
+                float cornering = m_plotter.cornering;
+                int junctionFloor = m_plotter.junctionSpeedFloorPercent;
+                int sliceMs = m_plotter.timeSliceMs;
+                int maxRate = m_plotter.maxStepRatePerAxis;
+                float minSeg = m_plotter.minSegmentMm;
+
+                if (ImGui::SliderFloat("Draw Speed (mm/s)", &drawSpeed, 5.0f, 200.0f, "%.1f"))
+                    m_plotter.drawSpeedMmPerS = drawSpeed;
+                if (ImGui::SliderFloat("Travel Speed (mm/s)", &travelSpeed, 5.0f, 300.0f, "%.1f"))
+                    m_plotter.travelSpeedMmPerS = travelSpeed;
+                if (ImGui::SliderFloat("Draw Accel (mm/s^2)", &accelDraw, 50.0f, 5000.0f, "%.0f"))
+                    m_plotter.accelDrawMmPerS2 = accelDraw;
+                if (ImGui::SliderFloat("Travel Accel (mm/s^2)", &accelTravel, 50.0f, 8000.0f, "%.0f"))
+                    m_plotter.accelTravelMmPerS2 = accelTravel;
+                if (ImGui::SliderFloat("Cornering (jd, mm)", &cornering, 0.00f, 2.00f, "%.2f"))
+                    m_plotter.cornering = cornering;
+                if (ImGui::SliderInt("Junction Speed Floor (%)", &junctionFloor, 0, 100))
+                    m_plotter.junctionSpeedFloorPercent = junctionFloor;
+                if (ImGui::SliderInt("Time Slice (ms)", &sliceMs, 2, 50))
+                    m_plotter.timeSliceMs = sliceMs;
+                if (ImGui::SliderInt("Max Step Rate (steps/s)", &maxRate, 1000, 30000))
+                    m_plotter.maxStepRatePerAxis = maxRate;
+                if (ImGui::SliderFloat("Min Segment (mm)", &minSeg, 0.01f, 1.0f, "%.2f"))
+                    m_plotter.minSegmentMm = minSeg;
             }
 
             ImGui::Separator();
@@ -225,15 +266,24 @@ void MainScreen::onGui()
                 if (!m_spooler->isPaused())
                 {
                     ImGui::SameLine();
-                    if (ImGui::Button("Pause")) { m_spooler->pause(); }
+                    if (ImGui::Button("Pause"))
+                    {
+                        m_spooler->pause();
+                    }
                 }
                 else
                 {
                     ImGui::SameLine();
-                    if (ImGui::Button("Resume")) { m_spooler->resume(); }
+                    if (ImGui::Button("Resume"))
+                    {
+                        m_spooler->resume();
+                    }
                 }
                 ImGui::SameLine();
-                if (ImGui::Button("Cancel")) { m_spooler->cancel(); }
+                if (ImGui::Button("Cancel"))
+                {
+                    m_spooler->cancel();
+                }
             }
         }
     }

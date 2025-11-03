@@ -371,7 +371,17 @@ namespace serialization
                 {"pen_up_pos", plotter.penUpPos},
                 {"pen_down_pos", plotter.penDownPos},
                 {"draw_speed_percent", plotter.drawSpeedPercent},
-                {"travel_speed_percent", plotter.travelSpeedPercent}
+                {"travel_speed_percent", plotter.travelSpeedPercent},
+                // mm-based planner settings
+                {"draw_speed_mm_s", plotter.drawSpeedMmPerS},
+                {"travel_speed_mm_s", plotter.travelSpeedMmPerS},
+                {"accel_draw_mm_s2", plotter.accelDrawMmPerS2},
+                {"accel_travel_mm_s2", plotter.accelTravelMmPerS2},
+                {"cornering", plotter.cornering},
+                {"time_slice_ms", plotter.timeSliceMs},
+                {"max_step_rate_per_axis", plotter.maxStepRatePerAxis},
+                {"min_segment_mm", plotter.minSegmentMm},
+                {"junction_speed_floor_percent", plotter.junctionSpeedFloorPercent}
             };
 
             std::ofstream ofs(filePath, std::ios::binary | std::ios::trunc);
@@ -495,6 +505,16 @@ namespace serialization
                 plotter.penDownPos = p.value("pen_down_pos", plotter.penDownPos);
                 plotter.drawSpeedPercent = p.value("draw_speed_percent", plotter.drawSpeedPercent);
                 plotter.travelSpeedPercent = p.value("travel_speed_percent", plotter.travelSpeedPercent);
+                // mm-based planner settings (with defaults)
+                plotter.drawSpeedMmPerS = p.value("draw_speed_mm_s", plotter.drawSpeedMmPerS);
+                plotter.travelSpeedMmPerS = p.value("travel_speed_mm_s", plotter.travelSpeedMmPerS);
+                plotter.accelDrawMmPerS2 = p.value("accel_draw_mm_s2", plotter.accelDrawMmPerS2);
+                plotter.accelTravelMmPerS2 = p.value("accel_travel_mm_s2", plotter.accelTravelMmPerS2);
+                plotter.cornering = p.value("cornering", plotter.cornering);
+                plotter.timeSliceMs = p.value("time_slice_ms", plotter.timeSliceMs);
+                plotter.maxStepRatePerAxis = p.value("max_step_rate_per_axis", plotter.maxStepRatePerAxis);
+                plotter.minSegmentMm = p.value("min_segment_mm", plotter.minSegmentMm);
+                plotter.junctionSpeedFloorPercent = p.value("junction_speed_floor_percent", plotter.junctionSpeedFloorPercent);
             }
 
             return true;

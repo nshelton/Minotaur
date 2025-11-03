@@ -92,6 +92,13 @@ public:
         return evaluate(m_filters.size() - 1);
     }
 
+    const LayerPtr &outputLayer() const
+    {
+        if (m_filters.empty())
+            return m_base;
+        return m_layers[m_layers.size() - 1].data;
+    }
+
     void invalidateAll()
     {
         for (auto &lc : m_layers)
