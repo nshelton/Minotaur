@@ -157,15 +157,12 @@ void MainScreen::onGui()
                     // Parameter controls
                     for (auto &[paramKey, param] : f->m_parameters)
                     {
-                        if (paramKey == "threshold")
-                        {
-                            std::string label = fmt::format("{}###param:{}:{}", param.name, paramKey, i);
+                        std::string label = fmt::format("{}###param:{}:{}", param.name, paramKey, i);
 
-                            float val = param.value;
-                            if (ImGui::SliderFloat(label.c_str(), &val, param.minValue, param.maxValue))
-                            {
-                                f->setParameter(paramKey, val);
-                            }
+                        float val = param.value;
+                        if (ImGui::SliderFloat(label.c_str(), &val, param.minValue, param.maxValue))
+                        {
+                            f->setParameter(paramKey, val);
                         }
                     }
                 }

@@ -9,6 +9,7 @@
 #include "Page.h"
 #include "core/Core.h"
 #include "filters/FilterChain.h"
+#include "filters/FilterRegistry.h"
 #include "filters/bitmap/BlurFilter.h"
 #include "filters/bitmap/ThresholdFilter.h"
 #include "filters/bitmap/TraceFilter.h"
@@ -146,19 +147,7 @@ static void to_json(json &j, const Entity &e)
         {
             params[kv.first] = kv.second.value;
         }
-        // Type-specific parameters (for filters not using m_parameters)
-        if (auto blur = dynamic_cast<const BlurFilter *>(fb))
-        {
-            params["radiusPx"] = blur->radiusPx;
-        }
-        if (auto simp = dynamic_cast<const SimplifyFilter *>(fb))
-        {
-            params["toleranceMm"] = simp->toleranceMm;
-        }
-        if (auto trace = dynamic_cast<const TraceFilter *>(fb))
-        {
-            params["threshold"] = static_cast<int>(trace->threshold);
-        }
+
         jf["params"] = std::move(params);
         filters.push_back(std::move(jf));
     }
@@ -279,47 +268,40 @@ namespace serialization
                     bool enabled = jf.value("enabled", true);
                     const json &params = jf.contains("params") ? jf["params"] : json::object();
 
-                    if (type == "Blur")
+                    // Try FilterRegistry first
                     {
-                        auto ptr = std::make_unique<BlurFilter>();
-                        if (params.contains("radiusPx"))
+                        const auto &all = FilterRegistry::instance().all();
+                        for (const auto &info : all)
                         {
-                            ptr->setRadius(params.value("radiusPx", ptr->radiusPx));
+                            if (info.name == type)
+                            {
+                                f = info.factory();
+                                break;
+                            }
                         }
-                        f = std::move(ptr);
                     }
-                    else if (type == "Threshold")
+
+                    // Fallback to hardcoded constructors
+                    if (!f)
                     {
-                        auto ptr = std::make_unique<ThresholdFilter>();
-                        if (params.contains("threshold"))
+                        if (type == "Blur")
+                            f = std::make_unique<BlurFilter>();
+                        else if (type == "Threshold")
+                            f = std::make_unique<ThresholdFilter>();
+                        else if (type == "Trace")
+                            f = std::make_unique<TraceFilter>();
+                        else if (type == "Simplify")
+                            f = std::make_unique<SimplifyFilter>();
+                    }
+
+                    // Apply generic parameter map only (extensible)
+                    if (f)
+                    {
+                        for (auto it = params.begin(); it != params.end(); ++it)
                         {
-                            ptr->setParameter("threshold", params.value("threshold", ptr->m_parameters["threshold"].value));
+                            if (it.value().is_number())
+                                f->setParameter(it.key(), it.value().get<float>());
                         }
-                        f = std::move(ptr);
-                    }
-                    else if (type == "Trace")
-                    {
-                        auto ptr = std::make_unique<TraceFilter>();
-                        if (params.contains("threshold"))
-                        {
-                            int t = params.value("threshold", static_cast<int>(ptr->threshold));
-                            if (t < 0) t = 0; if (t > 255) t = 255;
-                            ptr->setThreshold(static_cast<uint8_t>(t));
-                        }
-                        f = std::move(ptr);
-                    }
-                    else if (type == "Simplify")
-                    {
-                        auto ptr = std::make_unique<SimplifyFilter>();
-                        if (params.contains("toleranceMm"))
-                        {
-                            ptr->setTolerance(params.value("toleranceMm", ptr->toleranceMm));
-                        }
-                        f = std::move(ptr);
-                    }
-                    else
-                    {
-                        // Unknown filter type; skip
                     }
 
                     if (f)

@@ -8,10 +8,11 @@ void SimplifyFilter::applyTyped(const PathSet &in, PathSet &out) const
 
     // Very naive decimation based on tolerance: keep every Nth point
     int step = 1;
-    if (toleranceMm > 0.0f)
+    const float tol = m_parameters.at("toleranceMm").value;
+    if (tol > 0.0f)
     {
         // Map tolerance mm to an integer step (clamped to at least 1)
-        step = static_cast<int>(toleranceMm);
+        step = static_cast<int>(tol);
         if (step < 1) step = 1;
     }
 

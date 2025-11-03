@@ -1,9 +1,12 @@
 {
+  "chatgpt.preferWsl": true,
   "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
   "cmake.configureOnOpen": true,
   "cmake.configurePreset": "msvc-vcpkg",
   "cmake.buildPreset": "debug",
-  "cmake.configureEnvironment": { "VCPKG_ROOT": "D:/vcpkg" },
+  "cmake.configureEnvironment": {
+    "VCPKG_ROOT": "D:/vcpkg"
+  },
   "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
   "C_Cpp.default.includePath": [
     "${workspaceFolder}/**",
@@ -88,6 +91,10 @@
     "thread": "cpp",
     "unordered_map": "cpp",
     "unordered_set": "cpp",
-    "variant": "cpp"
+    "variant": "cpp",
+    "any": "cpp",
+    "numeric": "cpp",
+    "ranges": "cpp",
+    "valarray": "cpp"
   }
 }

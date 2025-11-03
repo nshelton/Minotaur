@@ -12,6 +12,7 @@ void TraceFilter::applyTyped(const Bitmap &in, PathSet &out) const
     }
 
     // Create a polyline per row connecting pixels above threshold
+    const uint8_t threshold = static_cast<uint8_t>(m_parameters.at("threshold").value);
     for (int y = 0; y < in.height_px; ++y)
     {
         Path row;

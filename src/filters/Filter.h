@@ -7,6 +7,8 @@
 #include <type_traits>
 #include <atomic>
 
+#include <glog/logging.h>
+
 #include "filters/Types.h"
 
 struct FilterParameter
@@ -45,6 +47,8 @@ struct FilterBase
         {
             it->second.value = value;
             m_version.fetch_add(1);
+        } else {
+            LOG(INFO) << "tried to set \" " << key << ", not found on filter" << name();
         }
     }
 
