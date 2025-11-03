@@ -1,5 +1,6 @@
 #pragma once
 #include "core/core.h"
+#include <string>
 
 namespace PathSetGenerator {
 
@@ -15,6 +16,11 @@ PathSet Square(Vec2 center_mm, float side_mm,
 PathSet Star(Vec2 center_mm, float outer_radius_mm, float inner_radius_mm,
              int points = 5,
              Color color = Color(0.95f, 0.8f, 0.2f, 1.0f));
+
+// Text using built-in vector stroke font. Height is cap height in mm.
+PathSet Text(const std::string &text, Vec2 origin_mm, float height_mm = 10.0f,
+             float letter_spacing_units = 2.0f,
+             Color color = Color(1.0f, 1.0f, 1.0f, 1.0f));
 
 }
 

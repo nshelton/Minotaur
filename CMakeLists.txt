@@ -25,6 +25,7 @@ add_executable(minotaur
 
   src/render/LineRenderer.cpp
   src/render/ImageRenderer.cpp
+  src/utils/VectorFont.cpp
   src/utils/PathSetGenerator.cpp
   src/utils/BitmapGenerator.cpp
   src/utils/Serialization.cpp
@@ -36,6 +37,7 @@ add_executable(minotaur
   src/filters/bitmap/ThresholdFilter.cpp
   src/filters/pathset/SimplifyFilter.cpp
   src/filters/bitmap/TraceFilter.cpp
+  src/filters/bitmap/TraceBlobsFilter.cpp
 
 )
 

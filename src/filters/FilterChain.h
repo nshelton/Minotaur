@@ -108,7 +108,8 @@ public:
     // Modification: remove a filter by index
     bool removeFilter(size_t index)
     {
-        if (index >= m_filters.size()) return false;
+        if (index >= m_filters.size())
+            return false;
         m_filters.erase(m_filters.begin() + static_cast<std::ptrdiff_t>(index));
         m_layers.erase(m_layers.begin() + static_cast<std::ptrdiff_t>(index));
         m_enabled.erase(m_enabled.begin() + static_cast<std::ptrdiff_t>(index));
@@ -120,7 +121,8 @@ public:
     // Enable/disable a filter (bypass when disabled)
     void setFilterEnabled(size_t index, bool enabled)
     {
-        if (index >= m_enabled.size()) return;
+        if (index >= m_enabled.size())
+            return;
         if (m_enabled[index] != enabled)
         {
             m_enabled[index] = enabled;
@@ -175,6 +177,20 @@ private:
             cache.paramVer = filter.paramVersion();
             cache.gen = cache.gen + 1; // advance local generation
             cache.valid = true;
+
+            if (cache.data.get()->kind() == LayerKind::PathSet)
+            {
+                const PathSet *psp = static_cast<const PathSet *>(cache.data.get());
+                filter.setLastPathCount(psp->paths.size());
+                int totalVerts = 0;
+                for (auto path : psp->paths)
+                {
+                    totalVerts += path.points.size();
+                }
+                filter.setLastVertexCount(totalVerts);
+                LOG(INFO) << totalVerts << " "  <<  psp->paths.size();
+            }
+            LOG(INFO) << "recomputed " << filter.name();
         }
         return cache.data;
     }

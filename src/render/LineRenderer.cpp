@@ -169,18 +169,22 @@ void LineRenderer::draw( const Mat3 &mm_to_ndc)
     // Draw points as filled circles using point sprites
     if (!m_points.empty())
     {
-        // compute pixel size for desired mm radius
-        // NDC per mm is in mm_to_ndc scale (m[0] and m[4])
-        GLint vp[4];
-        glGetIntegerv(GL_VIEWPORT, vp);
-        float vpW = static_cast<float>(vp[2]);
-        float vpH = static_cast<float>(vp[3]);
-        float ndcPerMmX = std::abs(mm_to_ndc.m[0]);
-        float ndcPerMmY = std::abs(mm_to_ndc.m[4]);
-        float pxPerMmX = ndcPerMmX * (vpW * 0.5f);
-        float pxPerMmY = ndcPerMmY * (vpH * 0.5f);
-        float pxPerMm = (pxPerMmX + pxPerMmY) * 0.5f;
-        float pointDiameterPx = std::max(1.0f, 2.0f * m_pointRadiusMm * pxPerMm);
+        // compute pixel size: use explicit pixel diameter if set; otherwise derive from mm
+        float pointDiameterPx = m_pointDiameterPx;
+        if (pointDiameterPx <= 0.0f)
+        {
+            // NDC per mm is in mm_to_ndc scale (m[0] and m[4])
+            GLint vp[4];
+            glGetIntegerv(GL_VIEWPORT, vp);
+            float vpW = static_cast<float>(vp[2]);
+            float vpH = static_cast<float>(vp[3]);
+            float ndcPerMmX = std::abs(mm_to_ndc.m[0]);
+            float ndcPerMmY = std::abs(mm_to_ndc.m[4]);
+            float pxPerMmX = ndcPerMmX * (vpW * 0.5f);
+            float pxPerMmY = ndcPerMmY * (vpH * 0.5f);
+            float pxPerMm = (pxPerMmX + pxPerMmY) * 0.5f;
+            pointDiameterPx = std::max(1.0f, 2.0f * m_pointRadiusMm * pxPerMm);
+        }
 
         glEnable(GL_PROGRAM_POINT_SIZE);
         glUniform1f(m_uPointSizePx, pointDiameterPx);

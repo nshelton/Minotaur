@@ -6,6 +6,7 @@
 #include "filters/bitmap/BlurFilter.h"
 #include "filters/bitmap/ThresholdFilter.h"
 #include "filters/bitmap/TraceFilter.h"
+#include "filters/bitmap/TraceBlobsFilter.h"
 #include "filters/pathset/SimplifyFilter.h"
 
 namespace {
@@ -75,6 +76,13 @@ void FilterRegistry::initDefaults()
 		LayerKind::Bitmap,
 		LayerKind::PathSet,
 		[]() { return std::make_unique<TraceFilter>(); }
+	});
+
+	reg.registerFilter(FilterInfo{
+		"Blobs",
+		LayerKind::Bitmap,
+		LayerKind::PathSet,
+		[]() { return std::make_unique<TraceBlobsFilter>(); }
 	});
 
 	reg.registerFilter(FilterInfo{

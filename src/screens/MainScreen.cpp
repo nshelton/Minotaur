@@ -14,7 +14,7 @@ void MainScreen::onAttach(App &app)
 
     m_app = &app;
     std::string err;
-    if (!serialization::loadPageModel(m_page, "page.json", &err))
+    if (!serialization::loadProject(m_page, m_camera, m_renderer, "page.json", &err))
     {
         if (!err.empty())
         {
@@ -49,7 +49,7 @@ void MainScreen::onDetach()
 {
     m_renderer.shutdown();
     std::string err;
-    if (!serialization::savePageModel(m_page, "page.json", &err))
+    if (!serialization::saveProject(m_page, m_camera, m_renderer, "page.json", &err))
     {
         LOG(ERROR) << "Failed to save page.json: " << err;
     }

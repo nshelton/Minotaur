@@ -1,5 +1,6 @@
 #include <cmath>
 #include "PathSetGenerator.h"
+#include "VectorFont.h"
 
 namespace PathSetGenerator {
 
@@ -49,6 +50,14 @@ PathSet Star(Vec2 center_mm, float outer_radius_mm, float inner_radius_mm, int p
         path.points.push_back(Vec2{x, y});
     }
     ps.paths.push_back(std::move(path));
+    return ps;
+}
+
+PathSet Text(const std::string &text, Vec2 origin_mm, float height_mm, float letter_spacing_units, Color col) {
+    PathSet ps{};
+    ps.color = col;
+    auto paths = VectorFont::textToPaths(text, origin_mm.x, origin_mm.y, height_mm, letter_spacing_units);
+    ps.paths = std::move(paths);
     return ps;
 }
 

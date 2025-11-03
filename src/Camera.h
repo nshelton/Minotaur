@@ -48,6 +48,17 @@ public:
     int height() const { return m_height; }
     void zoomAtPixel(const Vec2 &px, float wheelSteps);
 
+    float zoom() const { return m_zoom; }
+    void setCenterAndZoom(Vec2 center, float zoom)
+    {
+        m_zoom = zoom;
+        m_left = center.x - m_aspect * m_zoom;
+        m_right = center.x + m_aspect * m_zoom;
+        m_bottom = center.y - m_zoom;
+        m_top = center.y + m_zoom;
+        m_viewTransform.setOrtho(m_left, m_right, m_bottom, m_top);
+    }
+
 private:
     static float clamp(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
 

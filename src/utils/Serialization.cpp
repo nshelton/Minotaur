@@ -15,6 +15,10 @@
 #include "filters/bitmap/TraceFilter.h"
 #include "filters/pathset/SimplifyFilter.h"
 
+#include "Camera.h"
+#include "Renderer.h"
+
+
 using nlohmann::json;
 
 // JSON conversions for core types
@@ -181,7 +185,7 @@ static void from_json(const json &j, Entity &e)
 namespace serialization
 {
 
-    static constexpr int kSchemaVersion = 1;
+    static constexpr int kSchemaVersion = 2;
 
     bool savePageModel(const PageModel &model, const std::string &filePath, std::string *errorOut)
     {
@@ -321,6 +325,161 @@ namespace serialization
         {
             if (errorOut)
                 *errorOut = ex.what();
+            return false;
+        }
+    }
+
+    bool saveProject(const PageModel &model, const Camera &camera, const Renderer &renderer, const std::string &filePath, std::string *errorOut)
+    {
+        try
+        {
+            // reuse page serialization
+            json entities = json::array();
+            entities.get_ptr<json::array_t*>()->reserve(model.entities.size());
+            for (const auto &kv : model.entities)
+            {
+                json je;
+                to_json(je, kv.second);
+                entities.push_back(std::move(je));
+            }
+
+            json j = {
+                {"version", kSchemaVersion},
+                {"page_size_mm", json{{"w", model.page_width_mm}, {"h", model.page_height_mm}}},
+                {"mouse_pixel", model.mouse_pixel},
+                {"mouse_page_mm", model.mouse_page_mm},
+                {"entities", entities}
+            };
+
+            // Camera state
+            Vec2 camCenter = camera.center();
+            j["camera"] = json{
+                {"center", camCenter},
+                {"zoom", camera.zoom()}
+            };
+
+            // Renderer state
+            j["render"] = json{
+                {"line_width", renderer.lineWidth()},
+                {"node_diameter_px", renderer.nodeDiameterPx()}
+            };
+
+            std::ofstream ofs(filePath, std::ios::binary | std::ios::trunc);
+            if (!ofs)
+            {
+                if (errorOut) *errorOut = "Failed to open file for writing: " + filePath;
+                return false;
+            }
+            ofs << j.dump(2);
+            return true;
+        }
+        catch (const std::exception &ex)
+        {
+            if (errorOut) *errorOut = ex.what();
+            return false;
+        }
+    }
+
+    bool loadProject(PageModel &model, Camera &camera, Renderer &renderer, const std::string &filePath, std::string *errorOut)
+    {
+        try
+        {
+            if (!std::filesystem::exists(filePath))
+            {
+                if (errorOut) *errorOut = "File does not exist: " + filePath;
+                return false;
+            }
+            std::ifstream ifs(filePath, std::ios::binary);
+            if (!ifs)
+            {
+                if (errorOut) *errorOut = "Failed to open file for reading: " + filePath;
+                return false;
+            }
+            json j; ifs >> j;
+
+            // Load page model using existing logic
+            // optional version check
+            int version = j.value("version", 1);
+            (void)version;
+
+            model.mouse_pixel = j.value("mouse_pixel", Vec2{});
+            model.mouse_page_mm = j.value("mouse_page_mm", Vec2{});
+
+            model.entities.clear();
+            if (j.contains("entities") && j["entities"].is_array())
+            {
+                for (const auto &je : j["entities"])
+                {
+                    Entity e = je.get<Entity>();
+                    e.refreshFilterBase();
+
+                    if (je.contains("filters") && je["filters"].is_array())
+                    {
+                        for (const auto &jf : je["filters"])
+                        {
+                            std::unique_ptr<FilterBase> f;
+                            std::string type = jf.value("type", std::string{});
+                            bool enabled = jf.value("enabled", true);
+                            const json &params = jf.contains("params") ? jf["params"] : json::object();
+
+                            {
+                                const auto &all = FilterRegistry::instance().all();
+                                for (const auto &info : all)
+                                {
+                                    if (info.name == type)
+                                    {
+                                        f = info.factory();
+                                        break;
+                                    }
+                                }
+                            }
+                            if (!f)
+                            {
+                                if (type == "Blur") f = std::make_unique<BlurFilter>();
+                                else if (type == "Threshold") f = std::make_unique<ThresholdFilter>();
+                                else if (type == "Trace") f = std::make_unique<TraceFilter>();
+                                else if (type == "Simplify") f = std::make_unique<SimplifyFilter>();
+                            }
+                            if (f)
+                            {
+                                for (auto it = params.begin(); it != params.end(); ++it)
+                                {
+                                    if (it.value().is_number()) f->setParameter(it.key(), it.value().get<float>());
+                                }
+                            }
+                            if (f)
+                            {
+                                size_t idx = e.filterChain.addFilter(std::move(f));
+                                e.filterChain.setFilterEnabled(idx, enabled);
+                            }
+                        }
+                    }
+                    model.entities[e.id] = std::move(e);
+                }
+            }
+
+            // Optional camera
+            if (j.contains("camera"))
+            {
+                Vec2 center = j["camera"].value("center", camera.center());
+                float zoom = j["camera"].value("zoom", camera.zoom());
+                camera.setCenterAndZoom(center, zoom);
+            }
+
+            // Optional renderer
+            if (j.contains("render"))
+            {
+                float lw = j["render"].value("line_width", renderer.lineWidth());
+                float nodePx = j["render"].value("node_diameter_px", renderer.nodeDiameterPx());
+                renderer.setLineWidth(lw);
+                renderer.setNodeDiameterPx(nodePx);
+            }
+
+            return true;
+        }
+        catch (const std::exception &ex)
+        {
+            if (errorOut) *errorOut = ex.what();
             return false;
         }
     }

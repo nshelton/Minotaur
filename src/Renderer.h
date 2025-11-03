@@ -25,6 +25,9 @@ public:
     void render(const Camera &camera, const PageModel &page, const InteractionState &uiState);
 
     void setLineWidth(float w) { m_lines.setLineWidth(w); }
+    void setNodeDiameterPx(float d) { m_nodeDiameterPx = d; m_lines.setPointDiameterPx(d); }
+    float lineWidth() const { return m_lines.lineWidth(); }
+    float nodeDiameterPx() const { return m_nodeDiameterPx; }
 
     void shutdown();
 
@@ -33,6 +36,7 @@ public:
 private:
     LineRenderer m_lines{};
     ImageRenderer m_images{};
+    float m_nodeDiameterPx{8.0f};
 
     void renderPage(const Camera &camera, const PageModel &page);
     void drawRect(const Vec2 &min, const Vec2 &max, const Color &col);

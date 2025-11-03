@@ -3,6 +3,7 @@
 #include "utils/BitmapGenerator.h"
 #include <string>
 #include <fmt/format.h>
+#include <ctime>
 #include "filters/FilterChain.h"
 #include "filters/FilterRegistry.h"
 #include "filters/Types.h"
@@ -35,6 +36,12 @@ void MainScreen::onGui()
             m_renderer.setLineWidth(lineW);
         }
 
+        static float nodePx = 8.0f;
+        if (ImGui::SliderFloat("Node Size (px)", &nodePx, 2.0f, 24.0f, "%.0f"))
+        {
+            m_renderer.setNodeDiameterPx(nodePx);
+        }
+
         bool showNodes = m_interaction.ShowPathNodes();
         if (ImGui::Checkbox("Show Path Nodes", &showNodes))
         {
@@ -59,6 +66,26 @@ void MainScreen::onGui()
         if (ImGui::Button("Add Star"))
         {
             auto ps = PathSetGenerator::Star(center, 60.0f, 30.0f, 5, Color(0.95f, 0.8f, 0.2f, 1.0f));
+            m_page.addPathSet(std::move(ps));
+        }
+
+        if (ImGui::Button("Add Date/Time Text"))
+        {
+            std::time_t now = std::time(nullptr);
+            std::tm tm{};
+#if defined(_WIN32)
+            localtime_s(&tm, &now);
+#else
+            tm = *std::localtime(&now);
+#endif
+            std::string dt = fmt::format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+                                        tm.tm_year + 1900,
+                                        tm.tm_mon + 1,
+                                        tm.tm_mday,
+                                        tm.tm_hour,
+                                        tm.tm_min,
+                                        tm.tm_sec);
+            auto ps = PathSetGenerator::Text(dt, center, 12.0f, 2.0f, theme::PathsetColor);
             m_page.addPathSet(std::move(ps));
         }
 
@@ -89,10 +116,10 @@ void MainScreen::onGui()
         {
             Entity &e = m_page.entities.at(selectedId);
             ImGui::Text("Selected Entity: %d", selectedId);
-            ImGui::Text("Payload Version: %llu", static_cast<unsigned long long>(e.payloadVersion));
+            // ImGui::Text("Payload Version: %llu", static_cast<unsigned long long>(e.payloadVersion));
             ImGui::Text("Base Kind: %s", e.filterChain.baseKind() == LayerKind::Bitmap ? "Bitmap" : "PathSet");
-            ImGui::Text("Base Gen: %llu", static_cast<unsigned long long>(e.filterChain.baseGen()));
-            ImGui::Separator();
+            // ImGui::Text("Base Gen: %llu", static_cast<unsigned long long>(e.filterChain.baseGen()));
+            // ImGui::Separator();
 
             size_t n = e.filterChain.filterCount();
             ImGui::Text("Filters: %llu", static_cast<unsigned long long>(n));
@@ -145,14 +172,20 @@ void MainScreen::onGui()
                     }
 
                     ImGui::Text("Index: %llu", static_cast<unsigned long long>(i));
-                    ImGui::Text("IO: %s -> %s",
-                                f->inputKind() == LayerKind::Bitmap ? "Bitmap" : "PathSet",
-                                f->outputKind() == LayerKind::Bitmap ? "Bitmap" : "PathSet");
-                    ImGui::Text("Param Ver: %llu", static_cast<unsigned long long>(f->paramVersion()));
-                    ImGui::Text("Cache: %s", lc->valid ? "valid" : "invalid");
-                    ImGui::Text("Cache Gen: %llu", static_cast<unsigned long long>(lc->gen));
-                    ImGui::Text("Upstream Gen: %llu", static_cast<unsigned long long>(lc->upstreamGen));
-                    ImGui::Text("Last time: %.3f ms", f->lastRunMs());
+                    // ImGui::Text("IO: %s -> %s",
+                                // f->inputKind() == LayerKind::Bitmap ? "Bitmap" : "PathSet",
+                                // f->outputKind() == LayerKind::Bitmap ? "Bitmap" : "PathSet");
+                    // ImGui::Text("Param Ver: %llu", static_cast<unsigned long long>(f->paramVersion()));
+                    // ImGui::Text("Cache: %s", lc->valid ? "valid" : "invalid");
+                    // ImGui::Text("Cache Gen: %llu", static_cast<unsigned long long>(lc->gen));
+                    // ImGui::Text("Upstream Gen: %llu", static_cast<unsigned long long>(lc->upstreamGen));
+
+                    std::string ioinfo = fmt::format(
+                        "Last time: %.3f ms | %d verts | %d paths",
+                         f->lastRunMs(),
+                         f->lastVertexCount(),
+                         f->lastPathCount());
+                    ImGui::Text(ioinfo.c_str());
 
                     // Parameter controls
                     for (auto &[paramKey, param] : f->m_parameters)

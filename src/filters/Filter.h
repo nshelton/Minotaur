@@ -52,6 +52,11 @@ struct FilterBase
         }
     }
 
+    size_t lastVertexCount() {return m_lastVertexCount.load();}
+    size_t lastPathCount() {return m_lastPathCount.load();}
+    void setLastVertexCount(size_t n) { m_lastVertexCount.store(n); }
+    void setLastPathCount(size_t n) { m_lastPathCount.store(n); }
+
     // Timing: last execution time in milliseconds
     double lastRunMs() const { return m_lastRunMs.load(); }
     void setLastRunMs(double ms) { m_lastRunMs.store(ms); }
@@ -59,6 +64,8 @@ struct FilterBase
 protected:
     std::atomic<uint64_t> m_version{1};
     std::atomic<double> m_lastRunMs{0.0};
+    std::atomic<size_t> m_lastVertexCount{0};
+    std::atomic<size_t> m_lastPathCount{0};
 };
 
 template <typename T>

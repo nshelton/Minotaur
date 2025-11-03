@@ -44,8 +44,7 @@ void Renderer::render(const Camera &camera, const PageModel &page, const Interac
             // Optionally render path vertices as filled points
             if (uiState.showPathNodes)
             {
-               const float r = 1.5f; // mm
-               m_lines.setPointRadiusMm(r);
+               m_lines.setPointDiameterPx(m_nodeDiameterPx);
                for (const Vec2 &pLocal : path.points)
                {
                   Vec2 p = transform.apply(pLocal);
@@ -73,8 +72,8 @@ void Renderer::render(const Camera &camera, const PageModel &page, const Interac
          const Entity &entity = page.entities.at(*uiState.hoveredId);
          BoundingBox bb = entity.boundsLocal();
          drawRect(
-            entity.localToPage * bb.min - 1,
-            entity.localToPage * bb.max + 1,
+            entity.localToPage * bb.min - 2,
+            entity.localToPage * bb.max + 2,
             Color(0, 1, 0, 1));
 
          // draw resize handles on hover as tooltips

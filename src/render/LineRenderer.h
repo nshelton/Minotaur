@@ -12,6 +12,8 @@ public:
     void clear();
     void setLineWidth(float w) { m_lineWidth = w; }
     void setPointRadiusMm(float r) { m_pointRadiusMm = r; }
+    void setPointDiameterPx(float d) { m_pointDiameterPx = d; }
+    float lineWidth() const { return m_lineWidth; }
 
     // Add a colored line segment in plot mm page space
     void addLine(Vec2 a, Vec2 b, Color c);
@@ -34,6 +36,7 @@ private:
 
     float m_lineWidth{1.0f};
     float m_pointRadiusMm{1.5f};
+    float m_pointDiameterPx{0.0f};
 
     std::vector<GLVertex> m_vertices; // line vertices (as pairs)
     std::vector<GLVertex> m_points;   // point vertices (single positions)
