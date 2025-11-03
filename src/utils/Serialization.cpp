@@ -8,6 +8,11 @@
 
 #include "Page.h"
 #include "core/Core.h"
+#include "filters/FilterChain.h"
+#include "filters/bitmap/BlurFilter.h"
+#include "filters/bitmap/ThresholdFilter.h"
+#include "filters/bitmap/TraceFilter.h"
+#include "filters/pathset/SimplifyFilter.h"
 
 using nlohmann::json;
 
@@ -122,6 +127,42 @@ static void to_json(json &j, const Entity &e)
         j["type"] = "bitmap";
         j["bitmap"] = *e.bitmap();
     }
+
+    // Serialize filter chain (optional)
+    json filters = json::array();
+    size_t n = e.filterChain.filterCount();
+    for (size_t i = 0; i < n; ++i)
+    {
+        const FilterBase *fb = e.filterChain.filterAt(i);
+        if (!fb) continue;
+        json jf;
+        // Use the human-readable filter name as type tag
+        jf["type"] = fb->name();
+        jf["enabled"] = e.filterChain.isFilterEnabled(i);
+
+        json params = json::object();
+        // Generic parameters from FilterBase map (e.g., Threshold)
+        for (const auto &kv : fb->m_parameters)
+        {
+            params[kv.first] = kv.second.value;
+        }
+        // Type-specific parameters (for filters not using m_parameters)
+        if (auto blur = dynamic_cast<const BlurFilter *>(fb))
+        {
+            params["radiusPx"] = blur->radiusPx;
+        }
+        if (auto simp = dynamic_cast<const SimplifyFilter *>(fb))
+        {
+            params["toleranceMm"] = simp->toleranceMm;
+        }
+        if (auto trace = dynamic_cast<const TraceFilter *>(fb))
+        {
+            params["threshold"] = static_cast<int>(trace->threshold);
+        }
+        jf["params"] = std::move(params);
+        filters.push_back(std::move(jf));
+    }
+    j["filters"] = std::move(filters);
 }
 
 static void from_json(const json &j, Entity &e)
@@ -157,12 +198,14 @@ namespace serialization
     {
         try
         {
-            // Flatten map<int, Entity> to array sorted by key
-            std::vector<Entity> entities;
-            entities.reserve(model.entities.size());
+            // Serialize entities directly (avoid copying Entities; FilterChain does not copy filters)
+            json entities = json::array();
+            entities.get_ptr<json::array_t*>()->reserve(model.entities.size());
             for (const auto &kv : model.entities)
             {
-                entities.push_back(kv.second);
+                json je;
+                to_json(je, kv.second);
+                entities.push_back(std::move(je));
             }
 
             json j = {
@@ -223,7 +266,71 @@ namespace serialization
                 for (const auto &je : j["entities"])
                 {
                     Entity e = je.get<Entity>();
-                    model.entities[e.id] = e;
+                    // Ensure filter chain base is set after payload deserialization
+                    e.refreshFilterBase();
+
+            // Rebuild filter chain if present
+            if (je.contains("filters") && je["filters"].is_array())
+            {
+                for (const auto &jf : je["filters"])
+                {
+                    std::unique_ptr<FilterBase> f;
+                    std::string type = jf.value("type", std::string{});
+                    bool enabled = jf.value("enabled", true);
+                    const json &params = jf.contains("params") ? jf["params"] : json::object();
+
+                    if (type == "Blur")
+                    {
+                        auto ptr = std::make_unique<BlurFilter>();
+                        if (params.contains("radiusPx"))
+                        {
+                            ptr->setRadius(params.value("radiusPx", ptr->radiusPx));
+                        }
+                        f = std::move(ptr);
+                    }
+                    else if (type == "Threshold")
+                    {
+                        auto ptr = std::make_unique<ThresholdFilter>();
+                        if (params.contains("threshold"))
+                        {
+                            ptr->setParameter("threshold", params.value("threshold", ptr->m_parameters["threshold"].value));
+                        }
+                        f = std::move(ptr);
+                    }
+                    else if (type == "Trace")
+                    {
+                        auto ptr = std::make_unique<TraceFilter>();
+                        if (params.contains("threshold"))
+                        {
+                            int t = params.value("threshold", static_cast<int>(ptr->threshold));
+                            if (t < 0) t = 0; if (t > 255) t = 255;
+                            ptr->setThreshold(static_cast<uint8_t>(t));
+                        }
+                        f = std::move(ptr);
+                    }
+                    else if (type == "Simplify")
+                    {
+                        auto ptr = std::make_unique<SimplifyFilter>();
+                        if (params.contains("toleranceMm"))
+                        {
+                            ptr->setTolerance(params.value("toleranceMm", ptr->toleranceMm));
+                        }
+                        f = std::move(ptr);
+                    }
+                    else
+                    {
+                        // Unknown filter type; skip
+                    }
+
+                    if (f)
+                    {
+                        size_t idx = e.filterChain.addFilter(std::move(f));
+                        e.filterChain.setFilterEnabled(idx, enabled);
+                    }
+                }
+            }
+                    // Move to avoid copying Entity (FilterChain copy does not copy filters)
+                    model.entities[e.id] = std::move(e);
                 }
             }
             return true;

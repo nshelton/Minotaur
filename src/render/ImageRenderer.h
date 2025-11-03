@@ -29,8 +29,8 @@ private:
     struct TexInfo
     {
         GLuint tex{0};
-        int w{0};
-        int h{0};
+        size_t w{0};
+        size_t h{0};
     };
 
     GLuint m_program{0};

@@ -1,6 +1,8 @@
 #pragma once
 #include <vector>
 #include "core/Vec2.h"
+#include "core/Color.h"
+#include "filters/LayerBase.h"
 
 struct Path {
     std::vector<Vec2> points;
@@ -27,7 +29,7 @@ struct BoundingBox {
     }
 };
 
-struct PathSet {
+struct PathSet : public ILayerData {
     std::vector<Path> paths;
     Color color {1.0f, 1.0f, 1.0f, 1.0f};
     mutable BoundingBox aabb;
@@ -51,4 +53,6 @@ struct PathSet {
             }
         }
     }
+
+    LayerKind kind() const override { return LayerKind::PathSet; }
 };

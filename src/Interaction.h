@@ -43,6 +43,9 @@ struct InteractionState
     Vec2 resizeAnchorLocal;   // local-space anchor corner point
     Vec2 resizeHandleLocal;   // local-space handle point
     Vec2 resizeAnchorPage;    // page-space anchor position at drag start
+
+    // Rendering options
+    bool showPathNodes{true};
 };
 
 class InteractionController
@@ -62,6 +65,9 @@ public:
     void SelectEntity(int id) { m_state.activeId = id; }
     void ClearHover() { m_state.hoveredId.reset(); }
     void DeselectEntity() { m_state.activeId.reset(); }
+
+    bool ShowPathNodes() const { return m_state.showPathNodes; }
+    void SetShowPathNodes(bool v) { m_state.showPathNodes = v; }
 
 private:
     std::optional<int> pick(const PageModel &scene, const Vec2 &world);

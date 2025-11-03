@@ -4,11 +4,12 @@
 #include <cstdint>
 #include "core/Vec2.h"
 #include "core/Pathset.h" // for BoundingBox
+#include "filters/LayerBase.h"
 
-struct Bitmap
+struct Bitmap : public ILayerData
 {
-    int width_px{0};
-    int height_px{0};
+    size_t width_px{0};
+    size_t height_px{0};
     // millimeters per pixel (square pixels)
     float pixel_size_mm{1.0f};
     // row-major, top-to-bottom, left-to-right
@@ -21,6 +22,8 @@ struct Bitmap
                  static_cast<float>(height_px) * pixel_size_mm);
         return BoundingBox(Vec2(0.0f, 0.0f), max);
     }
+
+    LayerKind kind() const override { return LayerKind::Bitmap; }
 };
 
 

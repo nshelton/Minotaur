@@ -30,6 +30,13 @@ add_executable(minotaur
   src/utils/Serialization.cpp
   src/utils/ImageLoader.cpp
 
+  # Filters
+  src/filters/FilterRegistry.cpp
+  src/filters/bitmap/BlurFilter.cpp
+  src/filters/bitmap/ThresholdFilter.cpp
+  src/filters/pathset/SimplifyFilter.cpp
+  src/filters/bitmap/TraceFilter.cpp
+
 )
 
 target_include_directories(minotaur PRIVATE src)

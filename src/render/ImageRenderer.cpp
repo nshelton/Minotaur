@@ -154,6 +154,13 @@ void ImageRenderer::ensureTexture(int entityId, const Bitmap &bm)
 
         m_textures[entityId] = TexInfo{tex, bm.width_px, bm.height_px};
     }
+
+    // Always upload latest pixel data in case content changed without size change
+    GLuint tex = m_textures[entityId].tex;
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, bm.width_px, bm.height_px, GL_RED, GL_UNSIGNED_BYTE, bm.pixels.data());
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 void ImageRenderer::addBitmap(int entityId, const Bitmap &bm, const Mat3 &localToPage)

@@ -2,8 +2,10 @@
 #include "app/App.h"
 #include "core/Vec2.h"
 #include "screens/MainScreen.h"
+#include "filters/FilterRegistry.h"
 
 int main() {
+    FilterRegistry::initDefaults();
     App app(1800, 1600, "Minotaur");
     MainScreen screen;
     app.run(screen);

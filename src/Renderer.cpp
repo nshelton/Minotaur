@@ -1,6 +1,9 @@
 #include "Renderer.h"
 
 #include <algorithm>
+#include <cmath>
+#include "filters/Types.h"
+#include "core/Theme.h"
 
 Renderer::Renderer()
 {
@@ -19,12 +22,16 @@ void Renderer::render(const Camera &camera, const PageModel &page, const Interac
    for (const auto &[id, entity] : page.entities)
    {
       auto transform = entity.localToPage;
+      const LayerPtr &layer = const_cast<Entity &>(entity).filterChain.output();
 
-      if (auto ps = entity.pathset())
+      if (isPathSetLayer(layer))
       {
-         for (const auto &path : ps->paths)
+         const PathSet *psPtr = asPathSetConstPtr(layer);
+         if (!psPtr) continue;
+         const PathSet &ps = *psPtr;
+         for (const auto &path : ps.paths)
          {
-            Color pathCol = Color(0.9f, 1.0f, 0.9f, 1.0f);
+            Color pathCol = theme::PathsetColor;
             for (size_t i = 1; i < path.points.size(); ++i)
             {
                m_lines.addLine(transform * path.points[i - 1], transform * path.points[i], pathCol);
@@ -33,12 +40,28 @@ void Renderer::render(const Camera &camera, const PageModel &page, const Interac
             {
                m_lines.addLine(transform * path.points.back(), transform * path.points.front(), pathCol);
             }
+
+            // Optionally render path vertices as filled points
+            if (uiState.showPathNodes)
+            {
+               const float r = 1.5f; // mm
+               m_lines.setPointRadiusMm(r);
+               for (const Vec2 &pLocal : path.points)
+               {
+                  Vec2 p = transform.apply(pLocal);
+                  m_lines.addPoint(p, pathCol);
+               }
+            }
          }
       }
-      else if (auto bm = entity.bitmap())
+      else
       {
+         const Bitmap *bmptr = asBitmapConstPtr(layer);
+         if (!bmptr)
+            continue; // layer not initialized yet
+         const Bitmap &bm = *bmptr;
          // Queue bitmap for textured draw
-         m_images.addBitmap(id, *bm, transform);
+         m_images.addBitmap(id, bm, transform);
       }
    }
 
@@ -86,10 +109,13 @@ void Renderer::render(const Camera &camera, const PageModel &page, const Interac
       {
          const Entity &entity = page.entities.at(*uiState.activeId);
          BoundingBox bb = entity.boundsLocal();
+         // Outline color reflects current output kind (vector vs raster)
+         const LayerPtr &selLayer = const_cast<Entity &>(entity).filterChain.output();
+         Color selCol = isPathSetLayer(selLayer) ? theme::PathsetColor : theme::BitmapColor;
          drawRect(
             entity.localToPage * bb.min - 1,
             entity.localToPage * bb.max + 1,
-            Color(0.8f, 0.8f, 0.0f, 1.0f));
+            selCol);
 
          // draw resize handles (corners + edges)
          Vec2 minL = bb.min;
@@ -157,4 +183,21 @@ void Renderer::drawHandle(const Vec2 &center, float sizeMm, const Color &col)
 {
    Vec2 half(sizeMm * 0.5f, sizeMm * 0.5f);
    drawRect(center - half, center + half, col);
+}
+
+void Renderer::drawCircle(const Vec2 &center, float radiusMm, const Color &col)
+{
+   const int segments = 16;
+    if (segments < 3)
+        return;
+    float twoPi = 6.28318530718f;
+    Vec2 prev = Vec2(center.x + radiusMm, center.y);
+    for (int i = 1; i <= segments; ++i)
+    {
+        float t = (float)i / (float)segments;
+        float ang = t * twoPi;
+        Vec2 cur = Vec2(center.x + radiusMm * cosf(ang), center.y + radiusMm * sinf(ang));
+        m_lines.addLine(prev, cur, col);
+        prev = cur;
+    }
 }

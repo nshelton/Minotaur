@@ -1,3 +1,5 @@
+#pragma once
+
 struct Color {
     float r{1.0f};
     float g{1.0f};

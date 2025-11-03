@@ -4,6 +4,7 @@
 #include <variant>
 #include "core/Pathset.h"
 #include "core/Bitmap.h"
+#include "filters/FilterChain.h"
 
 enum class EntityType
 {
@@ -16,6 +17,7 @@ struct Entity
     int id;
     std::string name;
     std::variant<PathSet, Bitmap> payload;
+    uint64_t payloadVersion{1};
 
     // takes a point from local entity space (mm) to page space (mm)
     Mat3 localToPage;
@@ -36,7 +38,7 @@ struct Entity
         return bm.aabb();
     }
 
-    bool contains(const Vec2 &point, float margin_mm=0) const
+    bool contains(const Vec2 &point, float margin_mm = 0) const
     {
         return boundsLocal().contains(localToPage / point, margin_mm);
     }
@@ -45,4 +47,21 @@ struct Entity
     PathSet *pathset() { return std::get_if<PathSet>(&payload); }
     const Bitmap *bitmap() const { return std::get_if<Bitmap>(&payload); }
     Bitmap *bitmap() { return std::get_if<Bitmap>(&payload); }
+
+    // Filter chain: transforms from base payload to display/output layer
+    FilterChain filterChain;
+
+    // Helper to package current payload into a LayerPtr
+    LayerPtr baseLayer() const
+    {
+        if (auto ps = std::get_if<PathSet>(&payload))
+            return makeLayerFrom(*ps);
+        const Bitmap &bm = std::get<Bitmap>(payload);
+        return makeLayerFrom(bm);
+    }
+
+    void refreshFilterBase()
+    {
+        filterChain.setBase(baseLayer(), payloadVersion);
+    }
 };

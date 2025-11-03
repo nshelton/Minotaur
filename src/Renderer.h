@@ -37,4 +37,5 @@ private:
     void renderPage(const Camera &camera, const PageModel &page);
     void drawRect(const Vec2 &min, const Vec2 &max, const Color &col);
     void drawHandle(const Vec2 &center, float sizeMm, const Color &col);
+    void drawCircle(const Vec2 &center, float radiusMm, const Color &col);
 };
