@@ -4,6 +4,11 @@
 #include <imgui.h>
 #include "Camera.h"
 #include "Renderer.h"
+#include <memory>
+#include "serial/SerialController.h"
+#include "plotters/AxidrawController.h"
+#include "plotters/PlotSpooler.h"
+#include "plotters/PlotterConfig.h"
 
 class MainScreen : public IScreen
 {
@@ -25,4 +30,12 @@ private:
     Renderer m_renderer{};
     InteractionController m_interaction{};
     PageModel m_page{};
+
+    // Plotter/Serial
+    SerialController m_serial{};
+    AxiDrawState m_axState{};
+    std::unique_ptr<AxiDrawController> m_ax{};
+    std::unique_ptr<PlotSpooler> m_spooler{};
+    PlotterConfig m_plotter{};
+    char m_portBuf[64] = "";
 };

@@ -79,12 +79,12 @@ void MainScreen::onGui()
             tm = *std::localtime(&now);
 #endif
             std::string dt = fmt::format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
-                                        tm.tm_year + 1900,
-                                        tm.tm_mon + 1,
-                                        tm.tm_mday,
-                                        tm.tm_hour,
-                                        tm.tm_min,
-                                        tm.tm_sec);
+                                         tm.tm_year + 1900,
+                                         tm.tm_mon + 1,
+                                         tm.tm_mday,
+                                         tm.tm_hour,
+                                         tm.tm_min,
+                                         tm.tm_sec);
             auto ps = PathSetGenerator::Text(dt, center, 12.0f, 2.0f, theme::PathsetColor);
             m_page.addPathSet(std::move(ps));
         }
@@ -105,6 +105,136 @@ void MainScreen::onGui()
         {
             auto bm = BitmapGenerator::Radial(256, 256, 0.5f);
             m_page.addBitmap(bm);
+        }
+
+        ImGui::Separator();
+        ImGui::Text("Plotter");
+        ImGui::InputText("Port", m_portBuf, sizeof(m_portBuf));
+        bool connected = m_serial.isConnected();
+        ImGui::Text("Connected: %s", connected ? "Yes" : "No");
+        if (!m_serial.state().lastError.empty())
+        {
+            ImGui::TextColored(ImVec4(1, 0.4f, 0.4f, 1), "Last error: %s", m_serial.state().lastError.c_str());
+        }
+
+        if (!connected)
+        {
+            ImGui::SameLine();
+            if (ImGui::Button("Auto Connect"))
+            {
+                std::string err;
+                std::string chosen;
+                if (m_serial.autoConnect(&chosen, 115200, &err))
+                {
+                    strncpy(m_portBuf, chosen.c_str(), sizeof(m_portBuf) - 1);
+                    m_portBuf[sizeof(m_portBuf) - 1] = '\0';
+                    m_ax = std::make_unique<AxiDrawController>(m_serial, m_axState);
+                    std::string ierr;
+                    m_ax->initialize(&ierr);
+                }
+            }
+        }
+        else
+        {
+            if (ImGui::Button("Disconnect"))
+            {
+                m_ax.reset();
+                m_serial.disconnect();
+            }
+
+            ImGui::SameLine();
+            if (ImGui::Button("Pen Up"))
+            {
+                if (m_ax)
+                {
+                    std::string err;
+                    m_ax->penUp(-1, &err);
+                }
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Pen Down"))
+            {
+                if (m_ax)
+                {
+                    std::string err;
+                    m_ax->penDown(-1, &err);
+                }
+            }
+
+            ImGui::SameLine();
+            if (ImGui::Button("Disengage Motors"))
+            {
+                if (m_ax)
+                {
+                    std::string err;
+                    m_ax->disengageMotors(&err);
+                }
+            }
+
+            // Pen position sliders
+            ImGui::Separator();
+            int up = m_axState.penUpPos;
+            int down = m_axState.penDownPos;
+            if (ImGui::SliderInt("Pen Up Position", &up, 8000, 20000))
+            {
+                m_axState.penUpPos = up;
+                m_plotter.penUpPos = up;
+                if (m_ax) { std::string e; m_ax->setPenUpValue(up, &e); }
+            }
+            if (ImGui::SliderInt("Pen Down Position", &down, 8000, 20000))
+            {
+                m_axState.penDownPos = down;
+                m_plotter.penDownPos = down;
+                if (m_ax) { std::string e; m_ax->setPenDownValue(down, &e); }
+            }
+
+            // Speed sliders
+            ImGui::Separator();
+            int drawPct = m_plotter.drawSpeedPercent;
+            int travelPct = m_plotter.travelSpeedPercent;
+            if (ImGui::SliderInt("Drawing Speed (%)", &drawPct, 10, 300))
+            {
+                m_plotter.drawSpeedPercent = drawPct;
+            }
+            if (ImGui::SliderInt("Travel Speed (%)", &travelPct, 10, 300))
+            {
+                m_plotter.travelSpeedPercent = travelPct;
+            }
+
+            ImGui::Separator();
+            ImGui::Text("Job");
+            bool spoolerRunning = (m_spooler && m_spooler->isRunning());
+            if (!spoolerRunning)
+            {
+                if (ImGui::Button("Start Plot"))
+                {
+                    if (m_ax)
+                    {
+                        if (!m_spooler)
+                        {
+                            m_spooler = std::make_unique<PlotSpooler>(m_serial, *m_ax);
+                        }
+                        (void)m_spooler->startJob(m_page, m_plotter, /*liftPen=*/true);
+                    }
+                }
+            }
+            else
+            {
+                PlotSpooler::Stats s = m_spooler->stats();
+                ImGui::Text("Queued: %d  Sent: %d  Drawn(mm): %.1f", s.commandsQueued, s.commandsSent, s.penDownDistanceMm);
+                if (!m_spooler->isPaused())
+                {
+                    ImGui::SameLine();
+                    if (ImGui::Button("Pause")) { m_spooler->pause(); }
+                }
+                else
+                {
+                    ImGui::SameLine();
+                    if (ImGui::Button("Resume")) { m_spooler->resume(); }
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Cancel")) { m_spooler->cancel(); }
+            }
         }
     }
     ImGui::End();
@@ -157,11 +287,6 @@ void MainScreen::onGui()
                 std::string nameString = fmt::format("{}###filterheader:{}", f->name(), i);
                 if (ImGui::CollapsingHeader(nameString.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                 {
-                    // Inline delete button
-                    if (ImGui::Button(fmt::format("Delete###deletefilter:{}", i).c_str()))
-                    {
-                        deleteIndex = i;
-                    }
 
                     // Enable/disable toggle
                     bool enabled = e.filterChain.isFilterEnabled(i);
@@ -170,22 +295,22 @@ void MainScreen::onGui()
                     {
                         e.filterChain.setFilterEnabled(i, enabled);
                     }
+                    ImGui::SameLine();
 
-                    ImGui::Text("Index: %llu", static_cast<unsigned long long>(i));
+                    // Inline delete button
+                    if (ImGui::Button(fmt::format("Delete###deletefilter:{}", i).c_str()))
+                    {
+                        deleteIndex = i;
+                    }
+
+                    // ImGui::Text("Index: %llu", static_cast<unsigned long long>(i));
                     // ImGui::Text("IO: %s -> %s",
-                                // f->inputKind() == LayerKind::Bitmap ? "Bitmap" : "PathSet",
-                                // f->outputKind() == LayerKind::Bitmap ? "Bitmap" : "PathSet");
+                    // ? "Bitmap" : "PathSet",
+                    // f->outputKind() == LayerKind::Bitmap ? "Bitmap" : "PathSet");
                     // ImGui::Text("Param Ver: %llu", static_cast<unsigned long long>(f->paramVersion()));
                     // ImGui::Text("Cache: %s", lc->valid ? "valid" : "invalid");
                     // ImGui::Text("Cache Gen: %llu", static_cast<unsigned long long>(lc->gen));
                     // ImGui::Text("Upstream Gen: %llu", static_cast<unsigned long long>(lc->upstreamGen));
-
-                    std::string ioinfo = fmt::format(
-                        "Last time: %.3f ms | %d verts | %d paths",
-                         f->lastRunMs(),
-                         f->lastVertexCount(),
-                         f->lastPathCount());
-                    ImGui::Text(ioinfo.c_str());
 
                     // Parameter controls
                     for (auto &[paramKey, param] : f->m_parameters)
@@ -197,6 +322,27 @@ void MainScreen::onGui()
                         {
                             f->setParameter(paramKey, val);
                         }
+                    }
+
+                    if (f->outputKind() == LayerKind::PathSet)
+                    {
+                        std::string ioinfo = fmt::format(
+                            "Output {:.3f} ms | {} verts | {} paths",
+                            f->lastRunMs(),
+                            f->lastVertexCount(),
+                            f->lastPathCount());
+                        ImGui::TextUnformatted(ioinfo.c_str());
+                    }
+
+                    else if (f->outputKind() == LayerKind::Bitmap)
+                    {
+                        std::string ioinfo = fmt::format(
+                            "Output {:.3f} ms, {}x{}",
+                            f->lastRunMs(),
+                            e.bitmap()->width_px,
+                            e.bitmap()->height_px);
+
+                        ImGui::TextUnformatted(ioinfo.c_str());
                     }
                 }
             }

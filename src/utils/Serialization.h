@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include "plotters/PlotterConfig.h"
 
 struct PageModel;
 class Camera;
@@ -16,9 +17,13 @@ bool savePageModel(const PageModel& model, const std::string& filePath, std::str
 // Returns true on success; false and fills errorOut on failure.
 bool loadPageModel(PageModel& model, const std::string& filePath, std::string* errorOut = nullptr);
 
-// Save/Load full project (page + camera + renderer) to JSON file.
-bool saveProject(const PageModel& model, const Camera& camera, const Renderer& renderer, const std::string& filePath, std::string* errorOut = nullptr);
-bool loadProject(PageModel& model, Camera& camera, Renderer& renderer, const std::string& filePath, std::string* errorOut = nullptr);
+// Save/Load full project (page + camera + renderer + plotter config) to JSON file.
+bool saveProject(const PageModel& model, const Camera& camera, const Renderer& renderer,
+                 const PlotterConfig& plotter,
+                 const std::string& filePath, std::string* errorOut = nullptr);
+bool loadProject(PageModel& model, Camera& camera, Renderer& renderer,
+                 PlotterConfig& plotter,
+                 const std::string& filePath, std::string* errorOut = nullptr);
 
 }
 

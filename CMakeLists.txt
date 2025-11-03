@@ -31,6 +31,11 @@ add_executable(minotaur
   src/utils/Serialization.cpp
   src/utils/ImageLoader.cpp
 
+  # Serial/Plotter
+  src/serial/SerialController.cpp
+  src/plotters/AxidrawController.cpp
+  src/plotters/PlotSpooler.cpp
+
   # Filters
   src/filters/FilterRegistry.cpp
   src/filters/bitmap/BlurFilter.cpp

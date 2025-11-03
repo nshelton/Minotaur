@@ -6,6 +6,7 @@
 #include <iostream>
 #include <glog/logging.h>
 #include "utils/Serialization.h"
+#include "plotters/PlotterConfig.h"
 
 void MainScreen::onAttach(App &app)
 {
@@ -14,7 +15,10 @@ void MainScreen::onAttach(App &app)
 
     m_app = &app;
     std::string err;
-    if (!serialization::loadProject(m_page, m_camera, m_renderer, "page.json", &err))
+    PlotterConfig plotterCfg{};
+    plotterCfg.penUpPos = m_axState.penUpPos;
+    plotterCfg.penDownPos = m_axState.penDownPos;
+    if (!serialization::loadProject(m_page, m_camera, m_renderer, plotterCfg, "page.json", &err))
     {
         if (!err.empty())
         {
@@ -27,6 +31,11 @@ void MainScreen::onAttach(App &app)
                 50.0f,
                 96,
                 Color(0.2f, 0.8f, 0.3f, 1.0f)));
+    }
+    else
+    {
+        m_axState.penUpPos = plotterCfg.penUpPos;
+        m_axState.penDownPos = plotterCfg.penDownPos;
     }
 }
 
@@ -49,7 +58,10 @@ void MainScreen::onDetach()
 {
     m_renderer.shutdown();
     std::string err;
-    if (!serialization::saveProject(m_page, m_camera, m_renderer, "page.json", &err))
+    PlotterConfig plotterCfg{};
+    plotterCfg.penUpPos = m_axState.penUpPos;
+    plotterCfg.penDownPos = m_axState.penDownPos;
+    if (!serialization::saveProject(m_page, m_camera, m_renderer, plotterCfg, "page.json", &err))
     {
         LOG(ERROR) << "Failed to save page.json: " << err;
     }

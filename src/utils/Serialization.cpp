@@ -329,7 +329,9 @@ namespace serialization
         }
     }
 
-    bool saveProject(const PageModel &model, const Camera &camera, const Renderer &renderer, const std::string &filePath, std::string *errorOut)
+    bool saveProject(const PageModel &model, const Camera &camera, const Renderer &renderer,
+                     const PlotterConfig &plotter,
+                     const std::string &filePath, std::string *errorOut)
     {
         try
         {
@@ -364,6 +366,14 @@ namespace serialization
                 {"node_diameter_px", renderer.nodeDiameterPx()}
             };
 
+            // Plotter config
+            j["plotter"] = json{
+                {"pen_up_pos", plotter.penUpPos},
+                {"pen_down_pos", plotter.penDownPos},
+                {"draw_speed_percent", plotter.drawSpeedPercent},
+                {"travel_speed_percent", plotter.travelSpeedPercent}
+            };
+
             std::ofstream ofs(filePath, std::ios::binary | std::ios::trunc);
             if (!ofs)
             {
@@ -380,7 +390,9 @@ namespace serialization
         }
     }
 
-    bool loadProject(PageModel &model, Camera &camera, Renderer &renderer, const std::string &filePath, std::string *errorOut)
+    bool loadProject(PageModel &model, Camera &camera, Renderer &renderer,
+                     PlotterConfig &plotter,
+                     const std::string &filePath, std::string *errorOut)
     {
         try
         {
@@ -473,6 +485,16 @@ namespace serialization
                 float nodePx = j["render"].value("node_diameter_px", renderer.nodeDiameterPx());
                 renderer.setLineWidth(lw);
                 renderer.setNodeDiameterPx(nodePx);
+            }
+
+            // Plotter config (supports new key and legacy "axidraw")
+            if (j.contains("plotter"))
+            {
+                const json &p = j["plotter"];
+                plotter.penUpPos = p.value("pen_up_pos", plotter.penUpPos);
+                plotter.penDownPos = p.value("pen_down_pos", plotter.penDownPos);
+                plotter.drawSpeedPercent = p.value("draw_speed_percent", plotter.drawSpeedPercent);
+                plotter.travelSpeedPercent = p.value("travel_speed_percent", plotter.travelSpeedPercent);
             }
 
             return true;
