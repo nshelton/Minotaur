@@ -14,6 +14,69 @@ static inline float hypot2f(float dx, float dy)
     return std::sqrt(dx * dx + dy * dy);
 }
 
+static inline float dist2(const Vec2 &a, const Vec2 &b)
+{
+    const float dx = a.x - b.x;
+    const float dy = a.y - b.y;
+    return dx * dx + dy * dy;
+}
+
+static inline void reversePathPoints(std::vector<Vec2> &pts)
+{
+    std::reverse(pts.begin(), pts.end());
+}
+
+// Reorder a set of page-space paths by greedy nearest neighbor, allowing flips for open paths
+static std::vector<Path> reorderPathsNearest(const std::vector<Path> &in, const Vec2 &start)
+{
+    const size_t n = in.size();
+    std::vector<bool> used(n, false);
+    std::vector<Path> out;
+    out.reserve(n);
+
+    Vec2 last = start;
+
+    for (size_t k = 0; k < n; ++k)
+    {
+        size_t bestIdx = static_cast<size_t>(-1);
+        bool bestFlip = false;
+        float bestD2 = std::numeric_limits<float>::infinity();
+
+        for (size_t i = 0; i < n; ++i)
+        {
+            if (used[i]) continue;
+            const Path &p = in[i];
+            if (p.points.empty()) continue;
+
+            float dStart = dist2(last, p.points.front());
+            float dEnd = dist2(last, p.points.back());
+            float cand = dStart;
+            bool candFlip = false;
+            if (!p.closed && dEnd < dStart) { cand = dEnd; candFlip = true; }
+
+            if (cand < bestD2)
+            {
+                bestD2 = cand;
+                bestIdx = i;
+                bestFlip = candFlip;
+            }
+        }
+
+        if (bestIdx == static_cast<size_t>(-1))
+            break;
+
+        Path chosen = in[bestIdx];
+        used[bestIdx] = true;
+        if (bestFlip)
+            reversePathPoints(chosen.points);
+        if (!chosen.points.empty())
+            last = chosen.points.back();
+        out.push_back(std::move(chosen));
+    }
+
+    return out;
+}
+
 PlotSpooler::~PlotSpooler()
 {
     // Ensure background thread is stopped before destruction
@@ -40,17 +103,27 @@ bool PlotSpooler::startJob(const PageModel &page, const PlotterConfig &cfg, bool
     {
         std::lock_guard<std::mutex> lk(m_mutex);
         m_stats = Stats{};
+        m_queuedMs = 0;
+        m_job = JobState{};
         std::queue<Cmd> empty;
         std::swap(m_queue, empty);
     }
 
     m_cfg = cfg;
 
-    if (!buildQueuePlanned(page, liftPen))
+    if (!prepareJob(page, liftPen))
     {
         LOG(WARNING) << "PlotSpooler: nothing to plot";
         return false;
     }
+
+    {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        // Prime the queue to a reasonable high-water mark
+        refillQueueLocked(/*highWaterMs=*/1200, /*lowWaterMs=*/300);
+    }
+
+    m_startTime = Clock::now();
 
     // Join any previous finished worker to avoid std::terminate on reassignment
     if (m_worker.joinable())
@@ -88,6 +161,12 @@ void PlotSpooler::cancel()
     {
         m_worker.join();
     }
+}
+
+void PlotSpooler::updateConfig(const PlotterConfig &cfg)
+{
+    std::lock_guard<std::mutex> lk(m_mutex);
+    m_cfg = cfg;
 }
 
 void PlotSpooler::mmDeltaToCoreXYSteps(float dxMm, float dyMm, int &aOut, int &bOut)
@@ -136,6 +215,8 @@ void PlotSpooler::pushSM(int durationMs, int aSteps, int bSteps)
     c.bSteps = bSteps;
     m_queue.push(c);
     m_stats.commandsQueued++;
+    m_stats.queuedMs += std::max(1, durationMs);
+    m_queuedMs += std::max(1, durationMs);
 }
 
 bool PlotSpooler::buildQueue(const PageModel &page, bool liftPen)
@@ -213,13 +294,83 @@ bool PlotSpooler::buildQueue(const PageModel &page, bool liftPen)
         totalSegments++;
     }
 
-    m_stats.penDownDistanceMm = totalDrawn;
+    m_stats.plannedPenDownMm = totalDrawn;
     return totalSegments > 0;
 }
 
 bool PlotSpooler::buildQueuePlanned(const PageModel &page, bool liftPen)
 {
-    // Planner settings derived from config
+    // Deprecated in favor of short-queue refill strategy. Keeping for reference.
+    // Build nothing here to avoid filling long queues.
+    (void)page;
+    (void)liftPen;
+    return false;
+}
+
+bool PlotSpooler::prepareJob(const PageModel &page, bool liftPen)
+{
+    // Transform to page space and reorder paths, compute total pen-down mm
+    std::vector<Path> pagePaths;
+    Vec2 currentPosMm = Vec2(0.0f, 0.0f);
+    float totalDrawn = 0.0f;
+
+    for (const auto &kv : page.entities)
+    {
+        const Entity &e = kv.second;
+        const PathSet *ps = nullptr;
+        if (e.type() == EntityType::PathSet)
+        {
+            ps = e.pathset();
+        }
+        else if (e.filterChain.outputLayer()->kind() == LayerKind::PathSet)
+        {
+            const auto &output = e.filterChain.outputLayer();
+            ps = asPathSetConstPtr(output);
+        }
+        if (!ps) continue;
+
+        for (const Path &path : ps->paths)
+        {
+            if (path.points.size() < 1) continue;
+            Path pspace;
+            pspace.closed = path.closed;
+            pspace.points.reserve(path.points.size());
+            for (const Vec2 &p : path.points)
+                pspace.points.push_back(e.localToPage * p);
+            // Accumulate length
+            for (size_t i = 1; i < pspace.points.size(); ++i)
+            {
+                float dx = pspace.points[i].x - pspace.points[i - 1].x;
+                float dy = pspace.points[i].y - pspace.points[i - 1].y;
+                totalDrawn += std::hypot(dx, dy);
+            }
+            pagePaths.push_back(std::move(pspace));
+        }
+    }
+
+    if (pagePaths.empty())
+        return false;
+
+    m_job = JobState{};
+    m_job.liftPen = liftPen;
+    m_job.currentPosMm = Vec2(0.0f, 0.0f);
+    m_job.orderedPaths = reorderPathsNearest(pagePaths, currentPosMm);
+    m_job.prepared = true;
+
+    m_stats.plannedPenDownMm = totalDrawn;
+    m_stats.donePenDownMm = 0.0f;
+    m_stats.queuedMs = 0;
+    m_queuedMs = 0;
+    return true;
+}
+
+void PlotSpooler::refillQueueLocked(int highWaterMs, int lowWaterMs)
+{
+    (void)lowWaterMs; // currently unused; kept for future logic
+    if (!m_job.prepared)
+        return;
+
+    // Recompute planner settings from current config to reflect live updates
     PlannerSettings s;
     s.speedPenDownMmPerS = m_cfg.drawSpeedMmPerS;
     s.speedPenUpMmPerS = m_cfg.travelSpeedMmPerS;
@@ -232,95 +383,84 @@ bool PlotSpooler::buildQueuePlanned(const PageModel &page, bool liftPen)
     s.minSegmentMm = m_cfg.minSegmentMm;
     s.stepsPerMm = kStepsPerMm;
 
-    int totalCmds = 0;
-    float totalDrawn = 0.0f;
-
-    Vec2 currentPosMm = Vec2(0.0f, 0.0f);
-
-    if (liftPen)
-        pushPenUp();
-
-    for (const auto &kv : page.entities)
+    // Ensure initial pen-up once if requested
+    if (m_job.liftPen && !m_job.sentInitialPenUp)
     {
-        const Entity &e = kv.second;
-        const PathSet *ps = nullptr;
+        pushPenUp();
+        m_job.sentInitialPenUp = true;
+    }
 
-        if (e.type() == EntityType::PathSet)
+    while (m_queuedMs < highWaterMs)
+    {
+        // If all paths processed, return home once
+        if (m_job.pathIndex >= m_job.orderedPaths.size())
         {
-            ps = e.pathset();
-        }
-        else if (e.filterChain.outputLayer()->kind() == LayerKind::PathSet)
-        {
-            const auto &output = e.filterChain.outputLayer();
-            ps = asPathSetConstPtr(output);
-        }
-
-        if (!ps)
-            continue;
-
-        for (const Path &path : ps->paths)
-        {
-            if (path.points.size() < 1)
-                continue;
-
-            // Transform points to page space
-            std::vector<Vec2> pts;
-            pts.reserve(path.points.size());
-            for (const Vec2 &p : path.points)
-                pts.push_back(e.localToPage * p);
-
-            // Travel to start
-            std::vector<Vec2> travelPts;
-            travelPts.push_back(currentPosMm);
-            travelPts.push_back(pts.front());
-            auto travelMoves = planPath(s, travelPts, /*penUp=*/true, currentPosMm);
-            for (const auto &mv : travelMoves)
+            if (!m_job.returnedHome)
             {
-                pushSM(mv.dtMs, mv.aSteps, mv.bSteps);
-                ++totalCmds;
+                std::vector<Vec2> backPts{ m_job.currentPosMm, Vec2(0.0f, 0.0f) };
+                auto backMoves = planPath(s, backPts, /*penUp=*/true, m_job.currentPosMm);
+                for (const auto &mv : backMoves)
+                {
+                    pushSM(mv.dtMs, mv.aSteps, mv.bSteps);
+                }
+                m_job.currentPosMm = Vec2(0.0f, 0.0f);
+                m_job.returnedHome = true;
             }
-            currentPosMm = pts.front();
+            break; // nothing more to enqueue
+        }
 
-            if (liftPen)
+        Path &path = m_job.orderedPaths[m_job.pathIndex];
+        if (path.points.empty())
+        {
+            m_job.pathIndex++;
+            continue;
+        }
+
+        // If not currently drawing, travel to start and (optionally) pen down, then plan draw moves
+        if (!m_job.drawingPhase)
+        {
+            if (dist2(m_job.currentPosMm, path.points.front()) > 0.0f)
+            {
+                std::vector<Vec2> travelPts{ m_job.currentPosMm, path.points.front() };
+                auto travelMoves = planPath(s, travelPts, /*penUp=*/true, m_job.currentPosMm);
+                for (const auto &mv : travelMoves)
+                {
+                    pushSM(mv.dtMs, mv.aSteps, mv.bSteps);
+                }
+                m_job.currentPosMm = path.points.front();
+            }
+            if (m_job.liftPen)
                 pushPenDown();
 
-            // Draw path
-            auto drawMoves = planPath(s, pts, /*penUp=*/false, currentPosMm);
-            for (const auto &mv : drawMoves)
-            {
-                pushSM(mv.dtMs, mv.aSteps, mv.bSteps);
-                ++totalCmds;
-            }
-            // Update current position by summing deltas
-            for (size_t i = 1; i < pts.size(); ++i)
-            {
-                float dx = pts[i].x - pts[i - 1].x;
-                float dy = pts[i].y - pts[i - 1].y;
-                totalDrawn += std::hypot(dx, dy);
-            }
-            currentPosMm = pts.back();
-
-            if (liftPen)
-                pushPenUp();
+            m_job.activeMoves = planPath(s, path.points, /*penUp=*/false, m_job.currentPosMm);
+            m_job.moveIndex = 0;
+            m_job.drawingPhase = true;
         }
-    }
 
-    // Return to origin
-    if (totalCmds > 0)
-    {
-        std::vector<Vec2> backPts;
-        backPts.push_back(currentPosMm);
-        backPts.push_back(Vec2(0.0f, 0.0f));
-        auto backMoves = planPath(s, backPts, /*penUp=*/true, currentPosMm);
-        for (const auto &mv : backMoves)
+        // Add draw moves up to high-water mark
+        while (m_job.moveIndex < m_job.activeMoves.size() && m_queuedMs < highWaterMs)
         {
+            const auto &mv = m_job.activeMoves[m_job.moveIndex++];
             pushSM(mv.dtMs, mv.aSteps, mv.bSteps);
-            ++totalCmds;
+        }
+
+        // If finished current path, pen up, advance to next
+        if (m_job.moveIndex >= m_job.activeMoves.size())
+        {
+            if (m_job.liftPen)
+                pushPenUp();
+            m_job.currentPosMm = path.points.back();
+            m_job.drawingPhase = false;
+            m_job.activeMoves.clear();
+            m_job.moveIndex = 0;
+            m_job.pathIndex++;
+        }
+        else
+        {
+            // Reached high water, exit to let worker drain
+            break;
         }
     }
-
-    m_stats.penDownDistanceMm = totalDrawn;
-    return totalCmds > 0;
 }
 
 void PlotSpooler::run()
@@ -340,6 +480,10 @@ void PlotSpooler::run()
         LOG(WARNING) << "Failed to enable motors: " << err;
     }
 
+    bool penDownActive = false;
+    const int kLowWaterMs = 300;
+    const int kHighWaterMs = 1200;
+
     while (!m_cancel.load())
     {
         // Pause handling
@@ -356,7 +500,15 @@ void PlotSpooler::run()
         {
             std::lock_guard<std::mutex> lk(m_mutex);
             if (m_queue.empty())
-                break;
+            {
+                // Try to refill when empty
+                refillQueueLocked(kHighWaterMs, kLowWaterMs);
+                if (m_queue.empty())
+                {
+                    // Nothing more to do
+                    break;
+                }
+            }
             cmd = m_queue.front();
             m_queue.pop();
         }
@@ -366,9 +518,11 @@ void PlotSpooler::run()
         {
         case CmdKind::PenUp:
             ok = m_axidraw.penUp(-1, &err);
+            penDownActive = false;
             break;
         case CmdKind::PenDown:
             ok = m_axidraw.penDown(-1, &err);
+            penDownActive = true;
             break;
         case CmdKind::StepperMove:
             ok = m_axidraw.stepperMove(cmd.durationMs, cmd.aSteps, cmd.bSteps, &err);
@@ -386,6 +540,51 @@ void PlotSpooler::run()
         // Sleep exact dtMs for SM slices; brief delay for pen toggles
         if (cmd.kind == CmdKind::StepperMove)
         {
+            // Convert CoreXY steps to mm for progress if pen is down
+            if (penDownActive)
+            {
+                const float a = static_cast<float>(cmd.aSteps);
+                const float b = static_cast<float>(cmd.bSteps);
+                const float dxSteps = 0.5f * (a - b);
+                const float dySteps = 0.5f * (a + b);
+                const float dxMm = dxSteps / static_cast<float>(kStepsPerMm);
+                const float dyMm = dySteps / static_cast<float>(kStepsPerMm);
+                m_stats.donePenDownMm += std::hypot(dxMm, dyMm);
+            }
+
+            // Decrease queued time and top up if needed
+            {
+                std::lock_guard<std::mutex> lk(m_mutex);
+                const int dt = std::max(1, cmd.durationMs);
+                m_queuedMs = std::max(0, m_queuedMs - dt);
+                m_stats.queuedMs = std::max(0, m_stats.queuedMs - dt);
+                // Update time and ETA
+                auto now = Clock::now();
+                m_stats.elapsedMs = static_cast<int>(std::chrono::duration_cast<Ms>(now - m_startTime).count());
+                float frac = 0.0f;
+                if (m_stats.plannedPenDownMm > 0.0f)
+                {
+                    frac = m_stats.donePenDownMm / m_stats.plannedPenDownMm;
+                    if (frac < 0.0f) frac = 0.0f;
+                    if (frac > 1.0f) frac = 1.0f;
+                }
+                m_stats.percentComplete = frac;
+                if (frac > 0.0f)
+                {
+                    const float totalMs = static_cast<float>(m_stats.elapsedMs) / frac;
+                    int eta = static_cast<int>(std::max(0.0f, totalMs - static_cast<float>(m_stats.elapsedMs)));
+                    m_stats.etaMs = eta;
+                }
+                else
+                {
+                    m_stats.etaMs = 0;
+                }
+                if (m_queuedMs < kLowWaterMs)
+                {
+                    refillQueueLocked(kHighWaterMs, kLowWaterMs);
+                }
+            }
+
             std::this_thread::sleep_for(Ms(std::max(1, cmd.durationMs)));
         }
         else

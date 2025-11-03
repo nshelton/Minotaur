@@ -4,51 +4,67 @@
 #include <queue>
 #include <cmath>
 #include <cstdint>
+#include <climits>
+#include <unordered_set>
 
 namespace {
     struct IVec2 { int x; int y; };
 
-    // Ramer–Douglas–Peucker on Vec2 in mm space
-    static void rdpRecursive(const std::vector<Vec2> &pts, float epsSq, size_t i0, size_t i1, std::vector<char> &keep)
-    {
-        if (i1 <= i0 + 1) return;
-        const Vec2 &A = pts[i0];
-        const Vec2 &B = pts[i1];
-        const float dx = B.x - A.x;
-        const float dy = B.y - A.y;
-        const float denom = (dx * dx + dy * dy) > 1e-20f ? (dx * dx + dy * dy) : 1e-12f;
-        float maxDistSq = -1.0f;
-        size_t idx = i0;
-        for (size_t i = i0 + 1; i < i1; ++i)
-        {
-            const Vec2 &P = pts[i];
-            const float u = ((P.x - A.x) * dx + (P.y - A.y) * dy) / denom;
-            const float px = A.x + u * dx;
-            const float py = A.y + u * dy;
-            const float ddx = px - P.x;
-            const float ddy = py - P.y;
-            const float d2 = ddx * ddx + ddy * ddy;
-            if (d2 > maxDistSq) { maxDistSq = d2; idx = i; }
-        }
-        if (maxDistSq > epsSq)
-        {
-            keep[idx] = 1;
-            rdpRecursive(pts, epsSq, i0, idx, keep);
-            rdpRecursive(pts, epsSq, idx, i1, keep);
-        }
-    }
-
+    // Non-recursive Ramer–Douglas–Peucker on Vec2 in mm space (stack-based to avoid deep recursion)
     static std::vector<Vec2> rdp(const std::vector<Vec2> &pts, float eps)
     {
         if (pts.size() <= 2 || eps <= 0.0f) return pts;
-        std::vector<char> keep(pts.size(), 0);
-        keep.front() = 1; keep.back() = 1;
         const float epsSq = eps * eps;
-        rdpRecursive(pts, epsSq, 0, pts.size() - 1, keep);
+
+        std::vector<char> keep(pts.size(), 0);
+        keep.front() = 1;
+        keep.back() = 1;
+
+        struct Segment { size_t i0; size_t i1; };
+        std::vector<Segment> stack;
+        stack.push_back({0, pts.size() - 1});
+
+        while (!stack.empty())
+        {
+            const Segment seg = stack.back();
+            stack.pop_back();
+
+            if (seg.i1 <= seg.i0 + 1) continue;
+
+            const Vec2 &A = pts[seg.i0];
+            const Vec2 &B = pts[seg.i1];
+            const float dx = B.x - A.x;
+            const float dy = B.y - A.y;
+            const float denom = (dx * dx + dy * dy) > 1e-20f ? (dx * dx + dy * dy) : 1e-12f;
+
+            float maxDistSq = -1.0f;
+            size_t idx = seg.i0;
+            for (size_t i = seg.i0 + 1; i < seg.i1; ++i)
+            {
+                const Vec2 &P = pts[i];
+                const float u = ((P.x - A.x) * dx + (P.y - A.y) * dy) / denom;
+                const float px = A.x + u * dx;
+                const float py = A.y + u * dy;
+                const float ddx = px - P.x;
+                const float ddy = py - P.y;
+                const float d2 = ddx * ddx + ddy * ddy;
+                if (d2 > maxDistSq) { maxDistSq = d2; idx = i; }
+            }
+
+            if (maxDistSq > epsSq)
+            {
+                keep[idx] = 1;
+                stack.push_back({seg.i0, idx});
+                stack.push_back({idx, seg.i1});
+            }
+        }
+
         std::vector<Vec2> out;
         out.reserve(pts.size());
         for (size_t i = 0; i < pts.size(); ++i)
+        {
             if (keep[i]) out.push_back(pts[i]);
+        }
         return out;
     }
 }
@@ -163,7 +179,7 @@ void TraceBlobsFilter::applyTyped(const Bitmap &in, PathSet &out) const
             }
             if (startX == -1) continue;
 
-            // Moore-neighbor tracing
+            // Moore-neighbor tracing with edge-visited guard to prevent multi-lap duplicates
             int cx = startX - minX; int cy = startY - minY;
             int bx = startX - 1; int by = startY;
             int lbx = bx - minX; int lby = by - minY;
@@ -178,15 +194,22 @@ void TraceBlobsFilter::applyTyped(const Bitmap &in, PathSet &out) const
             std::vector<Vec2> path;
             path.reserve(static_cast<size_t>(bw + bh));
 
-            const int maxSteps = W * H * 8;
+            // Cap tracing steps to a multiple of component size to avoid hangs on huge images
+            const size_t stepCap = comp.size() * 8ull;
+            const int maxSteps = static_cast<int>(std::min<size_t>(static_cast<size_t>(INT_MAX / 2), stepCap));
             int steps = 0;
+            struct Edge { int x0,y0,x1,y1; };
+            struct EdgeHash { size_t operator()(const Edge &e) const noexcept {
+                // mix ints into size_t
+                uint64_t k0 = (static_cast<uint64_t>(static_cast<uint32_t>(e.x0)) << 32) ^ static_cast<uint32_t>(e.y0);
+                uint64_t k1 = (static_cast<uint64_t>(static_cast<uint32_t>(e.x1)) << 32) ^ static_cast<uint32_t>(e.y1);
+                uint64_t h = k0 * 1469598103934665603ull ^ (k1 + 1099511628211ull);
+                return static_cast<size_t>(h);
+            }};
+            struct EdgeEq { bool operator()(const Edge &a, const Edge &b) const noexcept { return a.x0==b.x0 && a.y0==b.y0 && a.x1==b.x1 && a.y1==b.y1; } };
+            std::unordered_set<Edge, EdgeHash, EdgeEq> visitedEdges;
             while (steps++ < maxSteps)
             {
-                // record in mm page-local space at pixel center
-                const float px_mm = (static_cast<float>(minX + cx) + 0.5f) * in.pixel_size_mm;
-                const float py_mm = (static_cast<float>(minY + cy) + 0.5f) * in.pixel_size_mm;
-                path.emplace_back(px_mm, py_mm);
-
                 const int k = dirIndex(cx, cy, lbx, lby);
                 bool found = false;
                 int nx = cx, ny = cy, nbx = lbx, nby = lby;
@@ -204,7 +227,22 @@ void TraceBlobsFilter::applyTyped(const Bitmap &in, PathSet &out) const
                 }
                 if (!found) break;
 
-                if (nx == sx && ny == sy && nbx == sbx && nby == sby) break;
+                // Edge-visited guard: if we're about to traverse an already seen directed edge, stop
+                Edge e{cx, cy, nx, ny};
+                if (visitedEdges.find(e) != visitedEdges.end())
+                    break;
+                visitedEdges.insert(e);
+
+                // record current boundary point in mm page-local space at pixel center
+                const float px_mm = (static_cast<float>(minX + cx) + 0.5f) * in.pixel_size_mm;
+                const float py_mm = (static_cast<float>(minY + cy) + 0.5f) * in.pixel_size_mm;
+                if (path.empty() || path.back().x != px_mm || path.back().y != py_mm)
+                    path.emplace_back(px_mm, py_mm);
+
+                // If next position returns to start cell, we completed a loop
+                if (nx == sx && ny == sy)
+                    break;
+
                 cx = nx; cy = ny; lbx = nbx; lby = nby;
             }
 

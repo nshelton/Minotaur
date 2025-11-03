@@ -4,11 +4,28 @@
 #include <sstream>
 #include <vector>
 #include <cctype>
+#include <cstring>
 #include <windows.h>
 #include <wincodec.h>
 
 namespace ImageLoader
 {
+    // Flip an 8-bit grayscale image vertically in-place (row 0 <-> last row)
+    static void flipVertical(std::vector<unsigned char> &data, size_t width, size_t height)
+    {
+        if (width == 0 || height == 0) return;
+        const size_t rowSize = width;
+        std::vector<unsigned char> temp;
+        temp.resize(rowSize);
+        for (size_t yTop = 0, yBottom = height - 1; yTop < yBottom; ++yTop, --yBottom)
+        {
+            unsigned char *topRow = data.data() + yTop * rowSize;
+            unsigned char *bottomRow = data.data() + yBottom * rowSize;
+            std::memcpy(temp.data(), topRow, rowSize);
+            std::memcpy(topRow, bottomRow, rowSize);
+            std::memcpy(bottomRow, temp.data(), rowSize);
+        }
+    }
     // Simple PGM (P5 binary) parser. Ignores comments and supports maxval up to 65535.
     static bool readToken(std::istream &is, std::string &tok)
     {
@@ -28,7 +45,8 @@ namespace ImageLoader
             tok.push_back(ch);
             break;
         }
-        if (tok.empty()) return false;
+        if (tok.empty())
+            return false;
         // read the rest of the token
         while (is.get(ch))
         {
@@ -44,25 +62,43 @@ namespace ImageLoader
         std::ifstream ifs(filePath, std::ios::binary);
         if (!ifs)
         {
-            if (errorOut) *errorOut = "Failed to open file";
+            if (errorOut)
+                *errorOut = "Failed to open file";
             return false;
         }
 
         std::string tok;
         if (!readToken(ifs, tok) || tok != "P5")
         {
-            if (errorOut) *errorOut = "Not a binary PGM (P5) file";
+            if (errorOut)
+                *errorOut = "Not a binary PGM (P5) file";
             return false;
         }
-        if (!readToken(ifs, tok)) { if (errorOut) *errorOut = "Missing width"; return false; }
+        if (!readToken(ifs, tok))
+        {
+            if (errorOut)
+                *errorOut = "Missing width";
+            return false;
+        }
         int w = std::stoi(tok);
-        if (!readToken(ifs, tok)) { if (errorOut) *errorOut = "Missing height"; return false; }
+        if (!readToken(ifs, tok))
+        {
+            if (errorOut)
+                *errorOut = "Missing height";
+            return false;
+        }
         int h = std::stoi(tok);
-        if (!readToken(ifs, tok)) { if (errorOut) *errorOut = "Missing maxval"; return false; }
+        if (!readToken(ifs, tok))
+        {
+            if (errorOut)
+                *errorOut = "Missing maxval";
+            return false;
+        }
         int maxval = std::stoi(tok);
         if (maxval <= 0 || maxval > 65535)
         {
-            if (errorOut) *errorOut = "Unsupported maxval";
+            if (errorOut)
+                *errorOut = "Unsupported maxval";
             return false;
         }
         // consume single whitespace char after header
@@ -88,9 +124,13 @@ namespace ImageLoader
         }
         if (!ifs)
         {
-            if (errorOut) *errorOut = "Failed to read pixel data";
+            if (errorOut)
+                *errorOut = "Failed to read pixel data";
             return false;
         }
+
+        // Ensure Bitmap pixels are bottom-to-top for consistent geometry mapping
+        flipVertical(data, static_cast<size_t>(w), static_cast<size_t>(h));
 
         out.width_px = w;
         out.height_px = h;
@@ -102,7 +142,8 @@ namespace ImageLoader
     // Helper: UTF-8 to UTF-16
     static std::wstring utf8ToWide(const std::string &s)
     {
-        if (s.empty()) return std::wstring();
+        if (s.empty())
+            return std::wstring();
         int count = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), static_cast<int>(s.size()), nullptr, 0);
         std::wstring w;
         w.resize(static_cast<size_t>(count));
@@ -116,14 +157,17 @@ namespace ImageLoader
         bool needUninit = false;
         // Initialize COM if needed
         hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-        if (SUCCEEDED(hr)) needUninit = true;
+        if (SUCCEEDED(hr))
+            needUninit = true;
 
         IWICImagingFactory *factory = nullptr;
         hr = CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory));
         if (FAILED(hr))
         {
-            if (errorOut) *errorOut = "WIC factory creation failed";
-            if (needUninit) CoUninitialize();
+            if (errorOut)
+                *errorOut = "WIC factory creation failed";
+            if (needUninit)
+                CoUninitialize();
             return false;
         }
 
@@ -132,9 +176,11 @@ namespace ImageLoader
         hr = factory->CreateDecoderFromFilename(wpath.c_str(), nullptr, GENERIC_READ, WICDecodeMetadataCacheOnDemand, &decoder);
         if (FAILED(hr))
         {
-            if (errorOut) *errorOut = "Failed to decode image";
+            if (errorOut)
+                *errorOut = "Failed to decode image";
             factory->Release();
-            if (needUninit) CoUninitialize();
+            if (needUninit)
+                CoUninitialize();
             return false;
         }
 
@@ -142,10 +188,12 @@ namespace ImageLoader
         hr = decoder->GetFrame(0, &frame);
         if (FAILED(hr))
         {
-            if (errorOut) *errorOut = "Failed to get image frame";
+            if (errorOut)
+                *errorOut = "Failed to get image frame";
             decoder->Release();
             factory->Release();
-            if (needUninit) CoUninitialize();
+            if (needUninit)
+                CoUninitialize();
             return false;
         }
 
@@ -169,34 +217,54 @@ namespace ImageLoader
             hr = conv->CopyPixels(&rect, static_cast<UINT>(stride), static_cast<UINT>(buffer.size()), buffer.data());
             if (SUCCEEDED(hr))
             {
+                // Flip to bottom-to-top orientation
+                std::vector<unsigned char> flipped(buffer.begin(), buffer.end());
+                flipVertical(flipped, static_cast<size_t>(w), static_cast<size_t>(h));
+
                 out.width_px = static_cast<int>(w);
                 out.height_px = static_cast<int>(h);
                 out.pixel_size_mm = pixel_size_mm;
-                out.pixels.assign(buffer.begin(), buffer.end());
+                out.pixels = std::move(flipped);
                 conv->Release();
                 frame->Release();
                 decoder->Release();
                 factory->Release();
-                if (needUninit) CoUninitialize();
+                if (needUninit)
+                    CoUninitialize();
                 return true;
             }
         }
 
-        if (conv) { conv->Release(); conv = nullptr; }
+        if (conv)
+        {
+            conv->Release();
+            conv = nullptr;
+        }
 
         // Fallback: convert to 32bppRGBA then compute grayscale
         hr = factory->CreateFormatConverter(&conv);
         if (FAILED(hr))
         {
-            if (errorOut) *errorOut = "CreateFormatConverter failed";
-            frame->Release(); decoder->Release(); factory->Release(); if (needUninit) CoUninitialize();
+            if (errorOut)
+                *errorOut = "CreateFormatConverter failed";
+            frame->Release();
+            decoder->Release();
+            factory->Release();
+            if (needUninit)
+                CoUninitialize();
             return false;
         }
         hr = conv->Initialize(frame, GUID_WICPixelFormat32bppRGBA, WICBitmapDitherTypeNone, nullptr, 0.0, WICBitmapPaletteTypeMedianCut);
         if (FAILED(hr))
         {
-            if (errorOut) *errorOut = "RGBA conversion failed";
-            conv->Release(); frame->Release(); decoder->Release(); factory->Release(); if (needUninit) CoUninitialize();
+            if (errorOut)
+                *errorOut = "RGBA conversion failed";
+            conv->Release();
+            frame->Release();
+            decoder->Release();
+            factory->Release();
+            if (needUninit)
+                CoUninitialize();
             return false;
         }
 
@@ -207,8 +275,14 @@ namespace ImageLoader
         hr = conv->CopyPixels(&rect, static_cast<UINT>(strideRGBA), static_cast<UINT>(rgba.size()), rgba.data());
         if (FAILED(hr))
         {
-            if (errorOut) *errorOut = "CopyPixels failed";
-            conv->Release(); frame->Release(); decoder->Release(); factory->Release(); if (needUninit) CoUninitialize();
+            if (errorOut)
+                *errorOut = "CopyPixels failed";
+            conv->Release();
+            frame->Release();
+            decoder->Release();
+            factory->Release();
+            if (needUninit)
+                CoUninitialize();
             return false;
         }
 
@@ -228,6 +302,9 @@ namespace ImageLoader
             }
         }
 
+        // Flip to bottom-to-top orientation
+        flipVertical(gray, static_cast<size_t>(w), static_cast<size_t>(h));
+
         out.width_px = static_cast<int>(w);
         out.height_px = static_cast<int>(h);
         out.pixel_size_mm = pixel_size_mm;
@@ -237,9 +314,8 @@ namespace ImageLoader
         frame->Release();
         decoder->Release();
         factory->Release();
-        if (needUninit) CoUninitialize();
+        if (needUninit)
+            CoUninitialize();
         return true;
     }
 }
-
-

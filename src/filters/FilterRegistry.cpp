@@ -5,9 +5,17 @@
 
 #include "filters/bitmap/BlurFilter.h"
 #include "filters/bitmap/ThresholdFilter.h"
+#include "filters/bitmap/LevelsFilter.h"
 #include "filters/bitmap/TraceFilter.h"
 #include "filters/bitmap/TraceBlobsFilter.h"
+#include "filters/bitmap/CannyFilter.h"
+#include "filters/bitmap/LineHatchFilter.h"
+#include "filters/bitmap/SkeletonizeFilter.h"
+#include "filters/bitmap/ClaheFilter.h"
 #include "filters/pathset/SimplifyFilter.h"
+#include "filters/pathset/SmoothFilter.h"
+#include "filters/pathset/OptimizePathsFilter.h"
+#include "filters/pathset/LaplacianSmoothFilter.h"
 
 namespace {
 	inline const char *toString(LayerKind k)
@@ -72,10 +80,31 @@ void FilterRegistry::initDefaults()
 	});
 
 	reg.registerFilter(FilterInfo{
+		"Levels",
+		LayerKind::Bitmap,
+		LayerKind::Bitmap,
+		[]() { return std::make_unique<LevelsFilter>(); }
+	});
+
+	reg.registerFilter(FilterInfo{
+		"CLAHE",
+		LayerKind::Bitmap,
+		LayerKind::Bitmap,
+		[]() { return std::make_unique<ClaheFilter>(); }
+	});
+
+	reg.registerFilter(FilterInfo{
 		"Trace",
 		LayerKind::Bitmap,
 		LayerKind::PathSet,
 		[]() { return std::make_unique<TraceFilter>(); }
+	});
+
+	reg.registerFilter(FilterInfo{
+		"Line Hatch",
+		LayerKind::Bitmap,
+		LayerKind::PathSet,
+		[]() { return std::make_unique<LineHatchFilter>(); }
 	});
 
 	reg.registerFilter(FilterInfo{
@@ -86,6 +115,13 @@ void FilterRegistry::initDefaults()
 	});
 
 	reg.registerFilter(FilterInfo{
+		"Skeletonize",
+		LayerKind::Bitmap,
+		LayerKind::PathSet,
+		[]() { return std::make_unique<SkeletonizeFilter>(); }
+	});
+
+	reg.registerFilter(FilterInfo{
 		"Threshold",
 		LayerKind::Bitmap,
 		LayerKind::Bitmap,
@@ -93,10 +129,38 @@ void FilterRegistry::initDefaults()
 	});
 
 	reg.registerFilter(FilterInfo{
+		"Canny",
+		LayerKind::Bitmap,
+		LayerKind::Bitmap,
+		[]() { return std::make_unique<CannyFilter>(); }
+	});
+
+	reg.registerFilter(FilterInfo{
 		"Simplify",
 		LayerKind::PathSet,
 		LayerKind::PathSet,
 		[]() { return std::make_unique<SimplifyFilter>(); }
+	});
+
+	reg.registerFilter(FilterInfo{
+		"Smooth",
+		LayerKind::PathSet,
+		LayerKind::PathSet,
+		[]() { return std::make_unique<SmoothFilter>(); }
+	});
+
+	reg.registerFilter(FilterInfo{
+		"Laplacian Smooth",
+		LayerKind::PathSet,
+		LayerKind::PathSet,
+		[]() { return std::make_unique<LaplacianSmoothFilter>(); }
+	});
+
+	reg.registerFilter(FilterInfo{
+		"Optimize Paths",
+		LayerKind::PathSet,
+		LayerKind::PathSet,
+		[]() { return std::make_unique<OptimizePathsFilter>(); }
 	});
 }
 

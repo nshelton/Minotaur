@@ -48,6 +48,27 @@ void MainScreen::onResize(int width, int height)
 
 void MainScreen::onUpdate(double /*dt*/)
 {
+    // Handle keyboard-driven actions that should work outside of ImGui widgets
+    ImGuiIO &io = ImGui::GetIO();
+    if (!io.WantCaptureKeyboard && ImGui::IsKeyPressed(ImGuiKey_Delete))
+    {
+        if (m_interaction.SelectedEntity())
+        {
+            int id = *m_interaction.SelectedEntity();
+            auto it = m_page.entities.find(id);
+            if (it != m_page.entities.end())
+            {
+                m_page.entities.erase(it);
+                // Clear selection/hover if they referenced the deleted entity
+                m_interaction.DeselectEntity();
+                if (m_interaction.HoveredEntity() && *m_interaction.HoveredEntity() == id)
+                {
+                    m_interaction.ClearHover();
+                }
+                LOG(INFO) << "Deleted entity via Delete key: " << id;
+            }
+        }
+    }
 }
 
 void MainScreen::onRender()
@@ -107,6 +128,15 @@ void MainScreen::onMouseButton(int button, int action, int /*mods*/, Vec2 px)
         m_interaction.onMouseDown(m_page, m_camera, m_page.mouse_page_mm);
     }
     else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE)
+    {
+        m_interaction.onMouseUp();
+    }
+    else if (button == GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW_PRESS)
+    {
+        // Middle click always pans the page; never selects/moves entities
+        m_interaction.beginPan(m_camera, m_page.mouse_page_mm);
+    }
+    else if (button == GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW_RELEASE)
     {
         m_interaction.onMouseUp();
     }

@@ -27,7 +27,8 @@ void Renderer::render(const Camera &camera, const PageModel &page, const Interac
       if (isPathSetLayer(layer))
       {
          const PathSet *psPtr = asPathSetConstPtr(layer);
-         if (!psPtr) continue;
+         if (!psPtr)
+            continue;
          const PathSet &ps = *psPtr;
          for (const auto &path : ps.paths)
          {
@@ -72,19 +73,19 @@ void Renderer::render(const Camera &camera, const PageModel &page, const Interac
          const Entity &entity = page.entities.at(*uiState.hoveredId);
          BoundingBox bb = entity.boundsLocal();
          drawRect(
-            entity.localToPage * bb.min - 2,
-            entity.localToPage * bb.max + 2,
-            Color(0, 1, 0, 1));
+             entity.localToPage * bb.min - 2,
+             entity.localToPage * bb.max + 2,
+             Color(0, 1, 0, 1));
 
          // draw resize handles on hover as tooltips
          Vec2 minL = bb.min;
          Vec2 maxL = bb.max;
          Vec2 mid = Vec2((minL.x + maxL.x) * 0.5f, (minL.y + maxL.y) * 0.5f);
          Vec2 handles[8] = {
-             Vec2(mid.x, maxL.y), // N
-             Vec2(mid.x, minL.y), // S
-             Vec2(maxL.x, mid.y), // E
-             Vec2(minL.x, mid.y), // W
+             Vec2(mid.x, maxL.y),  // N
+             Vec2(mid.x, minL.y),  // S
+             Vec2(maxL.x, mid.y),  // E
+             Vec2(minL.x, mid.y),  // W
              Vec2(maxL.x, maxL.y), // NE
              Vec2(minL.x, maxL.y), // NW
              Vec2(maxL.x, minL.y), // SE
@@ -95,8 +96,8 @@ void Renderer::render(const Camera &camera, const PageModel &page, const Interac
          Color hc = Color(0.2f, 0.9f, 0.2f, 1.0f);
          for (Vec2 pLocal : handles)
          {
-             Vec2 p = entity.localToPage.apply(pLocal);
-             drawHandle(p, HANDLE_RENDER_RADIUS_MM, hc);
+            Vec2 p = entity.localToPage.apply(pLocal);
+            drawHandle(p, HANDLE_RENDER_RADIUS_MM, hc);
          }
       }
    }
@@ -112,19 +113,19 @@ void Renderer::render(const Camera &camera, const PageModel &page, const Interac
          const LayerPtr &selLayer = const_cast<Entity &>(entity).filterChain.output();
          Color selCol = isPathSetLayer(selLayer) ? theme::PathsetColor : theme::BitmapColor;
          drawRect(
-            entity.localToPage * bb.min - 1,
-            entity.localToPage * bb.max + 1,
-            selCol);
+             entity.localToPage * bb.min - 1,
+             entity.localToPage * bb.max + 1,
+             selCol);
 
          // draw resize handles (corners + edges)
          Vec2 minL = bb.min;
          Vec2 maxL = bb.max;
          Vec2 mid = Vec2((minL.x + maxL.x) * 0.5f, (minL.y + maxL.y) * 0.5f);
          Vec2 handles[8] = {
-             Vec2(mid.x, maxL.y), // N
-             Vec2(mid.x, minL.y), // S
-             Vec2(maxL.x, mid.y), // E
-             Vec2(minL.x, mid.y), // W
+             Vec2(mid.x, maxL.y),  // N
+             Vec2(mid.x, minL.y),  // S
+             Vec2(maxL.x, mid.y),  // E
+             Vec2(minL.x, mid.y),  // W
              Vec2(maxL.x, maxL.y), // NE
              Vec2(minL.x, maxL.y), // NW
              Vec2(maxL.x, minL.y), // SE
@@ -134,8 +135,8 @@ void Renderer::render(const Camera &camera, const PageModel &page, const Interac
          Color hc = Color(1.0f, 0.6f, 0.1f, 1.0f);
          for (Vec2 pLocal : handles)
          {
-             Vec2 p = entity.localToPage.apply(pLocal);
-             drawHandle(p, HANDLE_RENDER_RADIUS_MM, hc);
+            Vec2 p = entity.localToPage.apply(pLocal);
+            drawHandle(p, HANDLE_RENDER_RADIUS_MM, hc);
          }
       }
    }
@@ -157,6 +158,10 @@ void Renderer::renderPage(const Camera &camera, const PageModel &page)
    // outline
 
    drawRect(Vec2(0.0f, 0.0f), Vec2(page.page_width_mm, page.page_height_mm), outlineCol);
+
+   // also show letter paper
+   drawRect(Vec2(0.0f, 0.0f), Vec2(215.9f, 279.4f), outlineCol);
+   drawRect(Vec2(0.0f, 0.0f), Vec2(279.4f, 215.9f), outlineCol);
 
    // grid lines every 10mm
    Color gridCol = Color(0.3f, 0.3f, 0.3f, 1.0f);
@@ -187,16 +192,16 @@ void Renderer::drawHandle(const Vec2 &center, float sizeMm, const Color &col)
 void Renderer::drawCircle(const Vec2 &center, float radiusMm, const Color &col)
 {
    const int segments = 16;
-    if (segments < 3)
-        return;
-    float twoPi = 6.28318530718f;
-    Vec2 prev = Vec2(center.x + radiusMm, center.y);
-    for (int i = 1; i <= segments; ++i)
-    {
-        float t = (float)i / (float)segments;
-        float ang = t * twoPi;
-        Vec2 cur = Vec2(center.x + radiusMm * cosf(ang), center.y + radiusMm * sinf(ang));
-        m_lines.addLine(prev, cur, col);
-        prev = cur;
-    }
+   if (segments < 3)
+      return;
+   float twoPi = 6.28318530718f;
+   Vec2 prev = Vec2(center.x + radiusMm, center.y);
+   for (int i = 1; i <= segments; ++i)
+   {
+      float t = (float)i / (float)segments;
+      float ang = t * twoPi;
+      Vec2 cur = Vec2(center.x + radiusMm * cosf(ang), center.y + radiusMm * sinf(ang));
+      m_lines.addLine(prev, cur, col);
+      prev = cur;
+   }
 }

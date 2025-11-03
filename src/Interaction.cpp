@@ -89,6 +89,14 @@ void InteractionController::onMouseDown(PageModel &scene, Camera &camera, const 
     }
 }
 
+void InteractionController::beginPan(Camera &camera, const Vec2 &mouseWorld)
+{
+    m_state.mouseDownWorld = mouseWorld;
+    m_state.mode = InteractionMode::PanningCamera;
+    m_cameraStart = camera.Transform();
+    m_cameraStartCenterMm = camera.center();
+}
+
 void InteractionController::onCursorPos(PageModel &scene, Camera &camera, const Vec2 &mouseWorld)
 {
 

@@ -53,6 +53,8 @@ class InteractionController
 public:
     void updateHover(const PageModel &scene, const Camera &camera, const Vec2 &mousePx);
     void onMouseDown(PageModel &scene, Camera &camera, const Vec2 &px);
+    // Begin a camera pan irrespective of what's under the cursor
+    void beginPan(Camera &camera, const Vec2 &px);
     void onMouseUp();
     void onCursorPos(PageModel &scene, Camera &camera, const Vec2 &px);
     void onScroll(PageModel &scene, Camera &camera, float yoffset, const Vec2 &px);

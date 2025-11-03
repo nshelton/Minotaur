@@ -44,6 +44,14 @@ add_executable(minotaur
   src/filters/pathset/SimplifyFilter.cpp
   src/filters/bitmap/TraceFilter.cpp
   src/filters/bitmap/TraceBlobsFilter.cpp
+  src/filters/bitmap/SkeletonizeFilter.cpp
+  src/filters/bitmap/LevelsFilter.cpp
+  src/filters/bitmap/LineHatchFilter.cpp
+  src/filters/pathset/SmoothFilter.cpp
+  src/filters/pathset/LaplacianSmoothFilter.cpp
+  src/filters/pathset/OptimizePathsFilter.cpp
+  src/filters/bitmap/CannyFilter.cpp
+  src/filters/bitmap/ClaheFilter.cpp
 
 )
 
