@@ -328,14 +328,38 @@ void MainScreen::onGui()
 
             {
                 const auto options = FilterRegistry::instance().byInput(nextIn);
+                auto toImVec4 = [](const Color &c) { return ImVec4(c.r, c.g, c.b, c.a); };
+                auto lighten = [](ImVec4 c, float s) {
+                    auto clamp01 = [](float v){ return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); };
+                    c.x = clamp01(c.x * s);
+                    c.y = clamp01(c.y * s);
+                    c.z = clamp01(c.z * s);
+                    return c;
+                };
                 for (const auto &info : options)
                 {
+                    // Button color based on filter IO kinds; blend if converting
+                    Color cin = (info.inputKind == LayerKind::Bitmap) ? theme::BitmapColor : theme::PathsetColor;
+                    Color cout = (info.outputKind == LayerKind::Bitmap) ? theme::BitmapColor : theme::PathsetColor;
+                    Color cbase = (info.inputKind != info.outputKind)
+                        ? Color((cin.r + cout.r) * 0.5f, (cin.g + cout.g) * 0.5f, (cin.b + cout.b) * 0.5f, 1.0f)
+                        : cout;
+
+                    ImVec4 b  = toImVec4(cbase);
+                    ImVec4 bh = lighten(b, 1.08f);
+                    ImVec4 ba = lighten(b, 1.16f);
+                    ImGui::PushStyleColor(ImGuiCol_Button, b);
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, bh);
+                    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ba);
+
                     const std::string label = FilterRegistry::makeButtonLabel(info);
                     if (ImGui::Button(label.c_str()))
                     {
                         auto f = info.factory();
                         e.filterChain.addFilter(std::move(f));
                     }
+
+                    ImGui::PopStyleColor(3);
                 }
             }
             ImGui::Separator();
@@ -349,24 +373,73 @@ void MainScreen::onGui()
                 if (!f || !lc)
                     continue;
 
+                // Per-filter header color based on IO kinds
+                auto toImVec4 = [](const Color &c) { return ImVec4(c.r, c.g, c.b, c.a); };
+                auto lighten = [](ImVec4 c, float s) {
+                    auto clamp01 = [](float v){ return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); };
+                    c.x = clamp01(c.x * s);
+                    c.y = clamp01(c.y * s);
+                    c.z = clamp01(c.z * s);
+                    return c;
+                };
+
+                const bool inBitmap = (f->inputKind() == LayerKind::Bitmap);
+                const bool outBitmap = (f->outputKind() == LayerKind::Bitmap);
+                Color cin = inBitmap ? theme::BitmapColor : theme::PathsetColor;
+                Color cout = outBitmap ? theme::BitmapColor : theme::PathsetColor;
+
+                // If it converts types, blend half-way; else use the IO color
+                Color cbase;
+                if (inBitmap != outBitmap)
+                {
+                    cbase = Color(
+                        (cin.r + cout.r) * 0.5f,
+                        (cin.g + cout.g) * 0.5f,
+                        (cin.b + cout.b) * 0.5f,
+                        1.0f);
+                }
+                else
+                {
+                    cbase = cout; // same either way
+                }
+
+                ImVec4 hdr = toImVec4(cbase);
+                ImVec4 hdrHovered = lighten(hdr, 1.10f);
+                ImVec4 hdrActive  = lighten(hdr, 1.20f);
+
+                ImGui::PushStyleColor(ImGuiCol_Header, hdr);
+                ImGui::PushStyleColor(ImGuiCol_HeaderHovered, hdrHovered);
+                ImGui::PushStyleColor(ImGuiCol_HeaderActive, hdrActive);
+
                 std::string nameString = fmt::format("{}###filterheader:{}", f->name(), i);
-                if (ImGui::CollapsingHeader(nameString.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+                bool open = ImGui::CollapsingHeader(nameString.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
+                ImGui::PopStyleColor(3);
+
+                if (open)
                 {
 
-                    // Enable/disable toggle
+                    // Enable/disable toggle with type-safety gating
                     bool enabled = e.filterChain.isFilterEnabled(i);
+                    bool canEnable = e.filterChain.canEnableFilterAtIndex(i);
+                    bool canDisable = e.filterChain.canDisableFilterAtIndex(i);
+                    bool allowToggle = enabled ? canDisable : canEnable;
                     std::string enLabel = fmt::format("Enabled###enablefilter:{}", i);
+                    if (!allowToggle) ImGui::BeginDisabled();
                     if (ImGui::Checkbox(enLabel.c_str(), &enabled))
                     {
                         e.filterChain.setFilterEnabled(i, enabled);
                     }
+                    if (!allowToggle) ImGui::EndDisabled();
                     ImGui::SameLine();
 
-                    // Inline delete button
+                    // Inline delete button (disabled if removing would break typing)
+                    bool canRemove = e.filterChain.canRemoveFilterAtIndex(i);
+                    if (!canRemove) ImGui::BeginDisabled();
                     if (ImGui::Button(fmt::format("Delete###deletefilter:{}", i).c_str()))
                     {
                         deleteIndex = i;
                     }
+                    if (!canRemove) ImGui::EndDisabled();
 
                     // ImGui::Text("Index: %llu", static_cast<unsigned long long>(i));
                     // ImGui::Text("IO: %s -> %s",

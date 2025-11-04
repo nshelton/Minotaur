@@ -50,6 +50,7 @@ add_executable(minotaur
   src/filters/pathset/SmoothFilter.cpp
   src/filters/pathset/LaplacianSmoothFilter.cpp
   src/filters/pathset/OptimizePathsFilter.cpp
+  src/filters/pathset/CurlNoiseFilter.cpp
   src/filters/bitmap/CannyFilter.cpp
   src/filters/bitmap/ClaheFilter.cpp
 

@@ -118,19 +118,8 @@ public:
         if (index >= m_filters.size())
             return false;
 
-        // If there is a downstream filter, ensure removing this filter would not
-        // break the input/output type compatibility for the next filter.
-        if (index + 1 < m_filters.size())
-        {
-            LayerKind newUpstreamKind = (index == 0)
-                                             ? baseKind()
-                                             : m_filters[index - 1]->outputKind();
-            LayerKind nextInputKind = m_filters[index + 1]->inputKind();
-            if (newUpstreamKind != nextInputKind)
-            {
-                return false;
-            }
-        }
+        if (!canRemoveFilterAtIndex(index))
+            return false;
 
         m_filters.erase(m_filters.begin() + static_cast<std::ptrdiff_t>(index));
         m_layers.erase(m_layers.begin() + static_cast<std::ptrdiff_t>(index));
@@ -145,11 +134,22 @@ public:
     {
         if (index >= m_enabled.size())
             return;
-        if (m_enabled[index] != enabled)
+        if (m_enabled[index] == enabled)
+            return;
+
+        if (enabled)
         {
-            m_enabled[index] = enabled;
-            invalidateAll();
+            if (!canEnableFilterAtIndex(index))
+                return;
         }
+        else
+        {
+            if (!canDisableFilterAtIndex(index))
+                return;
+        }
+
+        m_enabled[index] = enabled;
+        invalidateAll();
     }
 
     bool isFilterEnabled(size_t index) const
@@ -158,6 +158,72 @@ public:
     }
 
 private:
+    // Find previous enabled filter index before 'start' (exclusive). Returns -1 if none.
+    int prevEnabledIndex(int start) const
+    {
+        for (int j = start; j >= 0; --j)
+        {
+            if (j < static_cast<int>(m_enabled.size()) && m_enabled[static_cast<size_t>(j)])
+                return j;
+        }
+        return -1;
+    }
+
+    // Find next enabled filter index at or after 'start'. Returns -1 if none.
+    int nextEnabledIndex(int start) const
+    {
+        for (int j = start; j < static_cast<int>(m_enabled.size()); ++j)
+        {
+            if (m_enabled[static_cast<size_t>(j)])
+                return j;
+        }
+        return -1;
+    }
+
+public:
+    // Check if removing (or equivalently bypassing) filter at index preserves type compatibility
+    bool canRemoveFilterAtIndex(size_t index) const
+    {
+        if (index >= m_filters.size()) return false;
+
+        // Upstream kind is from previous enabled filter, otherwise base kind
+        int prevEn = prevEnabledIndex(static_cast<int>(index) - 1);
+        LayerKind upstreamKind = (prevEn >= 0)
+                                     ? m_filters[static_cast<size_t>(prevEn)]->outputKind()
+                                     : baseKind();
+
+        // Downstream is next enabled filter after index
+        int nextEn = nextEnabledIndex(static_cast<int>(index) + 1);
+        if (nextEn < 0) return true; // no downstream consumer
+
+        LayerKind nextInput = m_filters[static_cast<size_t>(nextEn)]->inputKind();
+        return upstreamKind == nextInput;
+    }
+
+    bool canEnableFilterAtIndex(size_t index) const
+    {
+        if (index >= m_filters.size()) return false;
+
+        // Upstream enabled before index
+        int prevEn = prevEnabledIndex(static_cast<int>(index) - 1);
+        LayerKind upstreamKind = (prevEn >= 0)
+                                     ? m_filters[static_cast<size_t>(prevEn)]->outputKind()
+                                     : baseKind();
+
+        // This filter must accept upstream kind
+        if (m_filters[index]->inputKind() != upstreamKind)
+            return false;
+
+        // And its output must feed next enabled filter if exists
+        int nextEn = nextEnabledIndex(static_cast<int>(index) + 1);
+        if (nextEn < 0) return true;
+        return m_filters[index]->outputKind() == m_filters[static_cast<size_t>(nextEn)]->inputKind();
+    }
+
+    bool canDisableFilterAtIndex(size_t index) const
+    {
+        return canRemoveFilterAtIndex(index);
+    }
     const LayerPtr &evaluate(size_t i)
     {
         assert(i < m_filters.size());

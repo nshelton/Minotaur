@@ -16,6 +16,7 @@
 #include "filters/pathset/SmoothFilter.h"
 #include "filters/pathset/OptimizePathsFilter.h"
 #include "filters/pathset/LaplacianSmoothFilter.h"
+#include "filters/pathset/CurlNoiseFilter.h"
 
 namespace {
 	inline const char *toString(LayerKind k)
@@ -155,6 +156,13 @@ void FilterRegistry::initDefaults()
 		LayerKind::PathSet,
 		[]() { return std::make_unique<LaplacianSmoothFilter>(); }
 	});
+
+    reg.registerFilter(FilterInfo{
+        "Curl Noise Displace",
+        LayerKind::PathSet,
+        LayerKind::PathSet,
+        []() { return std::make_unique<CurlNoiseFilter>(); }
+    });
 
 	reg.registerFilter(FilterInfo{
 		"Optimize Paths",
