@@ -351,15 +351,17 @@ void MainScreen::onGui()
                     ImGui::PushStyleColor(ImGuiCol_Button, b);
                     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, bh);
                     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ba);
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 0, 0, 1));
 
-                    const std::string label = FilterRegistry::makeButtonLabel(info);
+                    const std::string label = info.name;
+
                     if (ImGui::Button(label.c_str()))
                     {
                         auto f = info.factory();
                         e.filterChain.addFilter(std::move(f));
                     }
 
-                    ImGui::PopStyleColor(3);
+                    ImGui::PopStyleColor(4);
                 }
             }
             ImGui::Separator();
@@ -410,10 +412,11 @@ void MainScreen::onGui()
                 ImGui::PushStyleColor(ImGuiCol_Header, hdr);
                 ImGui::PushStyleColor(ImGuiCol_HeaderHovered, hdrHovered);
                 ImGui::PushStyleColor(ImGuiCol_HeaderActive, hdrActive);
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 0, 0, 1));
 
                 std::string nameString = fmt::format("{}###filterheader:{}", f->name(), i);
                 bool open = ImGui::CollapsingHeader(nameString.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
-                ImGui::PopStyleColor(3);
+                ImGui::PopStyleColor(4);
 
                 if (open)
                 {

@@ -1,12 +1,16 @@
 ## Minotaur
 
+
 An interactive desktop tool for turning images into drawable vector paths and sending them to a pen plotter (AxiDraw via EBB). Built with C++17, GLFW, GLAD, ImGui, and runs on Windows.
 
 ### Highlights
-- **Image → Paths**: Apply a chain of bitmap and pathset filters (Canny, CLAHE, Threshold, Skeletonize, Line Hatch, Simplify, Smooth, ...).
+- **Image processing**: prefilter bitmaps : threshold, levels, CLAHE, canny, blur
+- **Image → Paths**: Line hatch, skeletonize, blob trace
+- **Path processing** RDP Simplify, Chaikin smooth, Laplacian smooth, Optimize, curl noise displace
 - **Live preview**: OpenGL rendering of images and line paths with an interactive camera.
 - **Plotter control**: Serial connection to AxiDraw-compatible controllers (EBB). Configure pen up/down, enable motors, and motion planning.
 - **Drag & drop**: Drop files directly into the window.
+- **Serialization**: App state (filters, bitmaps, paths, transforms) are serialized to json
 
 ### Build (Windows, Visual Studio + vcpkg)
 Requirements:
@@ -59,6 +63,6 @@ Basic usage:
 ### Notes
 - Windows-specific linking (`ole32`, `windowscodecs`) is enabled in CMake.
 - Default window size is 1800×1600; adjust in `src/main.cpp` if desired.
- 
+
 
 

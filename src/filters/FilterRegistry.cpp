@@ -60,11 +60,6 @@ std::vector<FilterInfo> FilterRegistry::byInput(LayerKind kind) const
 	return out;
 }
 
-std::string FilterRegistry::makeButtonLabel(const FilterInfo &info)
-{
-	return fmt::format("{} ({} to {})", info.name, toString(info.inputKind), toString(info.outputKind));
-}
-
 void FilterRegistry::initDefaults()
 {
 	static bool initialized = false;
