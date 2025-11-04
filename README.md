@@ -1,7 +1,9 @@
-## Minotaur
+# Minotaur
 
+![alt text](readme/gui.jpg)
 
 An interactive desktop tool for turning images into drawable vector paths and sending them to a pen plotter (AxiDraw via EBB). Built with C++17, GLFW, GLAD, ImGui, and runs on Windows.
+
 
 ### Highlights
 - **Image processing**: prefilter bitmaps : threshold, levels, CLAHE, canny, blur
