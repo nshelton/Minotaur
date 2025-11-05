@@ -35,7 +35,7 @@ static inline void buildGaussianKernel(int radius, std::vector<int16_t> &kernel,
     }
 
     // Scale float weights to 16-bit integers
-    const float scale = 1024.0f; // power-of-two friendly
+    const float scale = 4096.0f; // power-of-two friendly
     weightSum = 0;
     for (int i = 0; i < size; ++i)
     {

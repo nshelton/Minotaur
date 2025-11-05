@@ -2,7 +2,7 @@
 
 #include "core/Core.h"
 #include "render/LineRenderer.h"
-#include "render/ImageRenderer.h"
+#include "render/BitmapRenderer.h"
 #include "Interaction.h"
 #include "Page.h"
 #include "Camera.h"
@@ -35,7 +35,7 @@ public:
 
 private:
     LineRenderer m_lines{};
-    ImageRenderer m_images{};
+    BitmapRenderer m_images{};
     float m_nodeDiameterPx{8.0f};
 
     void renderPage(const Camera &camera, const PageModel &page);

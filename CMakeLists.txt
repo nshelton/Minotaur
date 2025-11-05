@@ -25,7 +25,7 @@ add_executable(minotaur
   src/Page.cpp
 
   src/render/LineRenderer.cpp
-  src/render/ImageRenderer.cpp
+  src/render/BitmapRenderer.cpp
   src/utils/VectorFont.cpp
   src/utils/PathSetGenerator.cpp
   src/utils/BitmapGenerator.cpp
@@ -67,10 +67,10 @@ endif()
 enable_testing()
 
 add_executable(minotaur_tests
-  tests/test_sanity.cpp
+  tests/test_kdtree.cpp
 )
 
 target_include_directories(minotaur_tests PRIVATE src)
 target_link_libraries(minotaur_tests PRIVATE GTest::gtest GTest::gtest_main)
 
-add_test(NAME minotaur_sanity COMMAND minotaur_tests)
+add_test(NAME minotaur_kdtree COMMAND minotaur_tests)
