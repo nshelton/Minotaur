@@ -311,7 +311,10 @@ void MainScreen::onGui()
             Entity &e = m_page.entities.at(selectedId);
             ImGui::Text("Selected Entity: %d", selectedId);
             // ImGui::Text("Payload Version: %llu", static_cast<unsigned long long>(e.payloadVersion));
-            ImGui::Text("Base Kind: %s", e.filterChain.baseKind() == LayerKind::Bitmap ? "Bitmap" : "PathSet");
+            auto kindToString = [](LayerKind k) {
+                return (k == LayerKind::Bitmap) ? "Bitmap" : (k == LayerKind::PathSet ? "PathSet" : "Float");
+            };
+            ImGui::Text("Base Kind: %s", kindToString(e.filterChain.baseKind()));
             // ImGui::Text("Base Gen: %llu", static_cast<unsigned long long>(e.filterChain.baseGen()));
             // ImGui::Separator();
 
@@ -324,7 +327,7 @@ void MainScreen::onGui()
                                    : e.filterChain.filterAt(n - 1)->outputKind();
 
             ImGui::Separator();
-            ImGui::Text("Add Filter (next input: %s)", nextIn == LayerKind::Bitmap ? "Bitmap" : "PathSet");
+            ImGui::Text("Add Filter (next input: %s)", kindToString(nextIn));
 
             {
                 const auto options = FilterRegistry::instance().byInput(nextIn);
@@ -339,8 +342,12 @@ void MainScreen::onGui()
                 for (const auto &info : options)
                 {
                     // Button color based on filter IO kinds; blend if converting
-                    Color cin = (info.inputKind == LayerKind::Bitmap) ? theme::BitmapColor : theme::PathsetColor;
-                    Color cout = (info.outputKind == LayerKind::Bitmap) ? theme::BitmapColor : theme::PathsetColor;
+                    auto kindColor = [](LayerKind k) {
+                        // Treat Float as raster color for UI
+                        return (k == LayerKind::PathSet) ? theme::PathsetColor : theme::BitmapColor;
+                    };
+                    Color cin = kindColor(info.inputKind);
+                    Color cout = kindColor(info.outputKind);
                     Color cbase = (info.inputKind != info.outputKind)
                         ? Color((cin.r + cout.r) * 0.5f, (cin.g + cout.g) * 0.5f, (cin.b + cout.b) * 0.5f, 1.0f)
                         : cout;
@@ -477,12 +484,31 @@ void MainScreen::onGui()
 
                     else if (f->outputKind() == LayerKind::Bitmap)
                     {
+                        const LayerCache *lcPtr = e.filterChain.layerCacheAt(i);
+                        size_t w = 0, h = 0;
+                        if (lcPtr && lcPtr->data)
+                        {
+                            if (const Bitmap *bp = asBitmapConstPtr(lcPtr->data)) { w = bp->width_px; h = bp->height_px; }
+                        }
                         std::string ioinfo = fmt::format(
                             "Output {:.3f} ms, {}x{}",
                             f->lastRunMs(),
-                            e.bitmap()->width_px,
-                            e.bitmap()->height_px);
+                            w, h);
+                        ImGui::TextUnformatted(ioinfo.c_str());
+                    }
 
+                    else if (f->outputKind() == LayerKind::FloatImage)
+                    {
+                        const LayerCache *lcPtr = e.filterChain.layerCacheAt(i);
+                        size_t w = 0, h = 0;
+                        if (lcPtr && lcPtr->data)
+                        {
+                            if (const FloatImage *fp = asFloatImageConstPtr(lcPtr->data)) { w = fp->width_px; h = fp->height_px; }
+                        }
+                        std::string ioinfo = fmt::format(
+                            "Output {:.3f} ms, {}x{} (float)",
+                            f->lastRunMs(),
+                            w, h);
                         ImGui::TextUnformatted(ioinfo.c_str());
                     }
                 }

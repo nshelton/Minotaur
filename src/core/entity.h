@@ -4,19 +4,21 @@
 #include <variant>
 #include "core/Pathset.h"
 #include "core/Bitmap.h"
+#include "core/FloatImage.h"
 #include "filters/FilterChain.h"
 
 enum class EntityType
 {
     PathSet,
-    Bitmap
+    Bitmap,
+    FloatImage
 };
 
 struct Entity
 {
     int id;
     std::string name;
-    std::variant<PathSet, Bitmap> payload;
+    std::variant<PathSet, Bitmap, FloatImage> payload;
     uint64_t payloadVersion{1};
     bool visible{true};
     Color color{1.0f, 1.0f, 1.0f, 1.0f};
@@ -26,7 +28,9 @@ struct Entity
 
     EntityType type() const
     {
-        return std::holds_alternative<PathSet>(payload) ? EntityType::PathSet : EntityType::Bitmap;
+        if (std::holds_alternative<PathSet>(payload)) return EntityType::PathSet;
+        if (std::holds_alternative<Bitmap>(payload)) return EntityType::Bitmap;
+        return EntityType::FloatImage;
     }
 
     BoundingBox boundsLocal() const
@@ -36,8 +40,12 @@ struct Entity
             ps->computeAABB();
             return ps->aabb;
         }
-        const Bitmap &bm = std::get<Bitmap>(payload);
-        return bm.aabb();
+        if (auto bmp = std::get_if<Bitmap>(&payload))
+        {
+            return bmp->aabb();
+        }
+        const FloatImage &fi = std::get<FloatImage>(payload);
+        return fi.aabb();
     }
 
     bool contains(const Vec2 &point, float margin_mm = 0) const
@@ -49,6 +57,8 @@ struct Entity
     PathSet *pathset() { return std::get_if<PathSet>(&payload); }
     const Bitmap *bitmap() const { return std::get_if<Bitmap>(&payload); }
     Bitmap *bitmap() { return std::get_if<Bitmap>(&payload); }
+    const FloatImage *floatImage() const { return std::get_if<FloatImage>(&payload); }
+    FloatImage *floatImage() { return std::get_if<FloatImage>(&payload); }
 
     // Filter chain: transforms from base payload to display/output layer
     FilterChain filterChain;
@@ -58,8 +68,10 @@ struct Entity
     {
         if (auto ps = std::get_if<PathSet>(&payload))
             return makeLayerFrom(*ps);
-        const Bitmap &bm = std::get<Bitmap>(payload);
-        return makeLayerFrom(bm);
+        if (auto bmp = std::get_if<Bitmap>(&payload))
+            return makeLayerFrom(*bmp);
+        const FloatImage &fi = std::get<FloatImage>(payload);
+        return makeLayerFrom(fi);
     }
 
     void refreshFilterBase()

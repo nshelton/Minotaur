@@ -66,10 +66,8 @@ public:
         // Validate chain typing
         if (m_filters.empty())
         {
-            if (m_base && m_base->kind() == LayerKind::Bitmap)
-                assert(f->inputKind() == LayerKind::Bitmap);
-            else if (m_base && m_base->kind() == LayerKind::PathSet)
-                assert(f->inputKind() == LayerKind::PathSet);
+            if (m_base)
+                assert(f->inputKind() == m_base->kind());
         }
         else
         {
@@ -110,7 +108,7 @@ public:
     FilterBase *filterAt(size_t i) const { return i < m_filters.size() ? m_filters[i].get() : nullptr; }
     const LayerCache *layerCacheAt(size_t i) const { return i < m_layers.size() ? &m_layers[i] : nullptr; }
     uint64_t baseGen() const { return m_baseGen; }
-    LayerKind baseKind() const { return (m_base && m_base->kind() == LayerKind::Bitmap) ? LayerKind::Bitmap : LayerKind::PathSet; }
+    LayerKind baseKind() const { return m_base ? m_base->kind() : LayerKind::PathSet; }
 
     // Modification: remove a filter by index
     bool removeFilter(size_t index)

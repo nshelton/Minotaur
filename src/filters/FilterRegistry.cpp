@@ -12,6 +12,7 @@
 #include "filters/bitmap/LineHatchFilter.h"
 #include "filters/bitmap/SkeletonizeFilter.h"
 #include "filters/bitmap/ClaheFilter.h"
+#include "filters/bitmap/BitmapToFloatFilter.h"
 #include "filters/pathset/SimplifyFilter.h"
 #include "filters/pathset/SmoothFilter.h"
 #include "filters/pathset/OptimizePathsFilter.h"
@@ -21,7 +22,12 @@
 namespace {
 	inline const char *toString(LayerKind k)
 	{
-		return (k == LayerKind::Bitmap) ? "Bitmap" : "PathSet";
+        switch (k) {
+        case LayerKind::Bitmap: return "Bitmap";
+        case LayerKind::PathSet: return "PathSet";
+        case LayerKind::FloatImage: return "Float";
+        }
+        return "?";
 	}
 }
 
@@ -165,6 +171,13 @@ void FilterRegistry::initDefaults()
 		LayerKind::PathSet,
 		[]() { return std::make_unique<OptimizePathsFilter>(); }
 	});
+
+    reg.registerFilter(FilterInfo{
+        "Bitmap to Float",
+        LayerKind::Bitmap,
+        LayerKind::FloatImage,
+        []() { return std::make_unique<BitmapToFloatFilter>(); }
+    });
 }
 
 

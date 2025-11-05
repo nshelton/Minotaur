@@ -5,4 +5,5 @@
 #include "core/Color.h"
 #include "core/Pathset.h"
 #include "core/Bitmap.h"
+#include "core/FloatImage.h"
 #include "core/Entity.h"

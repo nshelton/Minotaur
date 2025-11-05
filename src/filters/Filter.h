@@ -76,6 +76,11 @@ inline void ensure(LayerPtr &p)
         if (!isBitmapLayer(p))
             p = std::make_shared<Bitmap>();
     }
+    else if constexpr (std::is_same_v<T, FloatImage>)
+    {
+        if (!isFloatImageLayer(p))
+            p = std::make_shared<FloatImage>();
+    }
     else
     {
         if (!isPathSetLayer(p))
@@ -90,6 +95,11 @@ inline T &as(LayerPtr &p)
         assert(isBitmapLayer(p));
         return *static_cast<Bitmap *>(p.get());
     }
+    else if constexpr (std::is_same_v<T, FloatImage>)
+    {
+        assert(isFloatImageLayer(p));
+        return *static_cast<FloatImage *>(p.get());
+    }
     else
     {
         assert(isPathSetLayer(p));
@@ -103,6 +113,11 @@ inline const T &asConst(const LayerPtr &p)
     {
         assert(isBitmapLayer(p));
         return *static_cast<const Bitmap *>(p.get());
+    }
+    else if constexpr (std::is_same_v<T, FloatImage>)
+    {
+        assert(isFloatImageLayer(p));
+        return *static_cast<const FloatImage *>(p.get());
     }
     else
     {
@@ -121,6 +136,8 @@ struct FilterTyped : public FilterBase
     {
         if constexpr (std::is_same<InT, Bitmap>::value)
             return LayerKind::Bitmap;
+        else if constexpr (std::is_same<InT, FloatImage>::value)
+            return LayerKind::FloatImage;
         else
             return LayerKind::PathSet;
     }
@@ -129,6 +146,8 @@ struct FilterTyped : public FilterBase
     {
         if constexpr (std::is_same<OutT, Bitmap>::value)
             return LayerKind::Bitmap;
+        else if constexpr (std::is_same<OutT, FloatImage>::value)
+            return LayerKind::FloatImage;
         else
             return LayerKind::PathSet;
     }

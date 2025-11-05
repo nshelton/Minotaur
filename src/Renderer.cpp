@@ -9,12 +9,14 @@ Renderer::Renderer()
 {
    m_lines.init();
    m_images.init();
+   m_floatImages.init();
 }
 
 void Renderer::render(const Camera &camera, const PageModel &page, const InteractionState &uiState)
 {
    m_lines.clear();
    m_images.clear();
+   m_floatImages.clear();
    // draw page extent and grid
    renderPage(camera, page);
 
@@ -59,12 +61,20 @@ void Renderer::render(const Camera &camera, const PageModel &page, const Interac
       }
       else
       {
-         const Bitmap *bmptr = asBitmapConstPtr(layer);
-         if (!bmptr)
-            continue; // layer not initialized yet
-         const Bitmap &bm = *bmptr;
-         // Queue bitmap for textured draw
-         m_images.addBitmap(id, bm, transform);
+         if (const Bitmap *bmptr = asBitmapConstPtr(layer))
+         {
+            const Bitmap &bm = *bmptr;
+            m_images.addBitmap(id, bm, transform);
+         }
+         else if (const FloatImage *fiptr = asFloatImageConstPtr(layer))
+         {
+            const FloatImage &fi = *fiptr;
+            m_floatImages.addFloatImage(id, fi, transform);
+         }
+         else
+         {
+            continue; // unknown layer or not initialized
+         }
       }
    }
 
@@ -146,6 +156,7 @@ void Renderer::render(const Camera &camera, const PageModel &page, const Interac
 
    // Draw images first, then overlays/lines on top
    m_images.draw(camera.Transform());
+   m_floatImages.draw(camera.Transform());
    m_lines.draw(camera.Transform());
 }
 
@@ -153,6 +164,7 @@ void Renderer::shutdown()
 {
    m_lines.shutdown();
    m_images.shutdown();
+   m_floatImages.shutdown();
 }
 
 void Renderer::renderPage(const Camera &camera, const PageModel &page)

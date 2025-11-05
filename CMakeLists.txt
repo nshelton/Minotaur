@@ -26,6 +26,7 @@ add_executable(minotaur
 
   src/render/LineRenderer.cpp
   src/render/BitmapRenderer.cpp
+  src/render/FloatImageRenderer.cpp
   src/utils/VectorFont.cpp
   src/utils/PathSetGenerator.cpp
   src/utils/BitmapGenerator.cpp
@@ -54,6 +55,7 @@ add_executable(minotaur
   src/filters/pathset/CurlNoiseFilter.cpp
   src/filters/bitmap/CannyFilter.cpp
   src/filters/bitmap/ClaheFilter.cpp
+  src/filters/bitmap/BitmapToFloatFilter.cpp
 
 )
 
