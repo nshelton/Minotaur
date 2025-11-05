@@ -13,6 +13,8 @@
 #include "filters/bitmap/SkeletonizeFilter.h"
 #include "filters/bitmap/ClaheFilter.h"
 #include "filters/bitmap/BitmapToFloatFilter.h"
+#include "filters/bitmap/FloatToPathFilter.h"
+#include "filters/bitmap/FloatBlurFilter.h"
 #include "filters/pathset/SimplifyFilter.h"
 #include "filters/pathset/SmoothFilter.h"
 #include "filters/pathset/OptimizePathsFilter.h"
@@ -173,10 +175,24 @@ void FilterRegistry::initDefaults()
 	});
 
     reg.registerFilter(FilterInfo{
-        "Bitmap to Float",
+        "Bitmap Distance Field",
         LayerKind::Bitmap,
         LayerKind::FloatImage,
         []() { return std::make_unique<BitmapToFloatFilter>(); }
+    });
+
+    reg.registerFilter(FilterInfo{
+        "Float Maxima to Paths",
+        LayerKind::FloatImage,
+        LayerKind::PathSet,
+        []() { return std::make_unique<FloatToPathFilter>(); }
+    });
+
+    reg.registerFilter(FilterInfo{
+        "Float Blur",
+        LayerKind::FloatImage,
+        LayerKind::FloatImage,
+        []() { return std::make_unique<FloatBlurFilter>(); }
     });
 }
 

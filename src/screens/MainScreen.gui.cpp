@@ -501,14 +501,15 @@ void MainScreen::onGui()
                     {
                         const LayerCache *lcPtr = e.filterChain.layerCacheAt(i);
                         size_t w = 0, h = 0;
+                        float vmin = 0.0f, vmax = 0.0f;
                         if (lcPtr && lcPtr->data)
                         {
-                            if (const FloatImage *fp = asFloatImageConstPtr(lcPtr->data)) { w = fp->width_px; h = fp->height_px; }
+                            if (const FloatImage *fp = asFloatImageConstPtr(lcPtr->data)) { w = fp->width_px; h = fp->height_px; vmin = fp->minValue; vmax = fp->maxValue; }
                         }
                         std::string ioinfo = fmt::format(
-                            "Output {:.3f} ms, {}x{} (float)",
+                            "Output {:.3f} ms, {}x{} (float)  min {:.3f}  max {:.3f}",
                             f->lastRunMs(),
-                            w, h);
+                            w, h, vmin, vmax);
                         ImGui::TextUnformatted(ioinfo.c_str());
                     }
                 }

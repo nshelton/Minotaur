@@ -55,6 +55,8 @@ add_executable(minotaur
   src/filters/pathset/CurlNoiseFilter.cpp
   src/filters/bitmap/CannyFilter.cpp
   src/filters/bitmap/ClaheFilter.cpp
+  src/filters/bitmap/FloatToPathFilter.cpp
+  src/filters/bitmap/FloatBlurFilter.cpp
   src/filters/bitmap/BitmapToFloatFilter.cpp
 
 )
