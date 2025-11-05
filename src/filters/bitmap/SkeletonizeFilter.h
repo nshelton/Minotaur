@@ -33,6 +33,18 @@ struct SkeletonizeFilter : public FilterTyped<Bitmap, PathSet>
 			8.0f,
 			1.0f
 		};
+		m_parameters["turdSizePx"] = FilterParameter{
+			"Ignore Components < px",
+			0.0f,
+			1000.0f,
+			16.0f
+		};
+		m_parameters["minSegmentLengthPx"] = FilterParameter{
+			"Drop Segments < px",
+			0.0f,
+			1000.0f,
+			4.0f
+		};
 	}
 
 	const char *name() const override { return "Skeletonize"; }

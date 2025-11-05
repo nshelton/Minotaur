@@ -8,6 +8,7 @@
 #include <queue>
 #include <thread>
 #include <vector>
+#include <optional>
 
 #include "Page.h"
 #include "core/Vec2.h"
@@ -41,6 +42,7 @@ public:
     ~PlotSpooler();
 
     bool startJob(const PageModel &page, const PlotterConfig &cfg, bool liftPen = true);
+    bool startJobSingle(const PageModel &page, int entityId, const PlotterConfig &cfg, bool liftPen = true);
     void pause();
     void resume();
     void cancel();
@@ -97,6 +99,7 @@ private:
     int m_queuedMs{0};
     JobState m_job{};
     std::chrono::steady_clock::time_point m_startTime{};
+    std::optional<int> m_onlyEntityId{};
 
     static inline int roundToInt(float v) { return static_cast<int>(v >= 0.0f ? v + 0.5f : v - 0.5f); }
 

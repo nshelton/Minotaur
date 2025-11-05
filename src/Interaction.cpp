@@ -147,6 +147,8 @@ std::optional<int> InteractionController::pick(const PageModel &scene, const Vec
 {
     for (const auto &[id, entity] : scene.entities)
     {
+        if (!entity.visible)
+            continue;
         if (entity.contains(world, 10.0f)) // 10mm tolerance
             return id;
     }

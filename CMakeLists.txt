@@ -11,6 +11,7 @@ find_package(imgui CONFIG REQUIRED)
 find_package(fmt CONFIG REQUIRED)
 find_package(glog CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
+find_package(GTest CONFIG REQUIRED)
 
 add_executable(minotaur
   src/main.cpp
@@ -62,3 +63,14 @@ if (WIN32)
   target_link_libraries(minotaur PRIVATE glad::glad glfw imgui::imgui opengl32 glog::glog fmt::fmt nlohmann_json::nlohmann_json)
   target_link_libraries(minotaur PRIVATE ole32 windowscodecs)
 endif()
+
+enable_testing()
+
+add_executable(minotaur_tests
+  tests/test_sanity.cpp
+)
+
+target_include_directories(minotaur_tests PRIVATE src)
+target_link_libraries(minotaur_tests PRIVATE GTest::gtest GTest::gtest_main)
+
+add_test(NAME minotaur_sanity COMMAND minotaur_tests)

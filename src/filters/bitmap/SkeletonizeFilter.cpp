@@ -93,6 +93,8 @@ void SkeletonizeFilter::applyTyped(const Bitmap &in, PathSet &out) const
 	const int pruneIters = static_cast<int>(std::round(std::max(0.0f, m_parameters.at("pruneIters").value)));
 	const float tolPx = std::max(0.0f, m_parameters.at("tolerancePx").value);
 	const int down = std::max(1, static_cast<int>(std::round(m_parameters.at("downsample").value)));
+	const int turdSizePx = static_cast<int>(std::round(std::max(0.0f, m_parameters.at("turdSizePx").value)));
+	const float minSegmentLengthPx = std::max(0.0f, m_parameters.at("minSegmentLengthPx").value);
 
 	// Build binary mask (optionally downsampled with max pooling)
 	int W = (W0 + down - 1) / down;
@@ -118,6 +120,8 @@ void SkeletonizeFilter::applyTyped(const Bitmap &in, PathSet &out) const
 	}
 
 	const float epsMm = tolPx * pixel_mm / static_cast<float>(down); // match effective resolution
+	const int turdSizeCells = std::max(0, (down > 0) ? static_cast<int>(std::ceil(static_cast<float>(turdSizePx) / static_cast<float>(down * down))) : turdSizePx);
+	const float minSegmentLengthMm = minSegmentLengthPx * in.pixel_size_mm; // defined in input pixels
 
 	// Connected components on downsampled grid (4-connected)
 	std::vector<uint8_t> visited(static_cast<size_t>(W * H), 0);
@@ -146,6 +150,7 @@ void SkeletonizeFilter::applyTyped(const Bitmap &in, PathSet &out) const
 				if (hasBackgroundNeighbor(img, x, y, w, h)) { cand.push_back(static_cast<int>(idxOf(x,y,w))); inCand[idxOf(x,y,w)] = 1; }
 			}
 		}
+		if (cand.empty()) return;
 		std::vector<int> del; del.reserve(cand.size());
 		std::vector<int> nextCand; nextCand.reserve(cand.size());
 		std::vector<uint8_t> inNext(static_cast<size_t>(w * h), 0);
@@ -198,13 +203,14 @@ void SkeletonizeFilter::applyTyped(const Bitmap &in, PathSet &out) const
 			return true;
 		};
 
-		int guard = w * h * 2; // safety cap
+		int guard = 8 * (w + h); // perimeter-scale safety cap
 		while (guard-- > 0)
 		{
 			bool any = false;
 			any |= phaseDelete(0);
 			any |= phaseDelete(1);
 			if (!any) break;
+			if (cand.empty()) break;
 		}
 	};
 
@@ -213,13 +219,25 @@ void SkeletonizeFilter::applyTyped(const Bitmap &in, PathSet &out) const
 		std::vector<uint8_t> v(static_cast<size_t>(rw * rh), 0);
 		auto nextNeighbor = [&](int x, int y, int px, int py, int &nx, int &ny) -> bool
 		{
+			int bestQx = 0, bestQy = 0; bool found = false;
+			float bestScore = -1e9f;
+			int inDx = (px == -9999) ? 0 : (x - px);
+			int inDy = (py == -9999) ? 0 : (y - py);
 			for (const auto &o : N8)
 			{
 				int qx = x + o.x, qy = y + o.y;
 				if (qx == px && qy == py) continue;
 				if (qx < 0 || qy < 0 || qx >= rw || qy >= rh) continue;
-				if (roi[idxOf(qx,qy,rw)]) { nx = qx; ny = qy; return true; }
+				if (!roi[idxOf(qx,qy,rw)]) continue;
+				if (px == -9999)
+				{
+					// no previous direction, accept first
+					nx = qx; ny = qy; return true;
+				}
+				float score = static_cast<float>((qx - x) * inDx + (qy - y) * inDy);
+				if (score > bestScore) { bestScore = score; bestQx = qx; bestQy = qy; found = true; }
 			}
+			if (found) { nx = bestQx; ny = bestQy; return true; }
 			return false;
 		};
 
@@ -255,6 +273,15 @@ void SkeletonizeFilter::applyTyped(const Bitmap &in, PathSet &out) const
 			if (epsMm > 0.0f && pts.size() > 3) pts = rdp(pts, epsMm);
 			if (pts.size() >= 2)
 			{
+				// compute path length in mm
+				float totalLen = 0.0f;
+				for (size_t i = 1; i < pts.size(); ++i)
+				{
+					float dx = pts[i].x - pts[i-1].x;
+					float dy = pts[i].y - pts[i-1].y;
+					totalLen += std::sqrt(dx*dx + dy*dy);
+				}
+				if (totalLen < minSegmentLengthMm) return; // drop too-short segments
 				Path p; p.closed = closed; p.points = std::move(pts);
 				out.paths.push_back(std::move(p));
 			}
@@ -291,12 +318,15 @@ void SkeletonizeFilter::applyTyped(const Bitmap &in, PathSet &out) const
 				if (degreeAt(roi, x, y, rw, rh) != 2) continue;
 				std::vector<IVec2> pixels; pixels.reserve(128);
 				int sx = x, sy = y; int cx = x, cy = y; int px = -9999, py = -9999;
-				int guard = rw * rh * 4;
+				int guard = 8 * (rw + rh);
 				while (guard-- > 0)
 				{
 					v[idxOf(cx,cy,rw)] = 1;
 					pixels.push_back({cx, cy});
-					int nx = cx, ny = cy; if (!nextNeighbor(cx, cy, px, py, nx, ny)) break; px = cx; py = cy; cx = nx; cy = ny;
+					int nx = cx, ny = cy; if (!nextNeighbor(cx, cy, px, py, nx, ny)) break;
+					// early exit if we're about to revisit a visited pixel (not the canonical close)
+					if (v[idxOf(nx,ny,rw)] && !(nx == sx && ny == sy)) break;
+					px = cx; py = cy; cx = nx; cy = ny;
 					if (cx == sx && cy == sy) { pixels.push_back({cx, cy}); break; }
 				}
 				emitPath(pixels, true);
@@ -328,6 +358,7 @@ void SkeletonizeFilter::applyTyped(const Bitmap &in, PathSet &out) const
 				}
 			}
 			int rw = maxX - minX + 1; int rh = maxY - minY + 1; if (rw <= 0 || rh <= 0) continue;
+			if (turdSizeCells > 0 && static_cast<int>(comp.size()) < turdSizeCells) continue;
 			std::vector<uint8_t> roi(static_cast<size_t>(rw * rh), 0);
 			for (int p : comp)
 			{

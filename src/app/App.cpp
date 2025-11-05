@@ -2,6 +2,7 @@
 #include "Screen.h"
 
 #include <iostream>
+#include <string>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
@@ -23,7 +24,14 @@ App::App(int width, int height, const char *title)
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    m_window = glfwCreateWindow(width, height, title, nullptr, nullptr);
+    // Append build configuration to window title
+#if defined(_DEBUG) || !defined(NDEBUG)
+    constexpr const char *kBuildCfg = "Debug";
+#else
+    constexpr const char *kBuildCfg = "Release";
+#endif
+    std::string finalTitle = std::string(title) + " - " + kBuildCfg;
+    m_window = glfwCreateWindow(width, height, finalTitle.c_str(), nullptr, nullptr);
     if (!m_window)
     {
         std::cerr << "Failed to create GLFW window" << std::endl;

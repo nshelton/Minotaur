@@ -14,7 +14,7 @@ struct LineHatchFilter : public FilterTyped<Bitmap, PathSet>
         m_parameters["step_px"] = FilterParameter{
             "Step (px)",
             1.0f,
-            64.0f,
+            20.0f,
             8.0f
         };
         m_parameters["angle_deg"] = FilterParameter{

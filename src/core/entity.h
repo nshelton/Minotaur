@@ -18,6 +18,8 @@ struct Entity
     std::string name;
     std::variant<PathSet, Bitmap> payload;
     uint64_t payloadVersion{1};
+    bool visible{true};
+    Color color{1.0f, 1.0f, 1.0f, 1.0f};
 
     // takes a point from local entity space (mm) to page space (mm)
     Mat3 localToPage;

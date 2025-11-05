@@ -519,11 +519,15 @@ void MainScreen::onGui()
 
         // To avoid iterator invalidation, collect IDs to delete in a separate vector
         std::vector<int> toDelete;
-        if (ImGui::BeginTable("EntitiesTable", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV))
+        if (ImGui::BeginTable("EntitiesTable", 7, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV))
         {
             ImGui::TableSetupColumn("Entity");
-            ImGui::TableSetupColumn("Select", ImGuiTableColumnFlags_WidthFixed, 80.0f);
-            ImGui::TableSetupColumn("Delete", ImGuiTableColumnFlags_WidthFixed, 80.0f);
+            ImGui::TableSetupColumn("Select", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Plot", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
             ImGui::TableHeadersRow();
 
             for (const auto &[id, entity] : m_page.entities)
@@ -550,9 +554,69 @@ void MainScreen::onGui()
                 }
                 ImGui::PopID();
 
-                // Column 2: Delete button
+                // Column 2: Plot button
                 ImGui::PushID(id * 2 + 1);
                 ImGui::TableSetColumnIndex(2);
+                {
+                    bool spoolerRunning = (m_spooler && m_spooler->isRunning());
+                    bool canPlot = (m_ax != nullptr) && m_serial.isConnected() && !spoolerRunning;
+                    if (!canPlot) ImGui::BeginDisabled();
+                    if (ImGui::Button("Plot"))
+                    {
+                        if (m_ax)
+                        {
+                            if (!m_spooler)
+                            {
+                                m_spooler = std::make_unique<PlotSpooler>(m_serial, *m_ax);
+                            }
+                            (void)m_spooler->startJobSingle(m_page, id, m_plotter, /*liftPen=*/true);
+                        }
+                    }
+                    if (!canPlot) ImGui::EndDisabled();
+                }
+                ImGui::PopID();
+
+                // Column 3: Duplicate button
+                ImGui::PushID(id * 2 + 2);
+                ImGui::TableSetColumnIndex(3);
+                if (ImGui::Button("Duplicate"))
+                {
+                    int newId = m_page.duplicateEntity(id);
+                    if (newId >= 0)
+                    {
+                        m_interaction.SelectEntity(newId);
+                    }
+                }
+                ImGui::PopID();
+
+                // Column 4: Visible toggle
+                ImGui::PushID(id * 2 + 3);
+                ImGui::TableSetColumnIndex(4);
+                bool visible = const_cast<Entity &>(m_page.entities.at(id)).visible;
+                std::string visLabel = fmt::format("###visible:{}", id);
+                if (ImGui::Checkbox(visLabel.c_str(), &visible))
+                {
+                    const_cast<Entity &>(m_page.entities.at(id)).visible = visible;
+                }
+                ImGui::PopID();
+
+                // Column 5: Color picker (entity-level color)
+                ImGui::PushID(id * 2 + 4);
+                ImGui::TableSetColumnIndex(5);
+                {
+                    Entity &ent = const_cast<Entity &>(m_page.entities.at(id));
+                    ImVec4 col(ent.color.r, ent.color.g, ent.color.b, ent.color.a);
+                    std::string colLabel = fmt::format("###color:{}", id);
+                    if (ImGui::ColorEdit4(colLabel.c_str(), (float *)&col, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel))
+                    {
+                        ent.color = Color(col.x, col.y, col.z, col.w);
+                    }
+                }
+                ImGui::PopID();
+
+                // Column 6: Delete button
+                ImGui::PushID(id * 2 + 5);
+                ImGui::TableSetColumnIndex(6);
                 if (ImGui::Button("x"))
                 {
                     toDelete.push_back(id);

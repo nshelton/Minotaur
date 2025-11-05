@@ -21,6 +21,9 @@ void Renderer::render(const Camera &camera, const PageModel &page, const Interac
    // draw all entities
    for (const auto &[id, entity] : page.entities)
    {
+      if (!entity.visible) {
+         continue;
+      }
       auto transform = entity.localToPage;
       const LayerPtr &layer = const_cast<Entity &>(entity).filterChain.output();
 
@@ -32,7 +35,7 @@ void Renderer::render(const Camera &camera, const PageModel &page, const Interac
          const PathSet &ps = *psPtr;
          for (const auto &path : ps.paths)
          {
-            Color pathCol = theme::PathsetColor;
+            Color pathCol = entity.color;
             for (size_t i = 1; i < path.points.size(); ++i)
             {
                m_lines.addLine(transform * path.points[i - 1], transform * path.points[i], pathCol);

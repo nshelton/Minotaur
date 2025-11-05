@@ -121,6 +121,8 @@ static void to_json(json &j, const Entity &e)
     j["id"] = e.id;
     j["name"] = e.name;
     j["localToPage"] = e.localToPage;
+    j["visible"] = e.visible;
+    j["color"] = e.color;
 
     if (e.pathset())
     {
@@ -166,6 +168,8 @@ static void from_json(const json &j, Entity &e)
         e.localToPage = j.at("localToPage").get<Mat3>();
     else
         e.localToPage = Mat3();
+    e.visible = j.value("visible", true);
+    e.color = j.value("color", Color{1.0f, 1.0f, 1.0f, 1.0f});
 
     // Backward compatible: default to pathset
     std::string type = j.value("type", std::string("pathset"));

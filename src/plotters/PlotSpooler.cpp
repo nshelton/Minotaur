@@ -110,6 +110,7 @@ bool PlotSpooler::startJob(const PageModel &page, const PlotterConfig &cfg, bool
     }
 
     m_cfg = cfg;
+    m_onlyEntityId.reset();
 
     if (!prepareJob(page, liftPen))
     {
@@ -137,6 +138,57 @@ bool PlotSpooler::startJob(const PageModel &page, const PlotterConfig &cfg, bool
 
     m_worker = std::thread([this]()
                            { run(); });
+    return true;
+}
+
+bool PlotSpooler::startJobSingle(const PageModel &page, int entityId, const PlotterConfig &cfg, bool liftPen)
+{
+    if (m_running.load())
+    {
+        LOG(WARNING) << "PlotSpooler already running";
+        return false;
+    }
+    if (!m_serial.isConnected())
+    {
+        LOG(WARNING) << "Serial not connected; cannot start plot job";
+        return false;
+    }
+
+    {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        m_stats = Stats{};
+        m_queuedMs = 0;
+        m_job = JobState{};
+        std::queue<Cmd> empty;
+        std::swap(m_queue, empty);
+    }
+
+    m_cfg = cfg;
+    m_onlyEntityId = entityId;
+
+    if (!prepareJob(page, liftPen))
+    {
+        LOG(WARNING) << "PlotSpooler: nothing to plot for entity " << entityId;
+        return false;
+    }
+
+    {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        // Prime the queue to a reasonable high-water mark
+        refillQueueLocked(/*highWaterMs=*/1200, /*lowWaterMs=*/300);
+    }
+
+    m_startTime = Clock::now();
+    if (m_worker.joinable())
+    {
+        m_worker.join();
+    }
+
+    m_cancel.store(false);
+    m_paused.store(false);
+    m_running.store(true);
+
+    m_worker = std::thread([this]() { run(); });
     return true;
 }
 
@@ -236,6 +288,8 @@ bool PlotSpooler::buildQueue(const PageModel &page, bool liftPen)
     for (const auto &kv : page.entities)
     {
         const Entity &e = kv.second;
+        if (m_onlyEntityId.has_value() && kv.first != *m_onlyEntityId)
+            continue;
         if (e.type() != EntityType::PathSet)
             continue;
         const PathSet *ps = e.pathset();
@@ -317,6 +371,8 @@ bool PlotSpooler::prepareJob(const PageModel &page, bool liftPen)
     for (const auto &kv : page.entities)
     {
         const Entity &e = kv.second;
+        if (m_onlyEntityId.has_value() && kv.first != *m_onlyEntityId)
+            continue;
         const PathSet *ps = nullptr;
         if (e.type() == EntityType::PathSet)
         {
