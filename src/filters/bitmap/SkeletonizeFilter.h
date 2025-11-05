@@ -33,6 +33,12 @@ struct SkeletonizeFilter : public FilterTyped<Bitmap, PathSet>
 			8.0f,
 			1.0f
 		};
+		m_parameters["closeLoops"] = FilterParameter{
+			"Close Loops (0/1)",
+			0.0f,
+			1.0f,
+			0.0f
+		};
 		m_parameters["turdSizePx"] = FilterParameter{
 			"Ignore Components < px",
 			0.0f,

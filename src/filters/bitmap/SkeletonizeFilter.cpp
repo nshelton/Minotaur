@@ -93,6 +93,7 @@ void SkeletonizeFilter::applyTyped(const Bitmap &in, PathSet &out) const
 	const int pruneIters = static_cast<int>(std::round(std::max(0.0f, m_parameters.at("pruneIters").value)));
 	const float tolPx = std::max(0.0f, m_parameters.at("tolerancePx").value);
 	const int down = std::max(1, static_cast<int>(std::round(m_parameters.at("downsample").value)));
+	const bool closeLoops = m_parameters.at("closeLoops").value > 0.5f;
 	const int turdSizePx = static_cast<int>(std::round(std::max(0.0f, m_parameters.at("turdSizePx").value)));
 	const float minSegmentLengthPx = std::max(0.0f, m_parameters.at("minSegmentLengthPx").value);
 
@@ -282,7 +283,7 @@ void SkeletonizeFilter::applyTyped(const Bitmap &in, PathSet &out) const
 					totalLen += std::sqrt(dx*dx + dy*dy);
 				}
 				if (totalLen < minSegmentLengthMm) return; // drop too-short segments
-				Path p; p.closed = closed; p.points = std::move(pts);
+				Path p; p.closed = (closed && closeLoops); p.points = std::move(pts);
 				out.paths.push_back(std::move(p));
 			}
 		};
@@ -327,7 +328,7 @@ void SkeletonizeFilter::applyTyped(const Bitmap &in, PathSet &out) const
 					// early exit if we're about to revisit a visited pixel (not the canonical close)
 					if (v[idxOf(nx,ny,rw)] && !(nx == sx && ny == sy)) break;
 					px = cx; py = cy; cx = nx; cy = ny;
-					if (cx == sx && cy == sy) { pixels.push_back({cx, cy}); break; }
+					if (cx == sx && cy == sy) { if (closeLoops) pixels.push_back({cx, cy}); break; }
 				}
 				emitPath(pixels, true);
 			}

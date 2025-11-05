@@ -7,11 +7,17 @@ struct ThresholdFilter : public FilterTyped<Bitmap, Bitmap>
 {
     ThresholdFilter()
     {
-        m_parameters["threshold"] = FilterParameter{
-            "Threshold",
+        m_parameters["min"] = FilterParameter{
+            "Min",
             0.0f,
             255.0f,
-            128.0f
+            50.0f
+        };
+        m_parameters["max"] = FilterParameter{
+            "Max",
+            0.0f,
+            255.0f,
+            150.0f
         };
     }
 
