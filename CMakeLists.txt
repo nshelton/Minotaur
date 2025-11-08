@@ -63,10 +63,8 @@ add_executable(minotaur
 
 target_include_directories(minotaur PRIVATE src)
 
-if (WIN32)
-  target_link_libraries(minotaur PRIVATE glad::glad glfw imgui::imgui opengl32 glog::glog fmt::fmt nlohmann_json::nlohmann_json)
-  target_link_libraries(minotaur PRIVATE ole32 windowscodecs)
-endif()
+target_link_libraries(minotaur PRIVATE glad::glad glfw imgui::imgui opengl32 glog::glog fmt::fmt nlohmann_json::nlohmann_json)
+target_link_libraries(minotaur PRIVATE ole32 windowscodecs)
 
 enable_testing()
 
