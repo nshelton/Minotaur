@@ -13,53 +13,11 @@ find_package(glog CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
 
-add_executable(minotaur
-  src/main.cpp
-  src/app/App.cpp
-  src/screens/MainScreen.cpp
-  src/screens/MainScreen.gui.cpp
-
-  src/Interaction.cpp
-  src/Renderer.cpp
-  src/Camera.cpp
-  src/Page.cpp
-
-  src/render/LineRenderer.cpp
-  src/render/BitmapRenderer.cpp
-  src/render/FloatImageRenderer.cpp
-  src/utils/VectorFont.cpp
-  src/utils/PathSetGenerator.cpp
-  src/utils/BitmapGenerator.cpp
-  src/utils/Serialization.cpp
-  src/utils/ImageLoader.cpp
-
-  # Serial/Plotter
-  src/serial/SerialController.cpp
-  src/plotters/AxidrawController.cpp
-  src/plotters/MotionPlanner.cpp
-  src/plotters/PlotSpooler.cpp
-
-  # Filters
-  src/filters/FilterRegistry.cpp
-  src/filters/bitmap/BlurFilter.cpp
-  src/filters/bitmap/ThresholdFilter.cpp
-  src/filters/pathset/SimplifyFilter.cpp
-  src/filters/bitmap/TraceFilter.cpp
-  src/filters/bitmap/TraceBlobsFilter.cpp
-  src/filters/bitmap/SkeletonizeFilter.cpp
-  src/filters/bitmap/LevelsFilter.cpp
-  src/filters/bitmap/LineHatchFilter.cpp
-  src/filters/pathset/SmoothFilter.cpp
-  src/filters/pathset/LaplacianSmoothFilter.cpp
-  src/filters/pathset/OptimizePathsFilter.cpp
-  src/filters/pathset/CurlNoiseFilter.cpp
-  src/filters/bitmap/CannyFilter.cpp
-  src/filters/bitmap/ClaheFilter.cpp
-  src/filters/bitmap/FloatToPathFilter.cpp
-  src/filters/bitmap/FloatBlurFilter.cpp
-  src/filters/bitmap/BitmapToFloatFilter.cpp
-
+file(GLOB_RECURSE SRC_FILES CONFIGURE_DEPENDS
+  src/*.cpp
 )
+
+add_executable(minotaur ${SRC_FILES})
 
 target_include_directories(minotaur PRIVATE src)
 

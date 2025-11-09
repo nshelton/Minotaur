@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <fmt/format.h>
 
+#include "filters/bitmap/ErodeDilateFilter.h"
 #include "filters/bitmap/BlurFilter.h"
 #include "filters/bitmap/ThresholdFilter.h"
 #include "filters/bitmap/LevelsFilter.h"
@@ -21,15 +22,20 @@
 #include "filters/pathset/LaplacianSmoothFilter.h"
 #include "filters/pathset/CurlNoiseFilter.h"
 
-namespace {
+namespace
+{
 	inline const char *toString(LayerKind k)
 	{
-        switch (k) {
-        case LayerKind::Bitmap: return "Bitmap";
-        case LayerKind::PathSet: return "PathSet";
-        case LayerKind::FloatImage: return "Float";
-        }
-        return "?";
+		switch (k)
+		{
+		case LayerKind::Bitmap:
+			return "Bitmap";
+		case LayerKind::PathSet:
+			return "PathSet";
+		case LayerKind::FloatImage:
+			return "Float";
+		}
+		return "?";
 	}
 }
 
@@ -42,9 +48,8 @@ FilterRegistry &FilterRegistry::instance()
 void FilterRegistry::registerFilter(const FilterInfo &info)
 {
 	// Avoid duplicates by name + io kinds
-	auto it = std::find_if(m_filters.begin(), m_filters.end(), [&](const FilterInfo &f) {
-		return f.name == info.name && f.inputKind == info.inputKind && f.outputKind == info.outputKind;
-	});
+	auto it = std::find_if(m_filters.begin(), m_filters.end(), [&](const FilterInfo &f)
+						   { return f.name == info.name && f.inputKind == info.inputKind && f.outputKind == info.outputKind; });
 	if (it == m_filters.end())
 	{
 		m_filters.push_back(info);
@@ -71,7 +76,8 @@ std::vector<FilterInfo> FilterRegistry::byInput(LayerKind kind) const
 void FilterRegistry::initDefaults()
 {
 	static bool initialized = false;
-	if (initialized) return;
+	if (initialized)
+		return;
 	initialized = true;
 
 	auto &reg = instance();
@@ -80,120 +86,125 @@ void FilterRegistry::initDefaults()
 		"Blur",
 		LayerKind::Bitmap,
 		LayerKind::Bitmap,
-		[]() { return std::make_unique<BlurFilter>(); }
-	});
+		[]()
+		{ return std::make_unique<BlurFilter>(); }});
 
 	reg.registerFilter(FilterInfo{
 		"Levels",
 		LayerKind::Bitmap,
 		LayerKind::Bitmap,
-		[]() { return std::make_unique<LevelsFilter>(); }
-	});
+		[]()
+		{ return std::make_unique<LevelsFilter>(); }});
 
 	reg.registerFilter(FilterInfo{
 		"CLAHE",
 		LayerKind::Bitmap,
 		LayerKind::Bitmap,
-		[]() { return std::make_unique<ClaheFilter>(); }
-	});
+		[]()
+		{ return std::make_unique<ClaheFilter>(); }});
 
 	reg.registerFilter(FilterInfo{
 		"Trace",
 		LayerKind::Bitmap,
 		LayerKind::PathSet,
-		[]() { return std::make_unique<TraceFilter>(); }
-	});
+		[]()
+		{ return std::make_unique<TraceFilter>(); }});
 
 	reg.registerFilter(FilterInfo{
 		"Line Hatch",
 		LayerKind::Bitmap,
 		LayerKind::PathSet,
-		[]() { return std::make_unique<LineHatchFilter>(); }
-	});
+		[]()
+		{ return std::make_unique<LineHatchFilter>(); }});
 
 	reg.registerFilter(FilterInfo{
 		"Blobs",
 		LayerKind::Bitmap,
 		LayerKind::PathSet,
-		[]() { return std::make_unique<TraceBlobsFilter>(); }
-	});
+		[]()
+		{ return std::make_unique<TraceBlobsFilter>(); }});
 
 	reg.registerFilter(FilterInfo{
 		"Skeletonize",
 		LayerKind::Bitmap,
-		LayerKind::PathSet,
-		[]() { return std::make_unique<SkeletonizeFilter>(); }
-	});
+		LayerKind::Bitmap,
+		[]()
+		{ return std::make_unique<SkeletonizeFilter>(); }});
 
 	reg.registerFilter(FilterInfo{
 		"Threshold",
 		LayerKind::Bitmap,
 		LayerKind::Bitmap,
-		[]() { return std::make_unique<ThresholdFilter>(); }
-	});
+		[]()
+		{ return std::make_unique<ThresholdFilter>(); }});
 
 	reg.registerFilter(FilterInfo{
 		"Canny",
 		LayerKind::Bitmap,
 		LayerKind::Bitmap,
-		[]() { return std::make_unique<CannyFilter>(); }
-	});
+		[]()
+		{ return std::make_unique<CannyFilter>(); }});
 
 	reg.registerFilter(FilterInfo{
 		"Simplify",
 		LayerKind::PathSet,
 		LayerKind::PathSet,
-		[]() { return std::make_unique<SimplifyFilter>(); }
-	});
+		[]()
+		{ return std::make_unique<SimplifyFilter>(); }});
 
 	reg.registerFilter(FilterInfo{
 		"Smooth",
 		LayerKind::PathSet,
 		LayerKind::PathSet,
-		[]() { return std::make_unique<SmoothFilter>(); }
-	});
+		[]()
+		{ return std::make_unique<SmoothFilter>(); }});
 
 	reg.registerFilter(FilterInfo{
 		"Laplacian Smooth",
 		LayerKind::PathSet,
 		LayerKind::PathSet,
-		[]() { return std::make_unique<LaplacianSmoothFilter>(); }
-	});
+		[]()
+		{ return std::make_unique<LaplacianSmoothFilter>(); }});
 
-    reg.registerFilter(FilterInfo{
-        "Curl Noise Displace",
-        LayerKind::PathSet,
-        LayerKind::PathSet,
-        []() { return std::make_unique<CurlNoiseFilter>(); }
-    });
+	reg.registerFilter(FilterInfo{
+		"Curl Noise Displace",
+		LayerKind::PathSet,
+		LayerKind::PathSet,
+		[]()
+		{ return std::make_unique<CurlNoiseFilter>(); }});
 
 	reg.registerFilter(FilterInfo{
 		"Optimize Paths",
 		LayerKind::PathSet,
 		LayerKind::PathSet,
-		[]() { return std::make_unique<OptimizePathsFilter>(); }
-	});
+		[]()
+		{ return std::make_unique<OptimizePathsFilter>(); }});
 
-    reg.registerFilter(FilterInfo{
-        "Bitmap Distance Field",
-        LayerKind::Bitmap,
-        LayerKind::FloatImage,
-        []() { return std::make_unique<BitmapToFloatFilter>(); }
-    });
+	reg.registerFilter(FilterInfo{
+		"Bitmap Distance Field",
+		LayerKind::Bitmap,
+		LayerKind::FloatImage,
+		[]()
+		{ return std::make_unique<BitmapToFloatFilter>(); }});
 
-    reg.registerFilter(FilterInfo{
-        "Float Maxima to Paths",
-        LayerKind::FloatImage,
-        LayerKind::PathSet,
-        []() { return std::make_unique<FloatToPathFilter>(); }
-    });
+	reg.registerFilter(FilterInfo{
+		"Float Maxima to Paths",
+		LayerKind::FloatImage,
+		LayerKind::PathSet,
+		[]()
+		{ return std::make_unique<FloatToPathFilter>(); }});
 
-    reg.registerFilter(FilterInfo{
-        "Float Blur",
-        LayerKind::FloatImage,
-        LayerKind::FloatImage,
-        []() { return std::make_unique<FloatBlurFilter>(); }
-    });
+	reg.registerFilter(FilterInfo{
+		"Float Blur",
+		LayerKind::FloatImage,
+		LayerKind::FloatImage,
+		[]()
+		{ return std::make_unique<FloatBlurFilter>(); }});
+
+	reg.registerFilter(FilterInfo{
+		"Erode/Dilate",
+		LayerKind::Bitmap,
+		LayerKind::Bitmap,
+		[]()
+		{ return std::make_unique<ErodeDilateFilter>(); }});
 }
-
-

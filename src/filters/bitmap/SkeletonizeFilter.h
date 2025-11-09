@@ -5,58 +5,16 @@
 #include "../Filter.h"
 
 // Skeletonize black pixels and trace the 1px-wide skeleton into polylines
-struct SkeletonizeFilter : public FilterTyped<Bitmap, PathSet>
+struct SkeletonizeFilter : public FilterTyped<Bitmap, Bitmap>
 {
 	SkeletonizeFilter()
 	{
-		m_parameters["threshold"] = FilterParameter{
-			"Black Threshold",
-			0.0f,
-			255.0f,
-			128.0f
-		};
-		m_parameters["pruneIters"] = FilterParameter{
-			"Prune Iterations",
-			0.0f,
-			50.0f,
-			5.0f
-		};
-		m_parameters["tolerancePx"] = FilterParameter{
-			"Simplify (px)",
-			0.0f,
-			10.0f,
-			1.0f
-		};
-		m_parameters["downsample"] = FilterParameter{
-			"Downsample",
-			1.0f,
-			8.0f,
-			1.0f
-		};
-		m_parameters["closeLoops"] = FilterParameter{
-			"Close Loops (0/1)",
-			0.0f,
-			1.0f,
-			0.0f
-		};
-		m_parameters["turdSizePx"] = FilterParameter{
-			"Ignore Components < px",
-			0.0f,
-			1000.0f,
-			16.0f
-		};
-		m_parameters["minSegmentLengthPx"] = FilterParameter{
-			"Drop Segments < px",
-			0.0f,
-			1000.0f,
-			4.0f
-		};
 	}
 
 	const char *name() const override { return "Skeletonize"; }
 	uint64_t paramVersion() const override { return m_version.load(); }
 
-	void applyTyped(const Bitmap &in, PathSet &out) const override;
+	void applyTyped(const Bitmap &in, Bitmap &out) const override;
 };
 
 
