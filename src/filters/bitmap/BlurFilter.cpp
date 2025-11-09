@@ -89,7 +89,6 @@ void BlurFilter::applyTyped(const Bitmap &in, Bitmap &out) const
     // Temporary buffer for horizontal pass
     std::vector<uint8_t> tmp(static_cast<size_t>(w) * static_cast<size_t>(h));
 
-    // Horizontal pass: SIMD for the interior; scalar for borders and tails
     for (int y = 0; y < h; ++y)
     {
         const uint8_t *srcRow = in.pixels.data() + static_cast<size_t>(y) * static_cast<size_t>(w);
@@ -109,49 +108,7 @@ void BlurFilter::applyTyped(const Bitmap &in, Bitmap &out) const
             dstRow[static_cast<size_t>(x)] = static_cast<uint8_t>(std::clamp(v, 0, 255));
         }
 
-        // SIMD interior: process 8 pixels per iteration
-#if defined(__SSE2__) || defined(_M_X64) || (defined(_M_IX86_FP) && _M_IX86_FP >= 2)
-        const int xStart = radiusPx;
-        const int xEndSimd = std::max(xStart, w - radiusPx);
-        const __m128 invSum = _mm_set1_ps(1.0f / static_cast<float>(weightSum));
-        const __m128 half = _mm_set1_ps(0.5f);
-        const __m128i zero = _mm_setzero_si128();
-        int x = xStart;
-        for (; x + 8 <= xEndSimd; x += 8)
-        {
-            __m128i accLo32 = _mm_setzero_si128(); // 4 lanes
-            __m128i accHi32 = _mm_setzero_si128(); // 4 lanes
-
-            for (int kx = -radiusPx; kx <= radiusPx; ++kx)
-            {
-                const int kw = static_cast<int>(kernel[static_cast<size_t>(kx + radiusPx)]);
-                const __m128i kw16 = _mm_set1_epi16(static_cast<short>(kw));
-
-                const uint8_t *p = srcRow + static_cast<size_t>(x + kx);
-                const __m128i px8 = _mm_loadl_epi64(reinterpret_cast<const __m128i *>(p)); // 8 bytes
-                const __m128i px16 = _mm_unpacklo_epi8(px8, zero); // 8 x u16
-                const __m128i mul16 = _mm_mullo_epi16(px16, kw16); // 8 x u16 (may wrap but widened next)
-
-                const __m128i lo32 = _mm_unpacklo_epi16(mul16, zero);
-                const __m128i hi32 = _mm_unpackhi_epi16(mul16, zero);
-                accLo32 = _mm_add_epi32(accLo32, lo32);
-                accHi32 = _mm_add_epi32(accHi32, hi32);
-            }
-
-            // Convert to float, normalize, round to nearest int
-            __m128 fLo = _mm_cvtepi32_ps(accLo32);
-            __m128 fHi = _mm_cvtepi32_ps(accHi32);
-            fLo = _mm_add_ps(_mm_mul_ps(fLo, invSum), half);
-            fHi = _mm_add_ps(_mm_mul_ps(fHi, invSum), half);
-            const __m128i iLo = _mm_cvtps_epi32(fLo);
-            const __m128i iHi = _mm_cvtps_epi32(fHi);
-            const __m128i pack16 = _mm_packs_epi32(iLo, iHi);
-            const __m128i pack8 = _mm_packus_epi16(pack16, zero);
-            _mm_storel_epi64(reinterpret_cast<__m128i *>(dstRow + static_cast<size_t>(x)), pack8);
-        }
-#else
         int x = radiusPx;
-#endif
 
         // Right interior/tail including the clamped right border
         for (; x < w; ++x)
