@@ -29,4 +29,14 @@
 How to render vector field ? quiver ? could be fun
 
 
+---
 
+regular subsample
+
+save export project (simple)
+
+
+## Bugs
+there is a bug (which is reproducible) on some lines, where at somepointan offest is introduced into the plot, so everything after is misaligned by a few cm.
+
+The motion planning is probably too complicated, i don't really understand how it works and should rerwite it to make more sense/. It doesn't work super well but it is definitely an improvement. It makes a huge difference for stability at least, and allos much faster plotin without making the stepper do crazy things

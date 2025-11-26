@@ -17,7 +17,12 @@ file(GLOB_RECURSE SRC_FILES CONFIGURE_DEPENDS
   src/*.cpp
 )
 
-add_executable(minotaur ${SRC_FILES})
+# Add Windows icon resource
+if(WIN32)
+  set(RESOURCE_FILES resources/app.rc)
+endif()
+
+add_executable(minotaur ${SRC_FILES} ${RESOURCE_FILES})
 
 target_include_directories(minotaur PRIVATE src)
 

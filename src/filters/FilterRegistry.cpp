@@ -21,6 +21,8 @@
 #include "filters/pathset/OptimizePathsFilter.h"
 #include "filters/pathset/LaplacianSmoothFilter.h"
 #include "filters/pathset/CurlNoiseFilter.h"
+#include "filters/pathset/RegularSubdivisionFilter.h"
+#include "filters/bitmap/VoronoiStipplingFilter.h"
 
 namespace
 {
@@ -125,6 +127,13 @@ void FilterRegistry::initDefaults()
 		{ return std::make_unique<TraceBlobsFilter>(); }});
 
 	reg.registerFilter(FilterInfo{
+		"Stippler",
+		LayerKind::Bitmap,
+		LayerKind::PathSet,
+		[]()
+		{return std::make_unique<VoronoiStipplingFilter>(); }});
+
+	reg.registerFilter(FilterInfo{
 		"Skeletonize",
 		LayerKind::Bitmap,
 		LayerKind::Bitmap,
@@ -179,6 +188,13 @@ void FilterRegistry::initDefaults()
 		LayerKind::PathSet,
 		[]()
 		{ return std::make_unique<OptimizePathsFilter>(); }});
+
+	reg.registerFilter(FilterInfo{
+		"Regular Subdivision",
+		LayerKind::PathSet,
+		LayerKind::PathSet,
+		[]()
+		{ return std::make_unique<RegularSubdivisionFilter>(); }});
 
 	reg.registerFilter(FilterInfo{
 		"Bitmap Distance Field",

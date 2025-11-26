@@ -238,7 +238,7 @@ void MainScreen::onGui()
                 { m_plotter.junctionSpeedFloorPercent = junctionFloor; if (m_spooler && m_spooler->isRunning()) m_spooler->updateConfig(m_plotter); }
                 if (ImGui::SliderInt("Time Slice (ms)", &sliceMs, 2, 100))
                 { m_plotter.timeSliceMs = sliceMs; if (m_spooler && m_spooler->isRunning()) m_spooler->updateConfig(m_plotter); }
-                if (ImGui::SliderInt("Max Step Rate (steps/s)", &maxRate, 1000, 30000))
+                if (ImGui::SliderInt("Max Step Rate (steps/s)", &maxRate, 100, 3000))
                 { m_plotter.maxStepRatePerAxis = maxRate; if (m_spooler && m_spooler->isRunning()) m_spooler->updateConfig(m_plotter); }
                 if (ImGui::SliderFloat("Min Segment (mm)", &minSeg, 0.01f, 1.0f, "%.2f"))
                 { m_plotter.minSegmentMm = minSeg; if (m_spooler && m_spooler->isRunning()) m_spooler->updateConfig(m_plotter); }
