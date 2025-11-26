@@ -4,7 +4,8 @@ enum class LayerKind
 {
     Bitmap,
     PathSet,
-    FloatImage
+    FloatImage,
+    ColorImage
 };
 
 struct ILayerData

@@ -23,6 +23,7 @@
 #include "filters/pathset/CurlNoiseFilter.h"
 #include "filters/pathset/RegularSubdivisionFilter.h"
 #include "filters/bitmap/VoronoiStipplingFilter.h"
+#include "filters/bitmap/ChannelMixerFilter.h"
 
 namespace
 {
@@ -36,6 +37,8 @@ namespace
 			return "PathSet";
 		case LayerKind::FloatImage:
 			return "Float";
+		case LayerKind::ColorImage:
+			return "Color";
 		}
 		return "?";
 	}
@@ -223,4 +226,11 @@ void FilterRegistry::initDefaults()
 		LayerKind::Bitmap,
 		[]()
 		{ return std::make_unique<ErodeDilateFilter>(); }});
+
+	reg.registerFilter(FilterInfo{
+		"RGB to Grayscale",
+		LayerKind::ColorImage,
+		LayerKind::Bitmap,
+		[]()
+		{ return std::make_unique<ChannelMixerFilter>(); }});
 }

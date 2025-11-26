@@ -27,6 +27,18 @@ void PageModel::addBitmap(const Bitmap &bm)
     entities[id] = e;
 }
 
+void PageModel::addColorImage(const ColorImage &ci)
+{
+    int id = static_cast<int>(entities.size());
+    Entity e;
+    e.id = id;
+    e.name = "Entity " + std::to_string(id);
+    e.payload = ci;
+    e.localToPage = Mat3();
+    e.refreshFilterBase();
+    entities[id] = e;
+}
+
 static int page_next_id(const std::map<int, Entity>& ents)
 {
     int maxId = -1;

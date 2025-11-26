@@ -15,6 +15,7 @@ public:
 
     // Ensure texture exists for bitmap of an entity, then queue a quad to draw
     void addBitmap(int entityId, const Bitmap &bm, const Mat3 &localToPage);
+    void addColorImage(int entityId, const ColorImage &ci, const Mat3 &localToPage);
 
     void draw(const Mat3 &mm_to_ndc);
 
@@ -24,6 +25,7 @@ private:
         Vec2 pMin; // page mm
         Vec2 pMax; // page mm
         GLuint texture{0};
+        bool isColor{false};
     };
 
     struct TexInfo
@@ -31,13 +33,17 @@ private:
         GLuint tex{0};
         size_t w{0};
         size_t h{0};
+        bool isColor{false};
     };
 
-    GLuint m_program{0};
+    GLuint m_programGray{0};
+    GLuint m_programRGB{0};
     GLuint m_vao{0};
     GLuint m_vbo{0};
-    GLint m_uProjMat{0};
-    GLint m_uSampler{0};
+    GLint m_uProjMatGray{0};
+    GLint m_uSamplerGray{0};
+    GLint m_uProjMatRGB{0};
+    GLint m_uSamplerRGB{0};
 
     std::unordered_map<int, TexInfo> m_textures; // by entity id
     std::vector<Quad> m_quads;
@@ -45,6 +51,7 @@ private:
     static GLuint compileShader(GLenum type, const char *src);
     static GLuint linkProgram(GLuint vs, GLuint fs);
     void ensureTexture(int entityId, const Bitmap &bm);
+    void ensureColorTexture(int entityId, const ColorImage &ci);
 };
 
 

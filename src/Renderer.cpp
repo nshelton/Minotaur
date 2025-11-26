@@ -66,6 +66,11 @@ void Renderer::render(const Camera &camera, const PageModel &page, const Interac
             const Bitmap &bm = *bmptr;
             m_images.addBitmap(id, bm, transform);
          }
+         else if (const ColorImage *ciptr = asColorImageConstPtr(layer))
+         {
+            const ColorImage &ci = *ciptr;
+            m_images.addColorImage(id, ci, transform);
+         }
          else if (const FloatImage *fiptr = asFloatImageConstPtr(layer))
          {
             const FloatImage &fi = *fiptr;

@@ -318,4 +318,131 @@ namespace ImageLoader
             CoUninitialize();
         return true;
     }
+
+    bool loadColorImage(const std::string &filePath, ColorImage &out, std::string *errorOut, float pixel_size_mm)
+    {
+        HRESULT hr = S_OK;
+        bool needUninit = false;
+        // Initialize COM if needed
+        hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+        if (SUCCEEDED(hr))
+            needUninit = true;
+
+        IWICImagingFactory *factory = nullptr;
+        hr = CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory));
+        if (FAILED(hr))
+        {
+            if (errorOut)
+                *errorOut = "WIC factory creation failed";
+            if (needUninit)
+                CoUninitialize();
+            return false;
+        }
+
+        std::wstring wpath = utf8ToWide(filePath);
+        IWICBitmapDecoder *decoder = nullptr;
+        hr = factory->CreateDecoderFromFilename(wpath.c_str(), nullptr, GENERIC_READ, WICDecodeMetadataCacheOnDemand, &decoder);
+        if (FAILED(hr))
+        {
+            if (errorOut)
+                *errorOut = "Failed to decode image";
+            factory->Release();
+            if (needUninit)
+                CoUninitialize();
+            return false;
+        }
+
+        IWICBitmapFrameDecode *frame = nullptr;
+        hr = decoder->GetFrame(0, &frame);
+        if (FAILED(hr))
+        {
+            if (errorOut)
+                *errorOut = "Failed to get image frame";
+            decoder->Release();
+            factory->Release();
+            if (needUninit)
+                CoUninitialize();
+            return false;
+        }
+
+        UINT w = 0, h = 0;
+        frame->GetSize(&w, &h);
+
+        // Convert to 24bppRGB
+        IWICFormatConverter *conv = nullptr;
+        hr = factory->CreateFormatConverter(&conv);
+        if (FAILED(hr))
+        {
+            if (errorOut)
+                *errorOut = "CreateFormatConverter failed";
+            frame->Release();
+            decoder->Release();
+            factory->Release();
+            if (needUninit)
+                CoUninitialize();
+            return false;
+        }
+
+        hr = conv->Initialize(frame, GUID_WICPixelFormat24bppRGB, WICBitmapDitherTypeNone, nullptr, 0.0, WICBitmapPaletteTypeMedianCut);
+        if (FAILED(hr))
+        {
+            if (errorOut)
+                *errorOut = "RGB conversion failed";
+            conv->Release();
+            frame->Release();
+            decoder->Release();
+            factory->Release();
+            if (needUninit)
+                CoUninitialize();
+            return false;
+        }
+
+        const size_t strideRGB = static_cast<size_t>(w) * 3u;
+        std::vector<BYTE> rgb;
+        rgb.resize(static_cast<size_t>(h) * strideRGB);
+        WICRect rect{0, 0, static_cast<INT>(w), static_cast<INT>(h)};
+        hr = conv->CopyPixels(&rect, static_cast<UINT>(strideRGB), static_cast<UINT>(rgb.size()), rgb.data());
+        if (FAILED(hr))
+        {
+            if (errorOut)
+                *errorOut = "CopyPixels failed";
+            conv->Release();
+            frame->Release();
+            decoder->Release();
+            factory->Release();
+            if (needUninit)
+                CoUninitialize();
+            return false;
+        }
+
+        // Flip to bottom-to-top orientation (3 bytes per pixel)
+        std::vector<unsigned char> flipped(rgb.begin(), rgb.end());
+        if (w > 0 && h > 0)
+        {
+            const size_t rowSize = strideRGB;
+            std::vector<unsigned char> temp;
+            temp.resize(rowSize);
+            for (size_t yTop = 0, yBottom = h - 1; yTop < yBottom; ++yTop, --yBottom)
+            {
+                unsigned char *topRow = flipped.data() + yTop * rowSize;
+                unsigned char *bottomRow = flipped.data() + yBottom * rowSize;
+                std::memcpy(temp.data(), topRow, rowSize);
+                std::memcpy(topRow, bottomRow, rowSize);
+                std::memcpy(bottomRow, temp.data(), rowSize);
+            }
+        }
+
+        out.width_px = static_cast<int>(w);
+        out.height_px = static_cast<int>(h);
+        out.pixel_size_mm = pixel_size_mm;
+        out.pixels = std::move(flipped);
+
+        conv->Release();
+        frame->Release();
+        decoder->Release();
+        factory->Release();
+        if (needUninit)
+            CoUninitialize();
+        return true;
+    }
 }

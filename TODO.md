@@ -35,6 +35,7 @@ regular subsample
 
 save export project (simple)
 
+Live progress would be great on the drawing area. It would change the line color blue->orange as the plot has been completed / queued
 
 ## Bugs
 there is a bug (which is reproducible) on some lines, where at somepointan offest is introduced into the plot, so everything after is misaligned by a few cm.

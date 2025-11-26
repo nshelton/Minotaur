@@ -97,23 +97,26 @@ void MainScreen::onFilesDropped(const std::vector<std::string>& paths)
         // Try PGM first for minimal dependency
         Bitmap bm;
         std::string err;
-        if (ImageLoader::loadPGM(p, bm, &err, 0.5f))
+        // Try loading as color image first
+        ColorImage ci;
+        if (ImageLoader::loadColorImage(p, ci, &err, 0.5f))
+        {
+            m_page.addColorImage(ci);
+            LOG(INFO) << "Loaded image and added as color image: " << p;
+        }
+        else if (ImageLoader::loadPGM(p, bm, &err, 0.5f))
         {
             m_page.addBitmap(bm);
             LOG(INFO) << "Loaded PGM and added as bitmap: " << p;
         }
+        else if (ImageLoader::loadImage(p, bm, &err, 0.5f))
+        {
+            m_page.addBitmap(bm);
+            LOG(INFO) << "Loaded image and added as bitmap: " << p;
+        }
         else
         {
-            // Try WIC (PNG, JPG, etc.)
-            if (ImageLoader::loadImage(p, bm, &err, 0.5f))
-            {
-                m_page.addBitmap(bm);
-                LOG(INFO) << "Loaded image and added as bitmap: " << p;
-            }
-            else
-            {
-                LOG(WARNING) << "Unsupported image or failed to load ('" << p << "'): " << err;
-            }
+            LOG(WARNING) << "Unsupported image or failed to load ('" << p << "'): " << err;
         }
     }
 }

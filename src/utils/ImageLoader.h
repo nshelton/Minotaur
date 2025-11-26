@@ -12,6 +12,10 @@ namespace ImageLoader
     // Windows (WIC) loader for common formats (PNG, JPEG, BMP, etc.)
     // Converts image to 8-bit grayscale into Bitmap
     bool loadImage(const std::string &filePath, Bitmap &out, std::string *errorOut = nullptr, float pixel_size_mm = 0.5f);
+
+    // Windows (WIC) loader for RGB color images
+    // Loads image as 3-channel RGB ColorImage
+    bool loadColorImage(const std::string &filePath, ColorImage &out, std::string *errorOut = nullptr, float pixel_size_mm = 0.5f);
 }
 
 

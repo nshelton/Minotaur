@@ -7,6 +7,7 @@ struct PageModel
 {
     void addPathSet(const PathSet& ps);
     void addBitmap(const Bitmap& bm);
+    void addColorImage(const ColorImage& ci);
     int duplicateEntity(int sourceId);
 
     // Dimensions in millimeters (ISO 216): A3 = 297 x 420
