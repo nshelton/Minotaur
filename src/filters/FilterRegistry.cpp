@@ -24,6 +24,7 @@
 #include "filters/pathset/RegularSubdivisionFilter.h"
 #include "filters/bitmap/VoronoiStipplingFilter.h"
 #include "filters/bitmap/ChannelMixerFilter.h"
+#include "filters/bitmap/ColorPickerFilter.h"
 
 namespace
 {
@@ -233,4 +234,11 @@ void FilterRegistry::initDefaults()
 		LayerKind::Bitmap,
 		[]()
 		{ return std::make_unique<ChannelMixerFilter>(); }});
+
+	reg.registerFilter(FilterInfo{
+		"Color Picker",
+		LayerKind::ColorImage,
+		LayerKind::Bitmap,
+		[]()
+		{ return std::make_unique<ColorPickerFilter>(); }});
 }

@@ -115,6 +115,46 @@ static void from_json(const json &j, Bitmap &b)
     b.pixels = j.value("pixels", std::vector<uint8_t>{});
 }
 
+// ColorImage JSON
+static void to_json(json &j, const ColorImage &ci)
+{
+    j = json{
+        {"w_px", ci.width_px},
+        {"h_px", ci.height_px},
+        {"pixel_size_mm", ci.pixel_size_mm},
+        {"pixels", ci.pixels}}; // store RGB bytes as 0..255 ints (interleaved)
+}
+
+static void from_json(const json &j, ColorImage &ci)
+{
+    ci.width_px = j.value("w_px", 0);
+    ci.height_px = j.value("h_px", 0);
+    ci.pixel_size_mm = j.value("pixel_size_mm", 1.0f);
+    ci.pixels = j.value("pixels", std::vector<uint8_t>{});
+}
+
+// FloatImage JSON
+static void to_json(json &j, const FloatImage &fi)
+{
+    j = json{
+        {"w_px", fi.width_px},
+        {"h_px", fi.height_px},
+        {"pixel_size_mm", fi.pixel_size_mm},
+        {"min_value", fi.minValue},
+        {"max_value", fi.maxValue},
+        {"pixels", fi.pixels}};
+}
+
+static void from_json(const json &j, FloatImage &fi)
+{
+    fi.width_px = j.value("w_px", 0);
+    fi.height_px = j.value("h_px", 0);
+    fi.pixel_size_mm = j.value("pixel_size_mm", 1.0f);
+    fi.minValue = j.value("min_value", 0.0f);
+    fi.maxValue = j.value("max_value", 0.0f);
+    fi.pixels = j.value("pixels", std::vector<float>{});
+}
+
 // Tagged Entity JSON
 static void to_json(json &j, const Entity &e)
 {
@@ -124,15 +164,26 @@ static void to_json(json &j, const Entity &e)
     j["visible"] = e.visible;
     j["color"] = e.color;
 
+    // Serialize payload based on type
     if (e.pathset())
     {
         j["type"] = "pathset";
         j["pathset"] = *e.pathset();
     }
-    else
+    else if (e.bitmap())
     {
         j["type"] = "bitmap";
         j["bitmap"] = *e.bitmap();
+    }
+    else if (e.colorImage())
+    {
+        j["type"] = "colorimage";
+        j["colorimage"] = *e.colorImage();
+    }
+    else if (e.floatImage())
+    {
+        j["type"] = "floatimage";
+        j["floatimage"] = *e.floatImage();
     }
 
     // Serialize filter chain (optional)
@@ -171,14 +222,23 @@ static void from_json(const json &j, Entity &e)
     e.visible = j.value("visible", true);
     e.color = j.value("color", Color{1.0f, 1.0f, 1.0f, 1.0f});
 
-    // Backward compatible: default to pathset
+    // Deserialize payload based on type
     std::string type = j.value("type", std::string("pathset"));
     if (type == "bitmap" && j.contains("bitmap"))
     {
         e.payload = j.at("bitmap").get<Bitmap>();
     }
+    else if (type == "colorimage" && j.contains("colorimage"))
+    {
+        e.payload = j.at("colorimage").get<ColorImage>();
+    }
+    else if (type == "floatimage" && j.contains("floatimage"))
+    {
+        e.payload = j.at("floatimage").get<FloatImage>();
+    }
     else
     {
+        // Default to pathset for backward compatibility
         if (j.contains("pathset"))
             e.payload = j.at("pathset").get<PathSet>();
         else
