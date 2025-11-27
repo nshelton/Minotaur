@@ -3,8 +3,10 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <map>
 
 #include <glog/logging.h>
+#include "utils/HilbertCurve.h"
 
 using Clock = std::chrono::steady_clock;
 using Ms = std::chrono::milliseconds;
@@ -72,6 +74,130 @@ static std::vector<Path> reorderPathsNearest(const std::vector<Path> &in, const 
         if (!chosen.points.empty())
             last = chosen.points.back();
         out.push_back(std::move(chosen));
+    }
+
+    return out;
+}
+
+// Helper: compute centroid of a path
+static Vec2 pathCentroid(const Path &p)
+{
+    if (p.points.empty()) return Vec2(0.0f, 0.0f);
+    Vec2 sum(0.0f, 0.0f);
+    for (const auto &pt : p.points)
+    {
+        sum.x += pt.x;
+        sum.y += pt.y;
+    }
+    return sum / static_cast<float>(p.points.size());
+}
+
+// Helper: compute bounding box of all paths
+static void computePathsBounds(const std::vector<Path> &paths, Vec2 &minOut, Vec2 &maxOut)
+{
+    if (paths.empty())
+    {
+        minOut = Vec2(0.0f, 0.0f);
+        maxOut = Vec2(0.0f, 0.0f);
+        return;
+    }
+
+    minOut = Vec2(std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity());
+    maxOut = Vec2(-std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity());
+
+    for (const auto &path : paths)
+    {
+        for (const auto &pt : path.points)
+        {
+            if (pt.x < minOut.x) minOut.x = pt.x;
+            if (pt.y < minOut.y) minOut.y = pt.y;
+            if (pt.x > maxOut.x) maxOut.x = pt.x;
+            if (pt.y > maxOut.y) maxOut.y = pt.y;
+        }
+    }
+}
+
+// Reorder paths using spatial binning with Hilbert curve ordering
+// gridSize: number of bins per dimension (e.g., 16 means 16x16 = 256 bins)
+static std::vector<Path> reorderPathsHilbert(const std::vector<Path> &in, const Vec2 &start, int gridSize = 16)
+{
+    if (in.empty()) return {};
+
+    // Ensure gridSize is power of 2 for Hilbert curve
+    int n = 1;
+    while (n < gridSize) n *= 2;
+    gridSize = n;
+
+    // Compute bounding box of all paths
+    Vec2 boundsMin, boundsMax;
+    computePathsBounds(in, boundsMin, boundsMax);
+
+    // Add small padding to avoid edge cases
+    const float padding = 1.0f;
+    boundsMin.x -= padding;
+    boundsMin.y -= padding;
+    boundsMax.x += padding;
+    boundsMax.y += padding;
+
+    Vec2 boundsSize = boundsMax - boundsMin;
+    if (boundsSize.x < 1e-6f) boundsSize.x = 1.0f;
+    if (boundsSize.y < 1e-6f) boundsSize.y = 1.0f;
+
+    // Group paths into bins based on their centroid
+    // Map: Hilbert index -> list of path indices
+    std::map<uint32_t, std::vector<size_t>> bins;
+
+    for (size_t i = 0; i < in.size(); ++i)
+    {
+        if (in[i].points.empty()) continue;
+
+        Vec2 centroid = pathCentroid(in[i]);
+
+        // Normalize to [0, gridSize-1]
+        int gridX = static_cast<int>((centroid.x - boundsMin.x) / boundsSize.x * gridSize);
+        int gridY = static_cast<int>((centroid.y - boundsMin.y) / boundsSize.y * gridSize);
+
+        // Clamp to valid range
+        gridX = std::max(0, std::min(gridSize - 1, gridX));
+        gridY = std::max(0, std::min(gridSize - 1, gridY));
+
+        // Compute Hilbert index
+        uint32_t hilbertIndex = HilbertCurve::xy2d(gridSize, gridX, gridY);
+
+        bins[hilbertIndex].push_back(i);
+    }
+
+    // Build output by processing bins in Hilbert order
+    std::vector<Path> out;
+    out.reserve(in.size());
+
+    Vec2 currentPos = start;
+
+    // Iterate through bins in sorted order (Hilbert curve order)
+    for (const auto &binEntry : bins)
+    {
+        const std::vector<size_t> &pathIndices = binEntry.second;
+
+        // Create a sub-list of paths in this bin
+        std::vector<Path> binPaths;
+        binPaths.reserve(pathIndices.size());
+        for (size_t idx : pathIndices)
+        {
+            binPaths.push_back(in[idx]);
+        }
+
+        // Order paths within the bin using nearest neighbor
+        std::vector<Path> orderedBinPaths = reorderPathsNearest(binPaths, currentPos);
+
+        // Append to output
+        for (auto &path : orderedBinPaths)
+        {
+            if (!path.points.empty())
+            {
+                currentPos = path.points.back();
+            }
+            out.push_back(std::move(path));
+        }
     }
 
     return out;
@@ -410,7 +536,7 @@ bool PlotSpooler::prepareJob(const PageModel &page, bool liftPen)
     m_job = JobState{};
     m_job.liftPen = liftPen;
     m_job.currentPosMm = Vec2(0.0f, 0.0f);
-    m_job.orderedPaths = reorderPathsNearest(pagePaths, currentPosMm);
+    m_job.orderedPaths = reorderPathsHilbert(pagePaths, currentPosMm, 16);
     m_job.prepared = true;
 
     m_stats.plannedPenDownMm = totalDrawn;

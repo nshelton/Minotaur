@@ -275,7 +275,9 @@ std::vector<MoveSlice> planPath(const PlannerSettings &s,
             }
         }
 
-        current = target;
+        // Update to actual position achieved (rounded steps), not ideal target
+        current.x += dx_round;
+        current.y += dy_round;
     }
 
     (void)prevA; (void)prevB; (void)cumA; (void)cumB; (void)cumT;
