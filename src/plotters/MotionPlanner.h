@@ -25,11 +25,17 @@ struct MoveSlice {
     int dtMs{1};
 };
 
+struct PlanResult {
+    std::vector<MoveSlice> moves;
+    Vec2 finalPositionMm;  // Actual final position after rounding
+};
+
 // Plans time-sliced CoreXY motor step deltas (A,B) to traverse the given points.
 // pointsPageMm must have at least 2 vertices.
-std::vector<MoveSlice> planPath(const PlannerSettings &s,
-                                const std::vector<Vec2> &pointsPageMm,
-                                bool penUp,
-                                const Vec2 &startMm);
+// Returns moves and the actual final position (accounting for step rounding).
+PlanResult planPath(const PlannerSettings &s,
+                    const std::vector<Vec2> &pointsPageMm,
+                    bool penUp,
+                    const Vec2 &startMm);
 
 

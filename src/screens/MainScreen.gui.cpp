@@ -257,7 +257,10 @@ void MainScreen::onGui()
                         {
                             m_spooler = std::make_unique<PlotSpooler>(m_serial, *m_ax);
                         }
-                        (void)m_spooler->startJob(m_page, m_plotter, /*liftPen=*/true);
+                        if (m_spooler->startJob(m_page, m_plotter, /*liftPen=*/true))
+                        {
+                            m_showPlotProgress = true;
+                        }
                     }
                 }
             }
@@ -297,6 +300,7 @@ void MainScreen::onGui()
                 if (ImGui::Button("Cancel"))
                 {
                     m_spooler->cancel();
+                    m_showPlotProgress = false;
                 }
             }
         }
@@ -596,7 +600,10 @@ void MainScreen::onGui()
                             {
                                 m_spooler = std::make_unique<PlotSpooler>(m_serial, *m_ax);
                             }
-                            (void)m_spooler->startJobSingle(m_page, id, m_plotter, /*liftPen=*/true);
+                            if (m_spooler->startJobSingle(m_page, id, m_plotter, /*liftPen=*/true))
+                            {
+                                m_showPlotProgress = true;
+                            }
                         }
                     }
                     if (!canPlot) ImGui::EndDisabled();

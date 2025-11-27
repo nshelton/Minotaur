@@ -69,11 +69,36 @@ void MainScreen::onUpdate(double /*dt*/)
             }
         }
     }
+
+    // Turn off plot progress visualization when job completes
+    if (m_showPlotProgress && m_spooler && !m_spooler->isRunning())
+    {
+        m_showPlotProgress = false;
+    }
 }
 
 void MainScreen::onRender()
 {
     m_renderer.render(m_camera, m_page, m_interaction.state());
+
+    // Render plot progress overlay
+    if (m_showPlotProgress && m_spooler && m_spooler->isRunning())
+    {
+        std::vector<Path> remaining = m_spooler->getRemainingPaths();
+
+        // Render remaining paths as orange overlay
+        for (const auto &path : remaining)
+        {
+            if (path.points.size() < 2) continue;
+
+            for (size_t i = 1; i < path.points.size(); ++i)
+            {
+                Vec2 p0 = path.points[i-1];
+                Vec2 p1 = path.points[i];
+                m_renderer.addLine(p0, p1, Color{1.0f, 0.6f, 0.0f, 0.5f});
+            }
+        }
+    }
 }
 
 void MainScreen::onDetach()

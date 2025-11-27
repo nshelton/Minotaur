@@ -347,6 +347,25 @@ void PlotSpooler::updateConfig(const PlotterConfig &cfg)
     m_cfg = cfg;
 }
 
+std::vector<Path> PlotSpooler::getRemainingPaths() const
+{
+    std::lock_guard<std::mutex> lk(m_mutex);
+
+    if (!m_job.prepared || m_job.pathIndex >= m_job.orderedPaths.size())
+    {
+        return {};
+    }
+
+    // Return paths from current index to end
+    std::vector<Path> remaining;
+    remaining.reserve(m_job.orderedPaths.size() - m_job.pathIndex);
+    for (size_t i = m_job.pathIndex; i < m_job.orderedPaths.size(); ++i)
+    {
+        remaining.push_back(m_job.orderedPaths[i]);
+    }
+    return remaining;
+}
+
 void PlotSpooler::mmDeltaToCoreXYSteps(float dxMm, float dyMm, int &aOut, int &bOut)
 {
     const int dxSteps = roundToInt(dxMm * static_cast<float>(kStepsPerMm));
@@ -542,6 +561,8 @@ bool PlotSpooler::prepareJob(const PageModel &page, bool liftPen)
     m_stats.plannedPenDownMm = totalDrawn;
     m_stats.donePenDownMm = 0.0f;
     m_stats.queuedMs = 0;
+    m_stats.currentPathIndex = 0;
+    m_stats.totalPaths = static_cast<int>(m_job.orderedPaths.size());
     m_queuedMs = 0;
     return true;
 }
@@ -580,12 +601,12 @@ void PlotSpooler::refillQueueLocked(int highWaterMs, int lowWaterMs)
             if (!m_job.returnedHome)
             {
                 std::vector<Vec2> backPts{ m_job.currentPosMm, Vec2(0.0f, 0.0f) };
-                auto backMoves = planPath(s, backPts, /*penUp=*/true, m_job.currentPosMm);
-                for (const auto &mv : backMoves)
+                auto result = planPath(s, backPts, /*penUp=*/true, m_job.currentPosMm);
+                for (const auto &mv : result.moves)
                 {
                     pushSM(mv.dtMs, mv.aSteps, mv.bSteps);
                 }
-                m_job.currentPosMm = Vec2(0.0f, 0.0f);
+                m_job.currentPosMm = result.finalPositionMm;
                 m_job.returnedHome = true;
             }
             break; // nothing more to enqueue
@@ -604,17 +625,17 @@ void PlotSpooler::refillQueueLocked(int highWaterMs, int lowWaterMs)
             if (dist2(m_job.currentPosMm, path.points.front()) > 0.0f)
             {
                 std::vector<Vec2> travelPts{ m_job.currentPosMm, path.points.front() };
-                auto travelMoves = planPath(s, travelPts, /*penUp=*/true, m_job.currentPosMm);
-                for (const auto &mv : travelMoves)
+                auto result = planPath(s, travelPts, /*penUp=*/true, m_job.currentPosMm);
+                for (const auto &mv : result.moves)
                 {
                     pushSM(mv.dtMs, mv.aSteps, mv.bSteps);
                 }
-                m_job.currentPosMm = path.points.front();
+                m_job.currentPosMm = result.finalPositionMm;
             }
             if (m_job.liftPen)
                 pushPenDown();
 
-            m_job.activeMoves = planPath(s, path.points, /*penUp=*/false, m_job.currentPosMm);
+            auto result = planPath(s, path.points, /*penUp=*/false, m_job.currentPosMm); m_job.activeMoves = result.moves; m_job.activePathFinalPosMm = result.finalPositionMm;
             m_job.moveIndex = 0;
             m_job.drawingPhase = true;
         }
@@ -631,11 +652,12 @@ void PlotSpooler::refillQueueLocked(int highWaterMs, int lowWaterMs)
         {
             if (m_job.liftPen)
                 pushPenUp();
-            m_job.currentPosMm = path.points.back();
+            m_job.currentPosMm = m_job.activePathFinalPosMm;
             m_job.drawingPhase = false;
             m_job.activeMoves.clear();
             m_job.moveIndex = 0;
             m_job.pathIndex++;
+            m_stats.currentPathIndex = m_job.pathIndex;
         }
         else
         {
@@ -696,18 +718,23 @@ void PlotSpooler::run()
         }
 
         bool ok = true;
+        int sleepDurationMs = 0;
+
         switch (cmd.kind)
         {
         case CmdKind::PenUp:
             ok = m_axidraw.penUp(-1, &err);
             penDownActive = false;
+            sleepDurationMs = m_axidraw.getState().upDownMs;
             break;
         case CmdKind::PenDown:
             ok = m_axidraw.penDown(-1, &err);
             penDownActive = true;
+            sleepDurationMs = m_axidraw.getState().upDownMs;
             break;
         case CmdKind::StepperMove:
             ok = m_axidraw.stepperMove(cmd.durationMs, cmd.aSteps, cmd.bSteps, &err);
+            sleepDurationMs = cmd.durationMs;
             break;
         }
 
@@ -719,7 +746,7 @@ void PlotSpooler::run()
 
         m_stats.commandsSent++;
 
-        // Sleep exact dtMs for SM slices; brief delay for pen toggles
+        // Process stepper move stats and queue refill
         if (cmd.kind == CmdKind::StepperMove)
         {
             // Convert CoreXY steps to mm for progress if pen is down
@@ -766,13 +793,10 @@ void PlotSpooler::run()
                     refillQueueLocked(kHighWaterMs, kLowWaterMs);
                 }
             }
+        }
 
-            std::this_thread::sleep_for(Ms(std::max(1, cmd.durationMs)));
-        }
-        else
-        {
-            std::this_thread::sleep_for(Ms(5));
-        }
+        // Wait for command to complete (works for all command types)
+        std::this_thread::sleep_for(Ms(std::max(1, sleepDurationMs)));
     }
 
     // Best-effort pen up and motors off at end (unless cancelled early)

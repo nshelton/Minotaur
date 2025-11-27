@@ -38,4 +38,7 @@ private:
     std::unique_ptr<PlotSpooler> m_spooler{};
     PlotterConfig m_plotter{};
     char m_portBuf[64] = "";
+
+    // Plot progress visualization
+    bool m_showPlotProgress{false};
 };

@@ -34,6 +34,9 @@ public:
 
     int totalVertices() const { return static_cast<int>(m_lines.totalVertices()); }
 
+    // Add a line directly to the renderer (for overlays like plot progress)
+    void addLine(Vec2 a, Vec2 b, Color c) { m_lines.addLine(a, b, c); }
+
 private:
     LineRenderer m_lines{};
     BitmapRenderer m_images{};

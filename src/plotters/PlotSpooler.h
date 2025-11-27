@@ -35,6 +35,9 @@ public:
         float percentComplete{0.0f};
         // Estimated time remaining (ms)
         int etaMs{0};
+        // Path progress (for visualization)
+        int currentPathIndex{0};
+        int totalPaths{0};
     };
 
     PlotSpooler(SerialController &serial, AxiDrawController &axidraw)
@@ -54,6 +57,9 @@ public:
     bool isPaused() const { return m_paused.load(); }
     Stats stats() const { return m_stats; }
 
+    // Access to ordered paths for visualization (returns empty if not running)
+    std::vector<Path> getRemainingPaths() const;
+
 private:
     // Short-queue job preparation and refilling
     struct JobState {
@@ -66,6 +72,7 @@ private:
         bool sentInitialPenUp{false};
         bool returnedHome{false};
         Vec2 currentPosMm{0.0f, 0.0f};
+        Vec2 activePathFinalPosMm{0.0f, 0.0f}; // Final position after executing activeMoves
         bool liftPen{true};
     };
 

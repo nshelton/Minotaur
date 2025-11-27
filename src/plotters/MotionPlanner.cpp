@@ -27,13 +27,18 @@ static inline float vInitial_VF_A_Dx_safe(float vf, float accel, float dx) {
 
 } // namespace
 
-std::vector<MoveSlice> planPath(const PlannerSettings &s,
-                                const std::vector<Vec2> &pointsPageMm,
-                                bool penUp,
-                                const Vec2 &startMm)
+PlanResult planPath(const PlannerSettings &s,
+                    const std::vector<Vec2> &pointsPageMm,
+                    bool penUp,
+                    const Vec2 &startMm)
 {
     std::vector<MoveSlice> moves;
-    if (pointsPageMm.size() < 2) return moves;
+    if (pointsPageMm.size() < 2) {
+        PlanResult result;
+        result.moves = moves;
+        result.finalPositionMm = startMm;
+        return result;
+    }
 
     // Build trimmed vertices and unit direction vectors
     const float minDist = s.minSegmentMm;
@@ -48,7 +53,12 @@ std::vector<MoveSlice> planPath(const PlannerSettings &s,
         float d = std::hypot(dx, dy);
         if (d >= minDist) verts.push_back(v);
     }
-    if (verts.size() < 2) return moves;
+    if (verts.size() < 2) {
+        PlanResult result;
+        result.moves = moves;
+        result.finalPositionMm = startMm;
+        return result;
+    }
 
     const float speedLimit = penUp ? s.speedPenUpMmPerS : s.speedPenDownMmPerS;
     const float accel = penUp ? s.accelPenUpMmPerS2 : s.accelPenDownMmPerS2;
@@ -128,7 +138,8 @@ std::vector<MoveSlice> planPath(const PlannerSettings &s,
         int a_steps_total = roundToInt(s.stepsPerMm * a_mm);
         int b_steps_total = roundToInt(s.stepsPerMm * b_mm);
         if (std::abs(a_steps_total) < 1 && std::abs(b_steps_total) < 1) {
-            current = target;
+            // Segment too small to command any steps - skip without moving
+            // Don't update current position since plotter won't actually move
             continue;
         }
 
@@ -281,7 +292,10 @@ std::vector<MoveSlice> planPath(const PlannerSettings &s,
     }
 
     (void)prevA; (void)prevB; (void)cumA; (void)cumB; (void)cumT;
-    return moves;
+    PlanResult result;
+    result.moves = moves;
+    result.finalPositionMm = current;
+    return result;
 }
 
 

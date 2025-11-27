@@ -3,7 +3,7 @@
 #include "filters/FilterRegistry.h"
 #include "filters/FilterChain.h"
 
-void PageModel::addPathSet(const PathSet &ps)
+int PageModel::addPathSet(const PathSet &ps)
 {
     int id = static_cast<int>(entities.size());
     Entity e;
@@ -13,6 +13,7 @@ void PageModel::addPathSet(const PathSet &ps)
     e.localToPage = Mat3();
     e.refreshFilterBase();
     entities[id] = e;
+    return id;
 }
 
 void PageModel::addBitmap(const Bitmap &bm)

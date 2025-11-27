@@ -5,7 +5,7 @@
 
 struct PageModel
 {
-    void addPathSet(const PathSet& ps);
+    int addPathSet(const PathSet& ps);
     void addBitmap(const Bitmap& bm);
     void addColorImage(const ColorImage& ci);
     int duplicateEntity(int sourceId);
