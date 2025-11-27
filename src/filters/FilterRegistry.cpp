@@ -25,6 +25,7 @@
 #include "filters/bitmap/VoronoiStipplingFilter.h"
 #include "filters/bitmap/ChannelMixerFilter.h"
 #include "filters/bitmap/ColorPickerFilter.h"
+#include "filters/bitmap/ConcentricOutlineFilter.h"
 
 namespace
 {
@@ -122,6 +123,13 @@ void FilterRegistry::initDefaults()
 		LayerKind::PathSet,
 		[]()
 		{ return std::make_unique<LineHatchFilter>(); }});
+
+	reg.registerFilter(FilterInfo{
+		"Concentric Outline",
+		LayerKind::Bitmap,
+		LayerKind::PathSet,
+		[]()
+		{ return std::make_unique<ConcentricOutlineFilter>(); }});
 
 	reg.registerFilter(FilterInfo{
 		"Blobs",
