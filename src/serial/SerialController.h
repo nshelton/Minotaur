@@ -20,8 +20,10 @@ public:
 
     struct SerialState {
         bool isConnected{false};
-        std::string portPath{};
+        std::string portPath{};              // Current port path (empty if not connected)
+        std::string lastPortPath{};          // Last connected port (preserved after disconnect for reconnection)
         int baudRate{115200};
+        int lastBaudRate{115200};            // Last used baud rate (preserved after disconnect)
         std::string lastError{};
     };
 
@@ -31,8 +33,12 @@ public:
     // Connect to a COM port (e.g., "COM3"). Returns true on success.
     bool connect(const std::string &portPath, int baud = 115200, std::string *errorOut = nullptr);
 
-    // Disconnect if connected.
+    // Disconnect if connected (preserves last port info for reconnection).
     void disconnect();
+
+    // Reconnect to the last known port. Returns true on success.
+    // Requires a previous connection or failed connection attempt.
+    bool reconnect(std::string *errorOut = nullptr);
 
     // Returns true if the port is open.
     bool isConnected() const { return m_state.isConnected; }

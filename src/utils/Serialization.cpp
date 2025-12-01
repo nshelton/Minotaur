@@ -17,6 +17,7 @@
 
 #include "Camera.h"
 #include "Renderer.h"
+#include "utils/ImageCompression.h"
 
 
 using nlohmann::json;
@@ -97,14 +98,14 @@ static void from_json(const json &j, PathSet &ps)
     // AABB can be recomputed lazily
 }
 
-// Bitmap JSON
+// Bitmap JSON (compressed)
 static void to_json(json &j, const Bitmap &b)
 {
     j = json{
         {"w_px", b.width_px},
         {"h_px", b.height_px},
         {"pixel_size_mm", b.pixel_size_mm},
-        {"pixels", b.pixels}}; // store bytes as 0..255 ints
+        {"pixels_rle", imagecompression::compressToString(b.pixels)}};
 }
 
 static void from_json(const json &j, Bitmap &b)
@@ -112,17 +113,27 @@ static void from_json(const json &j, Bitmap &b)
     b.width_px = j.value("w_px", 0);
     b.height_px = j.value("h_px", 0);
     b.pixel_size_mm = j.value("pixel_size_mm", 1.0f);
-    b.pixels = j.value("pixels", std::vector<uint8_t>{});
+
+    // Try new compressed format first
+    if (j.contains("pixels_rle"))
+    {
+        b.pixels = imagecompression::decompressFromString(j.at("pixels_rle").get<std::string>());
+    }
+    else
+    {
+        // Fallback to legacy uncompressed format (for backward compatibility during transition)
+        b.pixels = j.value("pixels", std::vector<uint8_t>{});
+    }
 }
 
-// ColorImage JSON
+// ColorImage JSON (compressed)
 static void to_json(json &j, const ColorImage &ci)
 {
     j = json{
         {"w_px", ci.width_px},
         {"h_px", ci.height_px},
         {"pixel_size_mm", ci.pixel_size_mm},
-        {"pixels", ci.pixels}}; // store RGB bytes as 0..255 ints (interleaved)
+        {"pixels_rle", imagecompression::compressToString(ci.pixels)}};
 }
 
 static void from_json(const json &j, ColorImage &ci)
@@ -130,10 +141,20 @@ static void from_json(const json &j, ColorImage &ci)
     ci.width_px = j.value("w_px", 0);
     ci.height_px = j.value("h_px", 0);
     ci.pixel_size_mm = j.value("pixel_size_mm", 1.0f);
-    ci.pixels = j.value("pixels", std::vector<uint8_t>{});
+
+    // Try new compressed format first
+    if (j.contains("pixels_rle"))
+    {
+        ci.pixels = imagecompression::decompressFromString(j.at("pixels_rle").get<std::string>());
+    }
+    else
+    {
+        // Fallback to legacy uncompressed format (for backward compatibility during transition)
+        ci.pixels = j.value("pixels", std::vector<uint8_t>{});
+    }
 }
 
-// FloatImage JSON
+// FloatImage JSON (base64 encoded, no RLE)
 static void to_json(json &j, const FloatImage &fi)
 {
     j = json{
@@ -142,7 +163,7 @@ static void to_json(json &j, const FloatImage &fi)
         {"pixel_size_mm", fi.pixel_size_mm},
         {"min_value", fi.minValue},
         {"max_value", fi.maxValue},
-        {"pixels", fi.pixels}};
+        {"pixels_b64", imagecompression::encodeFloats(fi.pixels)}};
 }
 
 static void from_json(const json &j, FloatImage &fi)
@@ -152,7 +173,17 @@ static void from_json(const json &j, FloatImage &fi)
     fi.pixel_size_mm = j.value("pixel_size_mm", 1.0f);
     fi.minValue = j.value("min_value", 0.0f);
     fi.maxValue = j.value("max_value", 0.0f);
-    fi.pixels = j.value("pixels", std::vector<float>{});
+
+    // Try new base64 format first
+    if (j.contains("pixels_b64"))
+    {
+        fi.pixels = imagecompression::decodeFloats(j.at("pixels_b64").get<std::string>());
+    }
+    else
+    {
+        // Fallback to legacy uncompressed format (for backward compatibility during transition)
+        fi.pixels = j.value("pixels", std::vector<float>{});
+    }
 }
 
 // Tagged Entity JSON

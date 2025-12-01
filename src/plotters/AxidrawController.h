@@ -29,11 +29,13 @@ public:
     bool disengageMotors(std::string *errorOut = nullptr);
     bool reset(std::string *errorOut = nullptr);
 
+    // Send raw command (for keepalive, queries, etc.)
+    bool sendCmd(const std::string &cmd, std::string *errorOut = nullptr);
+
     // Access state
     const AxiDrawState& getState() const { return m_state; }
 
 private:
-    bool sendCmd(const std::string &cmd, std::string *errorOut);
     void recomputeUpDownMs();
 
     SerialController &m_serial;

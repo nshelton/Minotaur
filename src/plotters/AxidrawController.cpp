@@ -65,11 +65,18 @@ bool AxiDrawController::reset(std::string *errorOut) {
 }
 
 bool AxiDrawController::sendCmd(const std::string &cmd, std::string *errorOut) {
+    // Check connection and attempt reconnection if disconnected
     if (!m_serial.isConnected()) {
-        if (errorOut) *errorOut = "Serial not connected";
-        LOG(WARNING) << "AxiDraw send failed (not connected): " << cmd;
-        return false;
+        LOG(WARNING) << "Serial not connected, attempting reconnection before sending: " << cmd;
+        std::string reconnectErr;
+        if (!m_serial.reconnect(&reconnectErr)) {
+            if (errorOut) *errorOut = "Serial not connected and reconnection failed: " + reconnectErr;
+            LOG(WARNING) << "AxiDraw send failed (not connected, reconnect failed): " << cmd;
+            return false;
+        }
+        LOG(INFO) << "Reconnected successfully before sending command";
     }
+
     std::string err;
     bool ok = m_serial.writeLine(cmd, &err);
     if (!ok) {

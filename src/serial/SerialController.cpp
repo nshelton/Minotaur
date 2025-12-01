@@ -10,6 +10,12 @@
 #  include <devguid.h>
 #  include <initguid.h>
 #  pragma comment(lib, "setupapi.lib")
+
+// Define error codes not available in all SDK versions
+#ifndef ERROR_DEVICE_DOES_NOT_EXIST
+#  define ERROR_DEVICE_DOES_NOT_EXIST 433L
+#endif
+
 #endif
 
 namespace {
@@ -88,6 +94,10 @@ bool SerialController::connect(const std::string &portPath, int baud, std::strin
     disconnect();
     m_state.lastError.clear();
 
+    // Always preserve connection attempt info for reconnection
+    m_state.lastPortPath = portPath;
+    m_state.lastBaudRate = baud;
+
 #ifdef _WIN32
     std::string normalized = normalizeWindowsComPath(portPath);
     HANDLE h = CreateFileA(
@@ -148,6 +158,18 @@ void SerialController::disconnect() {
 #endif
     m_state.isConnected = false;
     m_state.portPath.clear();
+    // Note: lastPortPath and lastBaudRate are intentionally preserved for reconnection
+}
+
+bool SerialController::reconnect(std::string *errorOut) {
+    if (m_state.lastPortPath.empty()) {
+        m_state.lastError = "No previous connection to reconnect to";
+        if (errorOut) *errorOut = m_state.lastError;
+        return false;
+    }
+
+    LOG(INFO) << "Attempting to reconnect to " << m_state.lastPortPath << " @" << m_state.lastBaudRate;
+    return connect(m_state.lastPortPath, m_state.lastBaudRate, errorOut);
 }
 
 bool SerialController::writeLine(std::string_view asciiNoCR, std::string *errorOut) {
@@ -187,6 +209,30 @@ bool SerialController::writeLine(std::string_view asciiNoCR, std::string *errorO
             msg = nullptr;
             FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
                            nullptr, code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&msg, 0, nullptr);
+
+            // If device disappeared (USB suspend/disconnect), try reconnecting
+            if (code == ERROR_DEVICE_DOES_NOT_EXIST || code == ERROR_GEN_FAILURE || code == ERROR_NOT_READY) {
+                LOG(WARNING) << "Device appears disconnected (code " << code << "), attempting reconnection...";
+                disconnect();
+                Sleep(500); // Give Windows time to re-enumerate
+
+                std::string reconnectErr;
+                if (reconnect(&reconnectErr)) {
+                    LOG(INFO) << "Reconnected successfully, retrying write...";
+                    Sleep(100);
+                    bytesWritten = 0;
+                    ok = WriteFile(reinterpret_cast<HANDLE>(m_handle), withCR.data(), static_cast<DWORD>(withCR.size()), &bytesWritten, nullptr);
+                    if (ok && bytesWritten == withCR.size()) {
+                        LOG(INFO) << "Write succeeded after reconnection";
+                        return true;
+                    } else {
+                        LOG(WARNING) << "Write failed even after successful reconnection";
+                    }
+                } else {
+                    LOG(WARNING) << "Reconnection failed: " << reconnectErr;
+                }
+            }
+
             m_state.lastError = firstErr + std::string("; retry failed (code ") + std::to_string(code) + ")" + (msg ? std::string(": ") + msg : std::string());
             if (errorOut) *errorOut = m_state.lastError + std::string("; wrote ") + std::to_string(bytesWritten) + "/" + std::to_string(withCR.size()) + " bytes";
             if (msg) LocalFree(msg);

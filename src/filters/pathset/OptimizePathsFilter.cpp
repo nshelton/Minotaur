@@ -155,6 +155,21 @@ void OptimizePathsFilter::applyTyped(const PathSet &in, PathSet &out) const
 					break;
 
 				Path &pj = working[bestJ];
+
+				// Verify actual distance with current endpoints (KD-tree may have stale positions)
+				float actualD2;
+				if (bestKind == AttachKind::Append)
+					actualD2 = distanceSquared(pi.points.back(), pj.points.front());
+				else if (bestKind == AttachKind::AppendReverseJ)
+					actualD2 = distanceSquared(pi.points.back(), pj.points.back());
+				else if (bestKind == AttachKind::Prepend)
+					actualD2 = distanceSquared(pi.points.front(), pj.points.back());
+				else // PrependReverseJ
+					actualD2 = distanceSquared(pi.points.front(), pj.points.front());
+
+				if (actualD2 > mergeDist2)
+					break; // Actual distance exceeds threshold
+
 				if (bestKind == AttachKind::Append)
 				{
 					if (!pj.points.empty())
@@ -196,6 +211,17 @@ void OptimizePathsFilter::applyTyped(const PathSet &in, PathSet &out) const
 
 				active[bestJ] = false;
 				mergedAny = true;
+
+				// Check if the merged path forms a closed loop
+				if (pi.points.size() >= 2)
+				{
+					const float loopD2 = distanceSquared(pi.points.front(), pi.points.back());
+					if (loopD2 <= mergeDist2)
+					{
+						pi.closed = true;
+						break; // Stop merging this path, it's now closed
+					}
+				}
 			}
 			(void)mergedAny;
 		}

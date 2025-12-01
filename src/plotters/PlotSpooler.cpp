@@ -688,6 +688,10 @@ void PlotSpooler::run()
     const int kLowWaterMs = 300;
     const int kHighWaterMs = 1200;
 
+    // Keepalive: prevent USB suspend after long idle periods
+    auto lastCommandTime = Clock::now();
+    const auto kKeepaliveInterval = std::chrono::minutes(5); // Send keepalive every 5 minutes
+
     while (!m_cancel.load())
     {
         // Pause handling
@@ -698,6 +702,22 @@ void PlotSpooler::run()
                       { return !m_paused.load() || m_cancel.load(); });
             if (m_cancel.load())
                 break;
+        }
+
+        // Keepalive: send harmless command if too much time has elapsed
+        auto now = Clock::now();
+        if (now - lastCommandTime > kKeepaliveInterval)
+        {
+            // Send a harmless query command (QM - Query Motor) to keep connection alive
+            if (!m_axidraw.sendCmd("QM", &err))
+            {
+                LOG(WARNING) << "Keepalive command failed: " << err;
+            }
+            else
+            {
+                LOG(INFO) << "Keepalive sent to prevent USB suspend";
+            }
+            lastCommandTime = now;
         }
 
         Cmd cmd;
@@ -741,10 +761,101 @@ void PlotSpooler::run()
         if (!ok)
         {
             LOG(ERROR) << "Command failed: " << err;
+
+            // Attempt recovery by reconnecting
+            if (!m_serial.isConnected())
+            {
+                LOG(WARNING) << "Device disconnected during plotting. Attempting recovery...";
+                std::string reconnectErr;
+
+                // Try reconnecting with backoff
+                const int kMaxReconnectAttempts = 5;
+                bool reconnected = false;
+                for (int attempt = 1; attempt <= kMaxReconnectAttempts && !m_cancel.load(); ++attempt)
+                {
+                    LOG(INFO) << "Reconnection attempt " << attempt << "/" << kMaxReconnectAttempts;
+                    std::this_thread::sleep_for(std::chrono::seconds(attempt)); // Exponential backoff: 1s, 2s, 3s, 4s, 5s
+
+                    if (m_serial.reconnect(&reconnectErr))
+                    {
+                        LOG(INFO) << "Reconnected successfully, reinitializing device...";
+
+                        // Reinitialize the AxiDraw after reconnection
+                        std::string initErr;
+                        if (m_axidraw.initialize(&initErr))
+                        {
+                            // Re-enable motors
+                            if (m_axidraw.enableMotors(true, true, &initErr))
+                            {
+                                LOG(INFO) << "Device reinitialized, retrying failed command...";
+
+                                // Retry the failed command
+                                bool retryOk = false;
+                                std::string retryErr;
+                                switch (cmd.kind)
+                                {
+                                case CmdKind::PenUp:
+                                    retryOk = m_axidraw.penUp(-1, &retryErr);
+                                    break;
+                                case CmdKind::PenDown:
+                                    retryOk = m_axidraw.penDown(-1, &retryErr);
+                                    break;
+                                case CmdKind::StepperMove:
+                                    retryOk = m_axidraw.stepperMove(cmd.durationMs, cmd.aSteps, cmd.bSteps, &retryErr);
+                                    break;
+                                }
+
+                                if (retryOk)
+                                {
+                                    LOG(INFO) << "Command succeeded after reconnection";
+                                    reconnected = true;
+                                    ok = true;
+                                    break;
+                                }
+                                else
+                                {
+                                    LOG(WARNING) << "Command retry failed: " << retryErr;
+                                }
+                            }
+                            else
+                            {
+                                LOG(WARNING) << "Failed to enable motors after reconnection: " << initErr;
+                            }
+                        }
+                        else
+                        {
+                            LOG(WARNING) << "Failed to reinitialize device after reconnection: " << initErr;
+                        }
+                    }
+                    else
+                    {
+                        LOG(WARNING) << "Reconnection attempt " << attempt << " failed: " << reconnectErr;
+                    }
+                }
+
+                if (!reconnected)
+                {
+                    LOG(ERROR) << "Failed to recover connection after " << kMaxReconnectAttempts << " attempts. Plot job aborted.";
+                    LOG(ERROR) << "You can try reconnecting manually and restarting the plot job.";
+                    break;
+                }
+            }
+            else
+            {
+                // Connected but command failed for other reasons
+                LOG(ERROR) << "Command failed but device is still connected. Aborting plot job.";
+                break;
+            }
+        }
+
+        // Only continue if command succeeded (either initially or after retry)
+        if (!ok)
+        {
             break;
         }
 
         m_stats.commandsSent++;
+        lastCommandTime = Clock::now(); // Update keepalive timer
 
         // Process stepper move stats and queue refill
         if (cmd.kind == CmdKind::StepperMove)
