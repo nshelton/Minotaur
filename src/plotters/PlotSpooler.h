@@ -36,7 +36,8 @@ public:
         // Estimated time remaining (ms)
         int etaMs{0};
         // Path progress (for visualization)
-        int currentPathIndex{0};
+        int sentPathIndex{0};    // paths fully sent to plotter (completed)
+        int queuedPathIndex{0};  // paths planned into command queue
         int totalPaths{0};
     };
 
@@ -58,7 +59,7 @@ public:
     Stats stats() const { return m_stats; }
 
     // Access to ordered paths for visualization (returns empty if not running)
-    std::vector<Path> getRemainingPaths() const;
+    const std::vector<Path> &getOrderedPaths() const;
 
 private:
     // Short-queue job preparation and refilling
@@ -76,18 +77,20 @@ private:
         bool liftPen{true};
     };
 
-    enum class CmdKind { PenUp, PenDown, StepperMove };
+    enum class CmdKind { PenUp, PenDown, StepperMove, PathDone };
     struct Cmd {
         CmdKind kind{CmdKind::StepperMove};
         // For SM: duration ms and motor A/B steps (CoreXY mapped)
         int durationMs{0};
         int aSteps{0};
         int bSteps{0};
+        // For PathDone: which path index just completed
+        int pathIndex{0};
     };
 
     // Constants
     static constexpr int kStepsPerMm = 80; // 2032 steps/in
-    static constexpr int kMaxStepsPerSecond = 5000; // conservative streaming speed
+
 
     SerialController &m_serial;
     AxiDrawController &m_axidraw;
@@ -110,11 +113,6 @@ private:
 
     static inline int roundToInt(float v) { return static_cast<int>(v >= 0.0f ? v + 0.5f : v - 0.5f); }
 
-    // Build command queue from page paths
-    bool buildQueue(const PageModel &page, bool liftPen);
-    bool buildQueuePlanned(const PageModel &page, bool liftPen);
-
-
     bool prepareJob(const PageModel &page, bool liftPen);
     void refillQueueLocked(int highWaterMs, int lowWaterMs);
 
@@ -125,7 +123,6 @@ private:
 
     // Geometry helpers
     static inline void mmDeltaToCoreXYSteps(float dxMm, float dyMm, int &aOut, int &bOut);
-    int computeDurationMsForAB(int aSteps, int bSteps, bool plotting) const;
 
     // Worker loop
     void run();

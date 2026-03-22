@@ -11,11 +11,6 @@
 using Clock = std::chrono::steady_clock;
 using Ms = std::chrono::milliseconds;
 
-static inline float hypot2f(float dx, float dy)
-{
-    return std::sqrt(dx * dx + dy * dy);
-}
-
 static inline float dist2(const Vec2 &a, const Vec2 &b)
 {
     const float dx = a.x - b.x;
@@ -347,23 +342,9 @@ void PlotSpooler::updateConfig(const PlotterConfig &cfg)
     m_cfg = cfg;
 }
 
-std::vector<Path> PlotSpooler::getRemainingPaths() const
+const std::vector<Path> &PlotSpooler::getOrderedPaths() const
 {
-    std::lock_guard<std::mutex> lk(m_mutex);
-
-    if (!m_job.prepared || m_job.pathIndex >= m_job.orderedPaths.size())
-    {
-        return {};
-    }
-
-    // Return paths from current index to end
-    std::vector<Path> remaining;
-    remaining.reserve(m_job.orderedPaths.size() - m_job.pathIndex);
-    for (size_t i = m_job.pathIndex; i < m_job.orderedPaths.size(); ++i)
-    {
-        remaining.push_back(m_job.orderedPaths[i]);
-    }
-    return remaining;
+    return m_job.orderedPaths;
 }
 
 void PlotSpooler::mmDeltaToCoreXYSteps(float dxMm, float dyMm, int &aOut, int &bOut)
@@ -374,17 +355,6 @@ void PlotSpooler::mmDeltaToCoreXYSteps(float dxMm, float dyMm, int &aOut, int &b
     const int b = -dxSteps + dySteps;
     aOut = a;
     bOut = b;
-}
-
-int PlotSpooler::computeDurationMsForAB(int aSteps, int bSteps, bool plotting) const
-{
-    const int distanceSteps = std::max(std::abs(aSteps), std::abs(bSteps));
-    const int pctInt = plotting ? m_cfg.drawSpeedPercent : m_cfg.travelSpeedPercent;
-    const float pct = static_cast<float>(std::clamp(pctInt, 1, 500)) / 100.0f;
-    const float stepsPerSecond = std::max(1.0f, pct * static_cast<float>(kMaxStepsPerSecond));
-    const float ms = 1000.0f * (static_cast<float>(distanceSteps) / stepsPerSecond);
-    const int dur = std::max(1, roundToInt(ms));
-    return dur;
 }
 
 void PlotSpooler::pushPenUp()
@@ -416,96 +386,6 @@ void PlotSpooler::pushSM(int durationMs, int aSteps, int bSteps)
     m_queuedMs += std::max(1, durationMs);
 }
 
-bool PlotSpooler::buildQueue(const PageModel &page, bool liftPen)
-{
-    // Collect all transformed paths
-    int totalSegments = 0;
-    float totalDrawn = 0.0f;
-
-    // Ensure pen up initially if requested
-    if (liftPen)
-    {
-        pushPenUp();
-    }
-
-    Vec2 currentPosMm = Vec2(0.0f, 0.0f);
-
-    for (const auto &kv : page.entities)
-    {
-        const Entity &e = kv.second;
-        if (m_onlyEntityId.has_value() && kv.first != *m_onlyEntityId)
-            continue;
-        if (e.type() != EntityType::PathSet)
-            continue;
-        const PathSet *ps = e.pathset();
-        if (!ps)
-            continue;
-
-        for (const Path &path : ps->paths)
-        {
-            if (path.points.size() < 1)
-                continue;
-
-            // Transform first point to page space
-            Vec2 p0 = e.localToPage * path.points[0];
-
-            // Travel move to start (pen up)
-            int a = 0, b = 0;
-            mmDeltaToCoreXYSteps(p0.x - currentPosMm.x, p0.y - currentPosMm.y, a, b);
-            const int durTravel = computeDurationMsForAB(a, b, /*plotting=*/false);
-            pushSM(durTravel, a, b);
-            currentPosMm = p0;
-            totalSegments++;
-
-            if (liftPen)
-            {
-                pushPenDown();
-            }
-
-            // Draw segments
-            for (size_t i = 1; i < path.points.size(); ++i)
-            {
-                Vec2 p = e.localToPage * path.points[i];
-                const float dx = p.x - currentPosMm.x;
-                const float dy = p.y - currentPosMm.y;
-                mmDeltaToCoreXYSteps(dx, dy, a, b);
-                const int durPlot = computeDurationMsForAB(a, b, /*plotting=*/true);
-                pushSM(durPlot, a, b);
-                currentPosMm = p;
-                totalSegments++;
-                totalDrawn += hypot2f(dx, dy);
-            }
-
-            if (liftPen)
-            {
-                pushPenUp();
-            }
-        }
-    }
-
-    // Return to origin after all moves (non-plotting)
-    if (totalSegments > 0)
-    {
-        int a = 0, b = 0;
-        mmDeltaToCoreXYSteps(-currentPosMm.x, -currentPosMm.y, a, b);
-        const int durBack = computeDurationMsForAB(a, b, /*plotting=*/false);
-        pushSM(durBack, a, b);
-        totalSegments++;
-    }
-
-    m_stats.plannedPenDownMm = totalDrawn;
-    return totalSegments > 0;
-}
-
-bool PlotSpooler::buildQueuePlanned(const PageModel &page, bool liftPen)
-{
-    // Deprecated in favor of short-queue refill strategy. Keeping for reference.
-    // Build nothing here to avoid filling long queues.
-    (void)page;
-    (void)liftPen;
-    return false;
-}
-
 bool PlotSpooler::prepareJob(const PageModel &page, bool liftPen)
 {
     // Transform to page space and reorder paths, compute total pen-down mm
@@ -523,10 +403,11 @@ bool PlotSpooler::prepareJob(const PageModel &page, bool liftPen)
         {
             ps = e.pathset();
         }
-        else if (e.filterChain.outputLayer()->kind() == LayerKind::PathSet)
+        else
         {
             const auto &output = e.filterChain.outputLayer();
-            ps = asPathSetConstPtr(output);
+            if (output && output->kind() == LayerKind::PathSet)
+                ps = asPathSetConstPtr(output);
         }
         if (!ps) continue;
 
@@ -538,11 +419,17 @@ bool PlotSpooler::prepareJob(const PageModel &page, bool liftPen)
             pspace.points.reserve(path.points.size());
             for (const Vec2 &p : path.points)
                 pspace.points.push_back(e.localToPage * p);
-            // Accumulate length
+            // Accumulate length (include closing segment for closed paths)
             for (size_t i = 1; i < pspace.points.size(); ++i)
             {
                 float dx = pspace.points[i].x - pspace.points[i - 1].x;
                 float dy = pspace.points[i].y - pspace.points[i - 1].y;
+                totalDrawn += std::hypot(dx, dy);
+            }
+            if (pspace.closed && pspace.points.size() > 2)
+            {
+                float dx = pspace.points.front().x - pspace.points.back().x;
+                float dy = pspace.points.front().y - pspace.points.back().y;
                 totalDrawn += std::hypot(dx, dy);
             }
             pagePaths.push_back(std::move(pspace));
@@ -561,7 +448,8 @@ bool PlotSpooler::prepareJob(const PageModel &page, bool liftPen)
     m_stats.plannedPenDownMm = totalDrawn;
     m_stats.donePenDownMm = 0.0f;
     m_stats.queuedMs = 0;
-    m_stats.currentPathIndex = 0;
+    m_stats.sentPathIndex = 0;
+    m_stats.queuedPathIndex = 0;
     m_stats.totalPaths = static_cast<int>(m_job.orderedPaths.size());
     m_queuedMs = 0;
     return true;
@@ -635,7 +523,18 @@ void PlotSpooler::refillQueueLocked(int highWaterMs, int lowWaterMs)
             if (m_job.liftPen)
                 pushPenDown();
 
-            auto result = planPath(s, path.points, /*penUp=*/false, m_job.currentPosMm); m_job.activeMoves = result.moves; m_job.activePathFinalPosMm = result.finalPositionMm;
+            // For closed paths, append first point to close the loop
+            const std::vector<Vec2> *drawPts = &path.points;
+            std::vector<Vec2> closedPts;
+            if (path.closed && path.points.size() > 2)
+            {
+                closedPts = path.points;
+                closedPts.push_back(path.points.front());
+                drawPts = &closedPts;
+            }
+            auto result = planPath(s, *drawPts, /*penUp=*/false, m_job.currentPosMm);
+            m_job.activeMoves = result.moves;
+            m_job.activePathFinalPosMm = result.finalPositionMm;
             m_job.moveIndex = 0;
             m_job.drawingPhase = true;
         }
@@ -652,12 +551,19 @@ void PlotSpooler::refillQueueLocked(int highWaterMs, int lowWaterMs)
         {
             if (m_job.liftPen)
                 pushPenUp();
+            // Push a marker so the worker knows when this path is fully sent
+            {
+                Cmd marker;
+                marker.kind = CmdKind::PathDone;
+                marker.pathIndex = static_cast<int>(m_job.pathIndex);
+                m_queue.push(marker);
+            }
             m_job.currentPosMm = m_job.activePathFinalPosMm;
             m_job.drawingPhase = false;
             m_job.activeMoves.clear();
             m_job.moveIndex = 0;
             m_job.pathIndex++;
-            m_stats.currentPathIndex = m_job.pathIndex;
+            m_stats.queuedPathIndex = static_cast<int>(m_job.pathIndex);
         }
         else
         {
@@ -756,6 +662,10 @@ void PlotSpooler::run()
             ok = m_axidraw.stepperMove(cmd.durationMs, cmd.aSteps, cmd.bSteps, &err);
             sleepDurationMs = cmd.durationMs;
             break;
+        case CmdKind::PathDone:
+            // Marker: this path has been fully sent to the plotter
+            m_stats.sentPathIndex = cmd.pathIndex + 1;
+            continue; // no hardware command, skip sleep
         }
 
         if (!ok)
@@ -802,6 +712,9 @@ void PlotSpooler::run()
                                     break;
                                 case CmdKind::StepperMove:
                                     retryOk = m_axidraw.stepperMove(cmd.durationMs, cmd.aSteps, cmd.bSteps, &retryErr);
+                                    break;
+                                case CmdKind::PathDone:
+                                    retryOk = true; // marker, no hardware command
                                     break;
                                 }
 

@@ -118,6 +118,21 @@ void App::run(IScreen &screen)
         {
             glfwSetWindowShouldClose(m_window, GLFW_TRUE); // or your platform’s close call
         }
+
+        // Cmd+V (macOS) / Ctrl+V (Windows/Linux) clipboard paste
+        if (!io.WantCaptureKeyboard && ImGui::IsKeyPressed(ImGuiKey_V))
+        {
+            bool mod = false;
+#ifdef __APPLE__
+            mod = io.KeySuper;
+#else
+            mod = io.KeyCtrl;
+#endif
+            if (mod)
+            {
+                screen.onClipboardPaste();
+            }
+        }
     }
 
     screen.onDetach();

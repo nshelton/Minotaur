@@ -20,6 +20,9 @@ public:
     // OS file drop (paths are absolute or relative from OS drop event)
     virtual void onFilesDropped(const std::vector<std::string>& /*paths*/) {}
 
+    // Clipboard paste (Cmd+V / Ctrl+V)
+    virtual void onClipboardPaste() {}
+
     // UI (ImGui) hook
     virtual void onGui() {}
 };

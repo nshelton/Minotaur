@@ -12,28 +12,6 @@ constexpr int NUM_SENSORS = 16;
 constexpr float PI = 3.14159265358979323846f;
 constexpr float DEG_TO_RAD = PI / 180.0f;
 
-// Simple xorshift32 PRNG for deterministic wander behavior
-struct Rng
-{
-	uint32_t state;
-
-	explicit Rng(uint32_t seed) : state(seed ? seed : 1) {}
-
-	uint32_t next()
-	{
-		state ^= state << 13;
-		state ^= state >> 17;
-		state ^= state << 5;
-		return state;
-	}
-
-	// Returns float in approximately [-1, 1]
-	float nextFloat()
-	{
-		return static_cast<float>(next()) / 2147483648.0f - 1.0f;
-	}
-};
-
 static inline int clampi(int v, int lo, int hi)
 {
 	return (v < lo) ? lo : (v > hi ? hi : v);
@@ -98,10 +76,8 @@ void FlowSnakeFilter::applyTyped(const Bitmap &in, PathSet &out) const
 	const float fov_deg = std::clamp(m_parameters.at("fov").value, 10.0f, 360.0f);
 	const float eatRadius_mm = std::max(0.1f, m_parameters.at("eat_radius").value);
 	const float eatStrength = std::clamp(m_parameters.at("eat_strength").value, 0.01f, 1.0f);
-	const float inkThreshold = std::clamp(m_parameters.at("ink_threshold").value, 1.0f, 254.0f);
 	const int maxSteps = static_cast<int>(std::clamp(
 		m_parameters.at("max_steps").value, 1000.0f, 500000.0f));
-	const float wanderAmt = std::clamp(m_parameters.at("wander").value, 0.0f, 1.0f);
 
 	// --- Convert mm to pixel space ---
 	const float pxPerMm = 1.0f / in.pixel_size_mm;
@@ -119,9 +95,6 @@ void FlowSnakeFilter::applyTyped(const Bitmap &in, PathSet &out) const
 		ink[i] = (255.0f - static_cast<float>(in.pixels[i])) / 255.0f;
 	}
 
-	// Ink threshold in normalized space
-	const float inkThreshNorm = (255.0f - inkThreshold) / 255.0f;
-
 	// --- Find starting position: pixel with most ink ---
 	float maxInk = 0.0f;
 	int startIdx = 0;
@@ -134,7 +107,7 @@ void FlowSnakeFilter::applyTyped(const Bitmap &in, PathSet &out) const
 		}
 	}
 
-	if (maxInk < inkThreshNorm)
+	if (maxInk < 1e-4f)
 	{
 		out.computeAABB();
 		return;
@@ -158,12 +131,9 @@ void FlowSnakeFilter::applyTyped(const Bitmap &in, PathSet &out) const
 			for (int px = px0; px <= px1; ++px)
 			{
 				float w = ink[static_cast<size_t>(py) * W + px];
-				if (w > inkThreshNorm)
-				{
-					cmx += static_cast<float>(px) * w;
-					cmy += static_cast<float>(py) * w;
-					totalW += w;
-				}
+				cmx += static_cast<float>(px) * w;
+				cmy += static_cast<float>(py) * w;
+				totalW += w;
 			}
 		}
 
@@ -179,9 +149,6 @@ void FlowSnakeFilter::applyTyped(const Bitmap &in, PathSet &out) const
 			}
 		}
 	}
-
-	// --- Deterministic PRNG for wander ---
-	Rng rng(42);
 
 	// --- Gaussian consumption kernel ---
 	const float sigma = eatRadius_px / 2.0f;
@@ -203,7 +170,6 @@ void FlowSnakeFilter::applyTyped(const Bitmap &in, PathSet &out) const
 		// === Sensing: cast rays in a fan across the FOV ===
 		float desiredDx = 0.0f;
 		float desiredDy = 0.0f;
-		bool foundInk = false;
 
 		for (int s = 0; s < NUM_SENSORS; ++s)
 		{
@@ -228,32 +194,23 @@ void FlowSnakeFilter::applyTyped(const Bitmap &in, PathSet &out) const
 				float sy = posY + rayDy * dist;
 
 				float inkVal = sampleInk(ink, W, H, sx, sy);
-				if (inkVal > inkThreshNorm)
-				{
-					score += inkVal / dist;
-				}
+				score += inkVal / dist;
 			}
 
-			if (score > 0.0f)
-			{
-				foundInk = true;
-				desiredDx += rayDx * score;
-				desiredDy += rayDy * score;
-			}
+			desiredDx += rayDx * score;
+			desiredDy += rayDy * score;
 		}
 
 		// === Compute new direction ===
+		// When ink is sensed, steer toward it. When no ink is sensed,
+		// desiredDx/desiredDy are zero and momentum carries the snake forward.
 		float newAngle;
+		float desiredLen = std::sqrt(desiredDx * desiredDx + desiredDy * desiredDy);
 
-		if (foundInk)
+		if (desiredLen > 1e-6f)
 		{
-			// Normalize desired direction vector
-			float desiredLen = std::sqrt(desiredDx * desiredDx + desiredDy * desiredDy);
-			if (desiredLen > 1e-6f)
-			{
-				desiredDx /= desiredLen;
-				desiredDy /= desiredLen;
-			}
+			desiredDx /= desiredLen;
+			desiredDy /= desiredLen;
 
 			float desiredAngle = std::atan2(desiredDy, desiredDx);
 
@@ -270,9 +227,8 @@ void FlowSnakeFilter::applyTyped(const Bitmap &in, PathSet &out) const
 		}
 		else
 		{
-			// No ink sensed: wander with random angular noise
-			float noise = wanderAmt * maxTurn_rad * rng.nextFloat();
-			newAngle = dirAngle + noise;
+			// No ink anywhere: keep going straight (momentum carries)
+			newAngle = dirAngle;
 		}
 
 		// === Advance position ===

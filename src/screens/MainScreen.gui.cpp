@@ -199,30 +199,11 @@ void MainScreen::onGui()
 
             // Speed sliders
             ImGui::Separator();
-            int drawPct = m_plotter.drawSpeedPercent;
-            int travelPct = m_plotter.travelSpeedPercent;
-            if (ImGui::SliderInt("Drawing Speed (%)", &drawPct, 10, 300))
-            {
-                m_plotter.drawSpeedPercent = drawPct;
-                if (m_spooler && m_spooler->isRunning()) m_spooler->updateConfig(m_plotter);
-            }
-            if (ImGui::SliderInt("Travel Speed (%)", &travelPct, 10, 300))
-            {
-                m_plotter.travelSpeedPercent = travelPct;
-                if (m_spooler && m_spooler->isRunning()) m_spooler->updateConfig(m_plotter);
-            }
-
-            if (ImGui::CollapsingHeader("Advanced Motion", ImGuiTreeNodeFlags_DefaultOpen))
             {
                 float drawSpeed = m_plotter.drawSpeedMmPerS;
                 float travelSpeed = m_plotter.travelSpeedMmPerS;
                 float accelDraw = m_plotter.accelDrawMmPerS2;
                 float accelTravel = m_plotter.accelTravelMmPerS2;
-                float cornering = m_plotter.cornering;
-                int junctionFloor = m_plotter.junctionSpeedFloorPercent;
-                int sliceMs = m_plotter.timeSliceMs;
-                int maxRate = m_plotter.maxStepRatePerAxis;
-                float minSeg = m_plotter.minSegmentMm;
 
                 if (ImGui::SliderFloat("Draw Speed (mm/s)", &drawSpeed, 5.0f, 200.0f, "%.1f"))
                 { m_plotter.drawSpeedMmPerS = drawSpeed; if (m_spooler && m_spooler->isRunning()) m_spooler->updateConfig(m_plotter); }
@@ -232,13 +213,23 @@ void MainScreen::onGui()
                 { m_plotter.accelDrawMmPerS2 = accelDraw; if (m_spooler && m_spooler->isRunning()) m_spooler->updateConfig(m_plotter); }
                 if (ImGui::SliderFloat("Travel Accel (mm/s^2)", &accelTravel, 50.0f, 8000.0f, "%.0f"))
                 { m_plotter.accelTravelMmPerS2 = accelTravel; if (m_spooler && m_spooler->isRunning()) m_spooler->updateConfig(m_plotter); }
+            }
+
+            if (ImGui::CollapsingHeader("Advanced Motion"))
+            {
+                float cornering = m_plotter.cornering;
+                int junctionFloor = m_plotter.junctionSpeedFloorPercent;
+                int sliceMs = m_plotter.timeSliceMs;
+                int maxRate = m_plotter.maxStepRatePerAxis;
+                float minSeg = m_plotter.minSegmentMm;
+
                 if (ImGui::SliderFloat("Cornering (jd, mm)", &cornering, 0.00f, 2.00f, "%.2f"))
                 { m_plotter.cornering = cornering; if (m_spooler && m_spooler->isRunning()) m_spooler->updateConfig(m_plotter); }
                 if (ImGui::SliderInt("Junction Speed Floor (%)", &junctionFloor, 0, 100))
                 { m_plotter.junctionSpeedFloorPercent = junctionFloor; if (m_spooler && m_spooler->isRunning()) m_spooler->updateConfig(m_plotter); }
                 if (ImGui::SliderInt("Time Slice (ms)", &sliceMs, 2, 100))
                 { m_plotter.timeSliceMs = sliceMs; if (m_spooler && m_spooler->isRunning()) m_spooler->updateConfig(m_plotter); }
-                if (ImGui::SliderInt("Max Step Rate (steps/s)", &maxRate, 100, 3000))
+                if (ImGui::SliderInt("Max Step Rate (steps/s)", &maxRate, 500, 10000))
                 { m_plotter.maxStepRatePerAxis = maxRate; if (m_spooler && m_spooler->isRunning()) m_spooler->updateConfig(m_plotter); }
                 if (ImGui::SliderFloat("Min Segment (mm)", &minSeg, 0.01f, 1.0f, "%.2f"))
                 { m_plotter.minSegmentMm = minSeg; if (m_spooler && m_spooler->isRunning()) m_spooler->updateConfig(m_plotter); }

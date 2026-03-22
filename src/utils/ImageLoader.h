@@ -16,6 +16,9 @@ namespace ImageLoader
     // Windows (WIC) loader for RGB color images
     // Loads image as 3-channel RGB ColorImage
     bool loadColorImage(const std::string &filePath, ColorImage &out, std::string *errorOut = nullptr, float pixel_size_mm = 0.5f);
+
+    // Load a color image from raw encoded bytes in memory (PNG, JPEG, etc.)
+    bool loadColorImageFromMemory(const uint8_t *data, size_t size, ColorImage &out, std::string *errorOut = nullptr, float pixel_size_mm = 0.5f);
 }
 
 

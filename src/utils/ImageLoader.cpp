@@ -531,4 +531,34 @@ namespace ImageLoader
     }
 
 #endif // _WIN32
+
+    bool loadColorImageFromMemory(const uint8_t *data, size_t size, ColorImage &out, std::string *errorOut, float pixel_size_mm)
+    {
+#ifdef _WIN32
+        // TODO: Windows in-memory loading via WIC IStream
+        if (errorOut)
+            *errorOut = "In-memory image loading not implemented on Windows";
+        return false;
+#else
+        int w = 0, h = 0, channels = 0;
+        unsigned char *pixels = stbi_load_from_memory(data, static_cast<int>(size), &w, &h, &channels, 3);
+        if (!pixels)
+        {
+            if (errorOut)
+                *errorOut = std::string("Failed to decode image from memory: ") + stbi_failure_reason();
+            return false;
+        }
+
+        std::vector<unsigned char> px(pixels, pixels + static_cast<size_t>(w) * static_cast<size_t>(h) * 3);
+        stbi_image_free(pixels);
+
+        flipVerticalRGB(px, static_cast<size_t>(w), static_cast<size_t>(h));
+
+        out.width_px = w;
+        out.height_px = h;
+        out.pixel_size_mm = pixel_size_mm;
+        out.pixels = std::move(px);
+        return true;
+#endif
+    }
 }

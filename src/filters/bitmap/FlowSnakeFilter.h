@@ -14,9 +14,7 @@
 //   fov          - angular width of the sensing fan (degrees)
 //   eat_radius   - radius of the ink consumption kernel (mm)
 //   eat_strength - fraction of ink consumed per visit
-//   ink_threshold- pixel value below which a pixel "has ink" (0-255)
 //   max_steps    - maximum simulation steps (controls path length)
-//   wander       - random angular noise when no ink is sensed
 struct FlowSnakeFilter : public FilterTyped<Bitmap, PathSet>
 {
 	FlowSnakeFilter()
@@ -35,12 +33,8 @@ struct FlowSnakeFilter : public FilterTyped<Bitmap, PathSet>
 			"Eat Radius (mm)", 0.1f, 5.0f, 1.0f};
 		m_parameters["eat_strength"] = FilterParameter{
 			"Eat Strength", 0.01f, 1.0f, 0.3f};
-		m_parameters["ink_threshold"] = FilterParameter{
-			"Ink Threshold", 1.0f, 254.0f, 128.0f};
 		m_parameters["max_steps"] = FilterParameter{
 			"Max Steps", 1000.0f, 500000.0f, 100000.0f};
-		m_parameters["wander"] = FilterParameter{
-			"Wander", 0.0f, 1.0f, 0.1f};
 	}
 
 	const char *name() const override { return "Flow Snake"; }

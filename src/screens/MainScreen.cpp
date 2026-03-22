@@ -3,6 +3,7 @@
 #include <GLFW/glfw3.h>
 #include "utils/PathSetGenerator.h"
 #include "utils/ImageLoader.h"
+#include "utils/Clipboard.h"
 #include <iostream>
 #include <glog/logging.h>
 #include "utils/Serialization.h"
@@ -81,21 +82,34 @@ void MainScreen::onRender()
 {
     m_renderer.render(m_camera, m_page, m_interaction.state());
 
-    // Render plot progress overlay
+    // Render plot progress overlay with 3-color visualization
     if (m_showPlotProgress && m_spooler && m_spooler->isRunning())
     {
-        std::vector<Path> remaining = m_spooler->getRemainingPaths();
+        const auto &paths = m_spooler->getOrderedPaths();
+        auto s = m_spooler->stats();
+        const int sent = s.sentPathIndex;
+        const int queued = s.queuedPathIndex;
 
-        // Render remaining paths as orange overlay
-        for (const auto &path : remaining)
+        static const Color kDone{0.5f, 0.5f, 0.5f, 0.3f};    // gray
+        static const Color kQueued{0.2f, 0.4f, 1.0f, 0.6f};   // blue
+        static const Color kPending{1.0f, 0.2f, 0.8f, 0.6f};  // magenta
+
+        for (size_t pi = 0; pi < paths.size(); ++pi)
         {
+            const auto &path = paths[pi];
             if (path.points.size() < 2) continue;
+
+            const Color &col = (static_cast<int>(pi) < sent)  ? kDone
+                             : (static_cast<int>(pi) < queued) ? kQueued
+                             :                                    kPending;
 
             for (size_t i = 1; i < path.points.size(); ++i)
             {
-                Vec2 p0 = path.points[i-1];
-                Vec2 p1 = path.points[i];
-                m_renderer.addLine(p0, p1, Color{1.0f, 0.6f, 0.0f, 0.5f});
+                m_renderer.addLine(path.points[i - 1], path.points[i], col);
+            }
+            if (path.closed && path.points.size() > 2)
+            {
+                m_renderer.addLine(path.points.back(), path.points.front(), col);
             }
         }
     }
@@ -143,6 +157,28 @@ void MainScreen::onFilesDropped(const std::vector<std::string>& paths)
         {
             LOG(WARNING) << "Unsupported image or failed to load ('" << p << "'): " << err;
         }
+    }
+}
+
+void MainScreen::onClipboardPaste()
+{
+    auto data = Clipboard::getImageData();
+    if (data.empty())
+    {
+        LOG(INFO) << "Clipboard paste: no image data found";
+        return;
+    }
+
+    ColorImage ci;
+    std::string err;
+    if (ImageLoader::loadColorImageFromMemory(data.data(), data.size(), ci, &err, 0.5f))
+    {
+        m_page.addColorImage(ci);
+        LOG(INFO) << "Pasted clipboard image as color image (" << ci.width_px << "x" << ci.height_px << ")";
+    }
+    else
+    {
+        LOG(WARNING) << "Failed to decode clipboard image: " << err;
     }
 }
 

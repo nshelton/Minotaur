@@ -1,5 +1,5 @@
 ﻿cmake_minimum_required(VERSION 3.21)
-project(Minotaur LANGUAGES CXX)
+project(Minotaur LANGUAGES CXX OBJCXX)
 
 
 set(CMAKE_CXX_STANDARD 17)
@@ -15,6 +15,7 @@ find_package(GTest CONFIG REQUIRED)
 
 file(GLOB_RECURSE SRC_FILES CONFIGURE_DEPENDS
   src/*.cpp
+  src/*.mm
 )
 
 # Add Windows icon resource
@@ -49,7 +50,7 @@ if(WIN32)
   target_link_libraries(minotaur PRIVATE opengl32 ole32 windowscodecs)
 elseif(APPLE)
   find_package(OpenGL REQUIRED)
-  target_link_libraries(minotaur PRIVATE OpenGL::GL "-framework IOKit" "-framework CoreFoundation")
+  target_link_libraries(minotaur PRIVATE OpenGL::GL "-framework IOKit" "-framework CoreFoundation" "-framework AppKit")
 else()
   find_package(OpenGL REQUIRED)
   target_link_libraries(minotaur PRIVATE OpenGL::GL)

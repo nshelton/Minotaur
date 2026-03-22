@@ -3,9 +3,6 @@
 struct PlotterConfig {
     int penUpPos{17548};
     int penDownPos{14058};
-    // Speed percentages (relative to device-safe max steps/sec)
-    int drawSpeedPercent{128};   // used when pen is down (plotting)
-    int travelSpeedPercent{154}; // used when pen is up (travel moves)
     // Motion planner (mm-based)
     float drawSpeedMmPerS{38.20000076293945f};
     float travelSpeedMmPerS{121.9000015258789f};

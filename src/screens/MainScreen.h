@@ -23,6 +23,7 @@ public:
     void onScroll(double xoffset, double yoffset, Vec2 px) override;
     void onGui() override;
     void onFilesDropped(const std::vector<std::string>& paths) override;
+    void onClipboardPaste() override;
 
 private:
     App *m_app{nullptr};

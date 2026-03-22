@@ -152,6 +152,10 @@ void LineRenderer::draw( const Mat3 &mm_to_ndc)
     glUniformMatrix3fv(m_uProjMat, 1, GL_FALSE, mm_to_ndc.m);
     glUniform1i(m_uIsPointPass, 0);
 
+    // Additive blending: src color scaled by src alpha, added to dest
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+
     // Draw lines
     if (!m_vertices.empty())
     {
@@ -200,6 +204,8 @@ void LineRenderer::draw( const Mat3 &mm_to_ndc)
 
         glUniform1i(m_uIsPointPass, 0);
     }
+
+    glDisable(GL_BLEND);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);

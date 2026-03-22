@@ -465,8 +465,6 @@ namespace serialization
             j["plotter"] = json{
                 {"pen_up_pos", plotter.penUpPos},
                 {"pen_down_pos", plotter.penDownPos},
-                {"draw_speed_percent", plotter.drawSpeedPercent},
-                {"travel_speed_percent", plotter.travelSpeedPercent},
                 // mm-based planner settings
                 {"draw_speed_mm_s", plotter.drawSpeedMmPerS},
                 {"travel_speed_mm_s", plotter.travelSpeedMmPerS},
@@ -598,8 +596,6 @@ namespace serialization
                 const json &p = j["plotter"];
                 plotter.penUpPos = p.value("pen_up_pos", plotter.penUpPos);
                 plotter.penDownPos = p.value("pen_down_pos", plotter.penDownPos);
-                plotter.drawSpeedPercent = p.value("draw_speed_percent", plotter.drawSpeedPercent);
-                plotter.travelSpeedPercent = p.value("travel_speed_percent", plotter.travelSpeedPercent);
                 // mm-based planner settings (with defaults)
                 plotter.drawSpeedMmPerS = p.value("draw_speed_mm_s", plotter.drawSpeedMmPerS);
                 plotter.travelSpeedMmPerS = p.value("travel_speed_mm_s", plotter.travelSpeedMmPerS);
