@@ -1,17 +1,13 @@
 {
   "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
   "cmake.configureOnOpen": true,
-  "cmake.configurePreset": "msvc-vcpkg",
-  "cmake.buildPreset": "debug",
+  "cmake.configurePreset": "macos-vcpkg",
+  "cmake.buildPreset": "macos-debug",
   "cmake.configureEnvironment": {
-    "VCPKG_ROOT": "D:/vcpkg"
+    "VCPKG_ROOT": "${env:VCPKG_ROOT}"
   },
   "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
-  "C_Cpp.default.includePath": [
-    "${workspaceFolder}/**",
-    "D:/vcpkg/installed/x64-windows/include"
-  ],
-  "C_Cpp.default.intelliSenseMode": "windows-msvc-x64",
+  "C_Cpp.default.intelliSenseMode": "macos-clang-arm64",
   "files.associations": {
     "vector": "cpp",
     "string": "cpp",
@@ -52,21 +48,6 @@
     "type_traits": "cpp",
     "typeinfo": "cpp",
     "utility": "cpp",
-    "xfacet": "cpp",
-    "xiosbase": "cpp",
-    "xlocale": "cpp",
-    "xlocbuf": "cpp",
-    "xlocinfo": "cpp",
-    "xlocmes": "cpp",
-    "xlocmon": "cpp",
-    "xlocnum": "cpp",
-    "xloctime": "cpp",
-    "xmemory": "cpp",
-    "xstring": "cpp",
-    "xtr1common": "cpp",
-    "xutility": "cpp",
-    "xhash": "cpp",
-    "xtree": "cpp",
     "array": "cpp",
     "bitset": "cpp",
     "chrono": "cpp",

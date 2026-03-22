@@ -139,7 +139,7 @@ void FilterRegistry::initDefaults()
 		{ return std::make_unique<TraceBlobsFilter>(); }});
 
 	reg.registerFilter(FilterInfo{
-		"Stippler",
+		"Voronoi Stippling",
 		LayerKind::Bitmap,
 		LayerKind::PathSet,
 		[]()

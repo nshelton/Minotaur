@@ -5,14 +5,14 @@
 
 namespace {
     // Generate a circle path with given center and radius
-    Path makeCircle(Vec2 center, float radius, int segments = 16)
+    Path makeCircle(Vec2 center, float radius, int segments = 5)
     {
         Path circle;
         circle.closed = true;
 
         for (int i = 0; i < segments; ++i)
         {
-            float angle = (static_cast<float>(i) / static_cast<float>(segments)) * 2.0f * 3.14159265359f;
+            float angle = (static_cast<float>(i) / static_cast<float>(segments)) * 2.0f * static_cast<float>(M_PI);
             float x = center.x + radius * std::cos(angle);
             float y = center.y + radius * std::sin(angle);
             circle.points.emplace_back(x, y);
@@ -59,6 +59,7 @@ void VoronoiStipplingFilter::applyTyped(const Bitmap &in, PathSet &out) const
     const int maxIterations = static_cast<int>(m_parameters.at("iterations").value);
     const float circleRadius = m_parameters.at("circle_radius").value;
     const float sizeVariation = m_parameters.at("size_variation").value;
+    const int circleSegments = static_cast<int>(m_parameters.at("circle_segments").value);
 
     const int width = static_cast<int>(in.width_px);
     const int height = static_cast<int>(in.height_px);
@@ -162,7 +163,7 @@ void VoronoiStipplingFilter::applyTyped(const Bitmap &in, PathSet &out) const
                 int gy = std::min(gridHeight - 1, std::max(0, static_cast<int>(pixelPos.y / cellSize)));
 
                 // Search in 3x3 neighborhood of grid cells
-                int closestIdx = 0;
+                int closestIdx = -1;
                 float closestDist = 1e20f;
 
                 for (int dy = -1; dy <= 1; ++dy)
@@ -191,10 +192,11 @@ void VoronoiStipplingFilter::applyTyped(const Bitmap &in, PathSet &out) const
                     }
                 }
 
-                // Accumulate weighted centroid (weight by subsample factor to compensate)
-                float weight = intensity * static_cast<float>(subsample * subsample);
-                newPoints[closestIdx] += pixelPos * weight;
-                weights[closestIdx] += weight;
+                if (closestIdx < 0) continue; // No points in neighborhood, skip pixel
+
+                // Accumulate weighted centroid
+                newPoints[closestIdx] += pixelPos * intensity;
+                weights[closestIdx] += intensity;
             }
         }
 
@@ -232,7 +234,7 @@ void VoronoiStipplingFilter::applyTyped(const Bitmap &in, PathSet &out) const
         float variableSize = circleRadius * (0.3f + normalizedWeight * 1.7f); // Range: 0.3x to 2x base radius
         float finalRadius = circleRadius * (1.0f - sizeVariation) + variableSize * sizeVariation;
 
-        out.paths.push_back(makeCircle(points[i], finalRadius, 16));
+        out.paths.push_back(makeCircle(points[i], finalRadius, circleSegments));
     }
     out.computeAABB();
 }

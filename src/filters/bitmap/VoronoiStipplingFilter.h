@@ -32,6 +32,12 @@ struct VoronoiStipplingFilter : public FilterTyped<Bitmap, PathSet>
             1.0f,
             0.0f
         };
+        m_parameters["circle_segments"] = FilterParameter{
+            "Circle Segments",
+            3.0f,
+            10.0f,
+            5.0f
+        };
     }
 
     const char *name() const override { return "Voronoi Stippling"; }
