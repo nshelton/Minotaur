@@ -87,10 +87,10 @@ PlanResult planPath(const PlannerSettings &s,
         size_t idxOut = i;
         float dot = segDir[idxIn].x * segDir[idxOut].x + segDir[idxIn].y * segDir[idxOut].y;
         dot = clampf(dot, -1.0f, 1.0f);
-        float sinHalf = std::sqrt(std::max(0.0f, 0.5f * (1.0f - dot)));
+        float sinHalf = std::sqrt(std::max(0.0f, 0.5f * (1.0f + dot)));
         float vMax = speedLimit;
-        if (sinHalf > 1e-6f && jd > 0.0f) {
-            float R = jd * (1.0f + sinHalf) / (1.0f - sinHalf);
+        if (sinHalf > 1e-6f && sinHalf < (1.0f - 1e-6f) && jd > 0.0f) {
+            float R = jd * sinHalf / (1.0f - sinHalf);
             vMax = std::sqrt(std::max(0.0f, accel * R));
         }
         // Apply optional floor

@@ -39,3 +39,13 @@ target_include_directories(minotaur_tests PRIVATE src)
 target_link_libraries(minotaur_tests PRIVATE GTest::gtest GTest::gtest_main)
 
 add_test(NAME minotaur_kdtree COMMAND minotaur_tests)
+
+add_executable(motion_planner_tests
+  tests/test_motion_planner.cpp
+  src/plotters/MotionPlanner.cpp
+)
+
+target_include_directories(motion_planner_tests PRIVATE src)
+target_link_libraries(motion_planner_tests PRIVATE GTest::gtest GTest::gtest_main)
+
+add_test(NAME motion_planner COMMAND motion_planner_tests)
