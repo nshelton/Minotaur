@@ -28,6 +28,7 @@
 #include "filters/bitmap/ConcentricOutlineFilter.h"
 #include "filters/bitmap/FlowFieldHatchFilter.h"
 #include "filters/bitmap/FlowSnakeFilter.h"
+#include "filters/bitmap/RotateFilter.h"
 
 namespace
 {
@@ -244,6 +245,13 @@ void FilterRegistry::initDefaults()
 		LayerKind::FloatImage,
 		[]()
 		{ return std::make_unique<FloatBlurFilter>(); }});
+
+	reg.registerFilter(FilterInfo{
+		"Rotate",
+		LayerKind::Bitmap,
+		LayerKind::Bitmap,
+		[]()
+		{ return std::make_unique<RotateFilter>(); }});
 
 	reg.registerFilter(FilterInfo{
 		"Erode/Dilate",

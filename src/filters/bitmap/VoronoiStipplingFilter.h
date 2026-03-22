@@ -11,7 +11,7 @@ struct VoronoiStipplingFilter : public FilterTyped<Bitmap, PathSet>
         m_parameters["num_points"] = FilterParameter{
             "Number of Points",
             10.0f,
-            10000.0f,
+            100000.0f,
             500.0f
         };
         m_parameters["iterations"] = FilterParameter{
