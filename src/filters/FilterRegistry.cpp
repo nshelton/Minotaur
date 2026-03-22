@@ -26,6 +26,8 @@
 #include "filters/bitmap/ChannelMixerFilter.h"
 #include "filters/bitmap/ColorPickerFilter.h"
 #include "filters/bitmap/ConcentricOutlineFilter.h"
+#include "filters/bitmap/FlowFieldHatchFilter.h"
+#include "filters/bitmap/FlowSnakeFilter.h"
 
 namespace
 {
@@ -123,6 +125,20 @@ void FilterRegistry::initDefaults()
 		LayerKind::PathSet,
 		[]()
 		{ return std::make_unique<LineHatchFilter>(); }});
+
+	reg.registerFilter(FilterInfo{
+		"Flow Field Hatch",
+		LayerKind::Bitmap,
+		LayerKind::PathSet,
+		[]()
+		{ return std::make_unique<FlowFieldHatchFilter>(); }});
+
+	reg.registerFilter(FilterInfo{
+		"Flow Snake",
+		LayerKind::Bitmap,
+		LayerKind::PathSet,
+		[]()
+		{ return std::make_unique<FlowSnakeFilter>(); }});
 
 	reg.registerFilter(FilterInfo{
 		"Concentric Outline",

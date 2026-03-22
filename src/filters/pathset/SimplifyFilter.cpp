@@ -74,8 +74,6 @@ static void mergeColinear(const std::vector<Vec2> &inPts, bool closed, float eps
     const size_t n = inPts.size();
     if (n <= 2) { outPts = inPts; return; }
 
-    auto at = [&](int i) -> const Vec2& { return inPts[static_cast<size_t>((i + static_cast<int>(n)) % static_cast<int>(n))]; };
-
     outPts.clear();
     outPts.reserve(n);
 
@@ -95,17 +93,29 @@ static void mergeColinear(const std::vector<Vec2> &inPts, bool closed, float eps
     }
     else
     {
-        for (size_t i = 0; i < n; ++i)
+        outPts.assign(inPts.begin(), inPts.end());
+        bool changed = true;
+        while (changed && outPts.size() > 2)
         {
-            const Vec2 &a = at(static_cast<int>(i) - 1);
-            const Vec2 &b = at(static_cast<int>(i) + 1);
-            const Vec2 &m = inPts[i];
-            float d = perpendicularDistanceToSegment(m, a, b);
-            if (d > eps || outPts.empty())
-                outPts.push_back(m);
+            changed = false;
+            std::vector<Vec2> next;
+            next.reserve(outPts.size());
+            const size_t cn = outPts.size();
+            for (size_t i = 0; i < cn; ++i)
+            {
+                const Vec2 &a = outPts[(i + cn - 1) % cn];
+                const Vec2 &b = outPts[(i + 1) % cn];
+                float d = perpendicularDistanceToSegment(outPts[i], a, b);
+                if (d > eps)
+                    next.push_back(outPts[i]);
+                else
+                    changed = true;
+            }
+            if (next.size() >= 3)
+                outPts = std::move(next);
+            else
+                break;
         }
-        if (outPts.size() >= 2 && outPts.front().x == outPts.back().x && outPts.front().y == outPts.back().y)
-            outPts.pop_back();
     }
 }
 
@@ -139,10 +149,7 @@ static void rdpSimplifyClosed(const std::vector<Vec2> &inPts, float eps, std::ve
 
     std::vector<Vec2> merged;
     mergeColinear(tmp, true, eps, merged);
-    if (merged.size() < 3)
-        outPts = inPts;
-    else
-        outPts = std::move(merged);
+    outPts = (merged.size() < 3) ? tmp : std::move(merged);
 }
 
 static float computePathLengthMm(const Path &p)
@@ -172,7 +179,7 @@ void SimplifyFilter::applyTyped(const PathSet &in, PathSet &out) const
     out.paths.reserve(in.paths.size());
 
     const float eps = std::max(0.0f, m_parameters.at("toleranceMm").value);
-    const float minLen = std::max(1.0f, std::min(10.0f, m_parameters.at("minPathLengthMm").value));
+    const float minLen = std::max(0.0f, std::min(10.0f, m_parameters.at("minPathLengthMm").value));
 
     for (const auto &p : in.paths)
     {
@@ -199,9 +206,7 @@ void SimplifyFilter::applyTyped(const PathSet &in, PathSet &out) const
         }
 
         if ((!sp.closed && sp.points.size() < 2) || (sp.closed && sp.points.size() < 3))
-        {
-            sp = p;
-        }
+            continue;
 
         // Remove paths shorter than threshold
         if (computePathLengthMm(sp) >= minLen)
