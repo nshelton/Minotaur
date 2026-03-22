@@ -1,5 +1,5 @@
 #pragma once
-#include "core/core.h"
+#include "core/Core.h"
 #include <string>
 
 namespace PathSetGenerator {

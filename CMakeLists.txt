@@ -22,12 +22,38 @@ if(WIN32)
   set(RESOURCE_FILES resources/app.rc)
 endif()
 
-add_executable(minotaur ${SRC_FILES} ${RESOURCE_FILES})
+# Add macOS icon
+if(APPLE)
+  set(MACOSX_ICON ${CMAKE_CURRENT_SOURCE_DIR}/resources/app_icon.icns)
+  set_source_files_properties(${MACOSX_ICON} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+endif()
+
+add_executable(minotaur ${SRC_FILES} ${RESOURCE_FILES} ${MACOSX_ICON})
+
+if(APPLE)
+  set_target_properties(minotaur PROPERTIES
+    MACOSX_BUNDLE TRUE
+    MACOSX_BUNDLE_ICON_FILE app_icon.icns
+    MACOSX_BUNDLE_BUNDLE_NAME "Minotaur"
+    MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
+    MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
+    MACOSX_BUNDLE_GUI_IDENTIFIER "com.minotaur.app"
+  )
+endif()
 
 target_include_directories(minotaur PRIVATE src)
 
-target_link_libraries(minotaur PRIVATE glad::glad glfw imgui::imgui opengl32 glog::glog fmt::fmt nlohmann_json::nlohmann_json)
-target_link_libraries(minotaur PRIVATE ole32 windowscodecs)
+target_link_libraries(minotaur PRIVATE glad::glad glfw imgui::imgui glog::glog fmt::fmt nlohmann_json::nlohmann_json)
+
+if(WIN32)
+  target_link_libraries(minotaur PRIVATE opengl32 ole32 windowscodecs)
+elseif(APPLE)
+  find_package(OpenGL REQUIRED)
+  target_link_libraries(minotaur PRIVATE OpenGL::GL "-framework IOKit" "-framework CoreFoundation")
+else()
+  find_package(OpenGL REQUIRED)
+  target_link_libraries(minotaur PRIVATE OpenGL::GL)
+endif()
 
 enable_testing()
 

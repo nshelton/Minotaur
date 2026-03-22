@@ -16,6 +16,24 @@
 #  define ERROR_DEVICE_DOES_NOT_EXIST 433L
 #endif
 
+#else
+// POSIX (macOS / Linux)
+#  include <fcntl.h>
+#  include <unistd.h>
+#  include <termios.h>
+#  include <sys/ioctl.h>
+#  include <cerrno>
+#  include <cstring>
+#  include <dirent.h>
+#  include <fstream>
+#  include <sstream>
+#  include <algorithm>
+#  ifdef __APPLE__
+#    include <IOKit/IOKitLib.h>
+#    include <IOKit/usb/IOUSBLib.h>
+#    include <IOKit/serial/IOSerialKeys.h>
+#    include <CoreFoundation/CoreFoundation.h>
+#  endif
 #endif
 
 namespace {
@@ -83,7 +101,117 @@ bool setCommParams(HANDLE h, int baud, std::string *err) {
     PurgeComm(h, PURGE_TXABORT | PURGE_RXABORT | PURGE_TXCLEAR | PURGE_RXCLEAR);
     return true;
 }
-#endif
+#else
+// Map integer baud rate to POSIX speed_t constant
+static speed_t baudToSpeed(int baud) {
+    switch (baud) {
+        case 9600:   return B9600;
+        case 19200:  return B19200;
+        case 38400:  return B38400;
+        case 57600:  return B57600;
+        case 115200: return B115200;
+        case 230400: return B230400;
+        default:     return B115200;
+    }
+}
+
+static bool configurePosixPort(int fd, int baud, std::string *err) {
+    struct termios tty{};
+    if (tcgetattr(fd, &tty) != 0) {
+        if (err) *err = std::string("tcgetattr failed: ") + strerror(errno);
+        return false;
+    }
+
+    speed_t speed = baudToSpeed(baud);
+    cfsetispeed(&tty, speed);
+    cfsetospeed(&tty, speed);
+
+    // 8N1, no flow control (matches the Windows DCB settings)
+    tty.c_cflag &= ~PARENB;        // No parity
+    tty.c_cflag &= ~CSTOPB;        // 1 stop bit
+    tty.c_cflag &= ~CSIZE;
+    tty.c_cflag |= CS8;            // 8 data bits
+    tty.c_cflag &= ~CRTSCTS;       // No hardware flow control
+    tty.c_cflag |= CREAD | CLOCAL; // Enable receiver, ignore modem control
+
+    // Raw input
+    tty.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
+    tty.c_iflag &= ~(IXON | IXOFF | IXANY);           // No software flow control
+    tty.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL);
+
+    // Raw output
+    tty.c_oflag &= ~OPOST;
+
+    // Timeouts: VMIN=0, VTIME=2 → non-blocking with 200ms timeout
+    tty.c_cc[VMIN] = 0;
+    tty.c_cc[VTIME] = 2;
+
+    if (tcsetattr(fd, TCSANOW, &tty) != 0) {
+        if (err) *err = std::string("tcsetattr failed: ") + strerror(errno);
+        return false;
+    }
+
+    // Flush any stale data
+    tcflush(fd, TCIOFLUSH);
+    return true;
+}
+
+#ifdef __APPLE__
+// Helper: extract a CFString property from an IOKit service as std::string
+static std::string getCFStringProperty(io_object_t service, CFStringRef key) {
+    CFTypeRef ref = IORegistryEntryCreateCFProperty(service, key, kCFAllocatorDefault, 0);
+    if (!ref) return {};
+    std::string result;
+    if (CFGetTypeID(ref) == CFStringGetTypeID()) {
+        char buf[256]{};
+        if (CFStringGetCString(static_cast<CFStringRef>(ref), buf, sizeof(buf), kCFStringEncodingUTF8)) {
+            result = buf;
+        }
+    }
+    CFRelease(ref);
+    return result;
+}
+
+// Helper: extract a CFNumber property as int
+static int getCFNumberProperty(io_object_t service, CFStringRef key) {
+    CFTypeRef ref = IORegistryEntryCreateCFProperty(service, key, kCFAllocatorDefault, 0);
+    if (!ref) return -1;
+    int val = -1;
+    if (CFGetTypeID(ref) == CFNumberGetTypeID()) {
+        CFNumberGetValue(static_cast<CFNumberRef>(ref), kCFNumberIntType, &val);
+    }
+    CFRelease(ref);
+    return val;
+}
+
+// Walk up the IOKit registry from a serial service to find the USB device ancestor
+// and extract VID/PID
+static bool getUSBVidPid(io_object_t serialService, std::string &vid, std::string &pid) {
+    io_object_t parent = 0;
+    io_object_t current = serialService;
+    IOObjectRetain(current);
+
+    while (IORegistryEntryGetParentEntry(current, kIOServicePlane, &parent) == KERN_SUCCESS) {
+        IOObjectRelease(current);
+        current = parent;
+
+        int vendorId = getCFNumberProperty(current, CFSTR("idVendor"));
+        int productId = getCFNumberProperty(current, CFSTR("idProduct"));
+        if (vendorId >= 0 && productId >= 0) {
+            char buf[8];
+            snprintf(buf, sizeof(buf), "%04X", vendorId);
+            vid = buf;
+            snprintf(buf, sizeof(buf), "%04X", productId);
+            pid = buf;
+            IOObjectRelease(current);
+            return true;
+        }
+    }
+    IOObjectRelease(current);
+    return false;
+}
+#endif // __APPLE__
+#endif // _WIN32
 } // namespace
 
 SerialController::~SerialController() {
@@ -99,7 +227,7 @@ bool SerialController::connect(const std::string &portPath, int baud, std::strin
     m_state.lastBaudRate = baud;
 
 #ifdef _WIN32
-    std::string normalized = normalizeWindowsComPath(portPath);
+    std::string normalized = normalizePortPath(portPath);
     HANDLE h = CreateFileA(
         normalized.c_str(),
         GENERIC_READ | GENERIC_WRITE,
@@ -142,11 +270,45 @@ bool SerialController::connect(const std::string &portPath, int baud, std::strin
     LOG(INFO) << "Serial connected: " << portPath << " @" << baud;
     return true;
 #else
-    (void)portPath; (void)baud; (void)errorOut;
-    m_state.isConnected = false;
-    m_state.lastError = "Serial not supported on this platform";
-    if (errorOut) *errorOut = m_state.lastError;
-    return false;
+    int fd = open(portPath.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK);
+    if (fd < 0) {
+        m_state.isConnected = false;
+        m_state.portPath.clear();
+        m_state.baudRate = baud;
+        m_state.lastError = std::string("Failed to open port: ") + strerror(errno);
+        if (errorOut) *errorOut = m_state.lastError;
+        return false;
+    }
+
+    // Clear O_NONBLOCK after open (we opened non-blocking to avoid hanging on DCD)
+    int flags = fcntl(fd, F_GETFL, 0);
+    if (flags >= 0) {
+        fcntl(fd, F_SETFL, flags & ~O_NONBLOCK);
+    }
+
+    // Acquire exclusive lock (like Windows share-mode 0)
+    if (ioctl(fd, TIOCEXCL) != 0) {
+        LOG(WARNING) << "Could not set exclusive mode on " << portPath << ": " << strerror(errno);
+    }
+
+    std::string err;
+    if (!configurePosixPort(fd, baud, &err)) {
+        close(fd);
+        m_state.isConnected = false;
+        m_state.portPath.clear();
+        m_state.baudRate = baud;
+        m_state.lastError = err;
+        if (errorOut) *errorOut = m_state.lastError;
+        return false;
+    }
+
+    m_fd = fd;
+    m_state.isConnected = true;
+    m_state.portPath = portPath;
+    m_state.baudRate = baud;
+    m_state.lastError.clear();
+    LOG(INFO) << "Serial connected: " << portPath << " @" << baud;
+    return true;
 #endif
 }
 
@@ -154,6 +316,11 @@ void SerialController::disconnect() {
 #ifdef _WIN32
     if (m_state.isConnected && m_handle && m_handle != INVALID_HANDLE_VALUE) {
         CloseHandle(reinterpret_cast<HANDLE>(m_handle));
+    }
+#else
+    if (m_state.isConnected && m_fd >= 0) {
+        close(m_fd);
+        m_fd = -1;
     }
 #endif
     m_state.isConnected = false;
@@ -241,14 +408,52 @@ bool SerialController::writeLine(std::string_view asciiNoCR, std::string *errorO
     }
     return true;
 #else
-    (void)asciiNoCR; (void)errorOut;
-    m_state.lastError = "Serial not supported on this platform";
-    if (errorOut) *errorOut = m_state.lastError;
-    return false;
+    std::string withCR;
+    withCR.reserve(asciiNoCR.size() + 1);
+    withCR.append(asciiNoCR.begin(), asciiNoCR.end());
+    withCR.push_back('\r');
+
+    ssize_t written = ::write(m_fd, withCR.data(), withCR.size());
+    if (written < 0) {
+        int e = errno;
+        std::string firstErr = std::string("write failed: ") + strerror(e);
+
+        // If device disappeared, try reconnecting
+        if (e == EIO || e == ENXIO || e == ENODEV) {
+            LOG(WARNING) << "Device appears disconnected (errno " << e << "), attempting reconnection...";
+            disconnect();
+            usleep(500000); // 500ms
+
+            std::string reconnectErr;
+            if (reconnect(&reconnectErr)) {
+                LOG(INFO) << "Reconnected successfully, retrying write...";
+                usleep(100000); // 100ms
+                written = ::write(m_fd, withCR.data(), withCR.size());
+                if (written == static_cast<ssize_t>(withCR.size())) {
+                    LOG(INFO) << "Write succeeded after reconnection";
+                    return true;
+                } else {
+                    LOG(WARNING) << "Write failed even after successful reconnection";
+                }
+            } else {
+                LOG(WARNING) << "Reconnection failed: " << reconnectErr;
+            }
+        }
+
+        m_state.lastError = firstErr;
+        if (errorOut) *errorOut = m_state.lastError;
+        return false;
+    }
+    if (static_cast<size_t>(written) != withCR.size()) {
+        m_state.lastError = "Partial write: " + std::to_string(written) + "/" + std::to_string(withCR.size()) + " bytes";
+        if (errorOut) *errorOut = m_state.lastError;
+        return false;
+    }
+    return true;
 #endif
 }
 
-std::string SerialController::normalizeWindowsComPath(const std::string &portPath) const {
+std::string SerialController::normalizePortPath(const std::string &portPath) const {
 #ifdef _WIN32
     if (portPath.rfind("\\\\.\\", 0) == 0) {
         return portPath; // already normalized
@@ -324,8 +529,54 @@ std::vector<SerialController::PortInfo> SerialController::listPorts(std::string 
 
     SetupDiDestroyDeviceInfoList(hDevInfo);
     return result;
+#elif defined(__APPLE__)
+    // Use IOKit to enumerate serial ports with USB VID/PID info
+    CFMutableDictionaryRef matchDict = IOServiceMatching(kIOSerialBSDServiceValue);
+    if (!matchDict) {
+        if (errorOut) *errorOut = "IOServiceMatching failed";
+        return result;
+    }
+    CFDictionarySetValue(matchDict, CFSTR(kIOSerialBSDTypeKey), CFSTR(kIOSerialBSDAllTypes));
+
+    io_iterator_t iter = 0;
+    kern_return_t kr = IOServiceGetMatchingServices(kIOMainPortDefault, matchDict, &iter);
+    if (kr != KERN_SUCCESS) {
+        if (errorOut) *errorOut = "IOServiceGetMatchingServices failed";
+        return result;
+    }
+
+    io_object_t service;
+    while ((service = IOIteratorNext(iter)) != 0) {
+        PortInfo info;
+        info.path = getCFStringProperty(service, CFSTR(kIOCalloutDeviceKey));
+        info.friendlyName = getCFStringProperty(service, CFSTR(kIOTTYDeviceKey));
+        getUSBVidPid(service, info.vendorId, info.productId);
+        if (!info.path.empty()) {
+            result.push_back(std::move(info));
+        }
+        IOObjectRelease(service);
+    }
+    IOObjectRelease(iter);
+    return result;
 #else
-    if (errorOut) *errorOut = "Not supported";
+    // Linux: enumerate /dev/ttyUSB* and /dev/ttyACM*
+    // Basic enumeration without VID/PID (would need udev for that)
+    DIR *dir = opendir("/dev");
+    if (!dir) {
+        if (errorOut) *errorOut = "Cannot open /dev";
+        return result;
+    }
+    struct dirent *ent;
+    while ((ent = readdir(dir)) != nullptr) {
+        std::string name = ent->d_name;
+        if (name.find("ttyUSB") == 0 || name.find("ttyACM") == 0) {
+            PortInfo info;
+            info.path = "/dev/" + name;
+            info.friendlyName = name;
+            result.push_back(std::move(info));
+        }
+    }
+    closedir(dir);
     return result;
 #endif
 }
@@ -336,7 +587,6 @@ bool SerialController::autoConnect(std::string *chosenPortOut, int baud, std::st
 
 bool SerialController::autoConnectByVidPid(const std::string &vendorIdUpper, const std::string &productIdUpper,
                                            std::string *chosenPortOut, int baud, std::string *errorOut) {
-#ifdef _WIN32
     std::string err;
     auto ports = listPorts(&err);
     if (!err.empty() && ports.empty()) {
@@ -357,11 +607,4 @@ bool SerialController::autoConnectByVidPid(const std::string &vendorIdUpper, con
     }
     if (errorOut) *errorOut = "No matching device found";
     return false;
-#else
-    (void)vendorIdUpper; (void)productIdUpper; (void)chosenPortOut; (void)baud;
-    if (errorOut) *errorOut = "Not supported";
-    return false;
-#endif
 }
-
-

@@ -3,7 +3,7 @@
 #include <glad/glad.h>
 #include <unordered_map>
 #include <vector>
-#include "core/core.h"
+#include "core/Core.h"
 
 class BitmapRenderer
 {

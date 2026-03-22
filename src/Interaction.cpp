@@ -2,7 +2,7 @@
 
 #include "Page.h"
 #include "Camera.h"
-#include "core/core.h"
+#include "core/Core.h"
 #include <glog/logging.h>
 #include <cmath>
 

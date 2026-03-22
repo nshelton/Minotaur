@@ -5,8 +5,14 @@
 #include <vector>
 #include <cctype>
 #include <cstring>
-#include <windows.h>
-#include <wincodec.h>
+
+#ifdef _WIN32
+#  include <windows.h>
+#  include <wincodec.h>
+#else
+#  define STB_IMAGE_IMPLEMENTATION
+#  include "stb_image.h"
+#endif
 
 namespace ImageLoader
 {
@@ -26,6 +32,24 @@ namespace ImageLoader
             std::memcpy(bottomRow, temp.data(), rowSize);
         }
     }
+
+    // Flip an RGB (3 bytes/pixel) image vertically in-place
+    static void flipVerticalRGB(std::vector<unsigned char> &data, size_t width, size_t height)
+    {
+        if (width == 0 || height == 0) return;
+        const size_t rowSize = width * 3;
+        std::vector<unsigned char> temp;
+        temp.resize(rowSize);
+        for (size_t yTop = 0, yBottom = height - 1; yTop < yBottom; ++yTop, --yBottom)
+        {
+            unsigned char *topRow = data.data() + yTop * rowSize;
+            unsigned char *bottomRow = data.data() + yBottom * rowSize;
+            std::memcpy(temp.data(), topRow, rowSize);
+            std::memcpy(topRow, bottomRow, rowSize);
+            std::memcpy(bottomRow, temp.data(), rowSize);
+        }
+    }
+
     // Simple PGM (P5 binary) parser. Ignores comments and supports maxval up to 65535.
     static bool readToken(std::istream &is, std::string &tok)
     {
@@ -138,6 +162,11 @@ namespace ImageLoader
         out.pixels = std::move(data);
         return true;
     }
+
+#ifdef _WIN32
+    // ========================================================================
+    // Windows WIC implementation
+    // ========================================================================
 
     // Helper: UTF-8 to UTF-16
     static std::wstring utf8ToWide(const std::string &s)
@@ -445,4 +474,61 @@ namespace ImageLoader
             CoUninitialize();
         return true;
     }
+
+#else
+    // ========================================================================
+    // Non-Windows (macOS/Linux) stb_image implementation
+    // ========================================================================
+
+    bool loadImage(const std::string &filePath, Bitmap &out, std::string *errorOut, float pixel_size_mm)
+    {
+        int w = 0, h = 0, channels = 0;
+        // Request 1 channel (grayscale) — stb_image will convert automatically
+        unsigned char *data = stbi_load(filePath.c_str(), &w, &h, &channels, 1);
+        if (!data)
+        {
+            if (errorOut)
+                *errorOut = std::string("Failed to load image: ") + stbi_failure_reason();
+            return false;
+        }
+
+        std::vector<unsigned char> pixels(data, data + static_cast<size_t>(w) * static_cast<size_t>(h));
+        stbi_image_free(data);
+
+        // Flip to bottom-to-top orientation for consistent geometry mapping
+        flipVertical(pixels, static_cast<size_t>(w), static_cast<size_t>(h));
+
+        out.width_px = w;
+        out.height_px = h;
+        out.pixel_size_mm = pixel_size_mm;
+        out.pixels = std::move(pixels);
+        return true;
+    }
+
+    bool loadColorImage(const std::string &filePath, ColorImage &out, std::string *errorOut, float pixel_size_mm)
+    {
+        int w = 0, h = 0, channels = 0;
+        // Request 3 channels (RGB) — stb_image will convert automatically
+        unsigned char *data = stbi_load(filePath.c_str(), &w, &h, &channels, 3);
+        if (!data)
+        {
+            if (errorOut)
+                *errorOut = std::string("Failed to load image: ") + stbi_failure_reason();
+            return false;
+        }
+
+        std::vector<unsigned char> pixels(data, data + static_cast<size_t>(w) * static_cast<size_t>(h) * 3);
+        stbi_image_free(data);
+
+        // Flip to bottom-to-top orientation for consistent geometry mapping
+        flipVerticalRGB(pixels, static_cast<size_t>(w), static_cast<size_t>(h));
+
+        out.width_px = w;
+        out.height_px = h;
+        out.pixel_size_mm = pixel_size_mm;
+        out.pixels = std::move(pixels);
+        return true;
+    }
+
+#endif // _WIN32
 }

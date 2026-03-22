@@ -46,8 +46,8 @@ void generateRandomPointCloudRanges(
     pc.pts.resize(N);
     for (size_t i = 0; i < N; i++)
     {
-        pc.pts[i].x = max_range_x * (rand() % 1000) / T(1000);
-        pc.pts[i].y = max_range_y * (rand() % 1000) / T(1000);
+        pc.pts[i].x = max_range_x * (rand() % 1000) / 1000.0f;
+        pc.pts[i].y = max_range_y * (rand() % 1000) / 1000.0f;
     }
 }
 

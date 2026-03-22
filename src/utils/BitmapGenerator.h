@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/core.h"
+#include "core/Core.h"
 
 namespace BitmapGenerator
 {

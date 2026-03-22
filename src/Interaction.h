@@ -1,7 +1,7 @@
 #pragma once
 
 #include <optional>
-#include "core/core.h"
+#include "core/Core.h"
 #include "Camera.h"
 #include "Page.h"
 

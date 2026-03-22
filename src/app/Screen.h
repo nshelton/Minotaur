@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 class App;
-#include "core/core.h"
+#include "core/Core.h"
 
 class IScreen {
 public:

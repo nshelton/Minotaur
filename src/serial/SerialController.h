@@ -4,7 +4,7 @@
 #include <string_view>
 #include <vector>
 
-// Windows-only minimal serial controller for COM ports.
+// Cross-platform serial controller for COM ports (Windows) and /dev/cu.* (macOS/Linux).
 // Provides connect/disconnect and simple line-based write (appends CR).
 class SerialController {
 public:
@@ -30,7 +30,8 @@ public:
     SerialController() = default;
     ~SerialController();
 
-    // Connect to a COM port (e.g., "COM3"). Returns true on success.
+    // Connect to a serial port (e.g., "COM3" on Windows, "/dev/cu.usbmodem11101" on macOS).
+    // Returns true on success.
     bool connect(const std::string &portPath, int baud = 115200, std::string *errorOut = nullptr);
 
     // Disconnect if connected (preserves last port info for reconnection).
@@ -59,12 +60,14 @@ public:
                              std::string *chosenPortOut = nullptr, int baud = 115200, std::string *errorOut = nullptr);
 
 private:
-    std::string normalizeWindowsComPath(const std::string &portPath) const;
+    std::string normalizePortPath(const std::string &portPath) const;
 
     SerialState m_state{};
 
 #ifdef _WIN32
     void *m_handle{reinterpret_cast<void *>(-1)}; // HANDLE without including windows.h in header
+#else
+    int m_fd{-1}; // POSIX file descriptor
 #endif
 };
 

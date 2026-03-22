@@ -1,7 +1,7 @@
 #pragma once
 
 #include <map>
-#include "core/core.h"
+#include "core/Core.h"
 
 struct PageModel
 {

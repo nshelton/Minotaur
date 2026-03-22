@@ -2,7 +2,7 @@
 
 #include <glad/glad.h>
 #include <vector>
-#include "core/core.h"
+#include "core/Core.h"
 
 class LineRenderer {
 public:

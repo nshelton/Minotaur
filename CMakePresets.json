@@ -14,6 +14,17 @@
                 "CMAKE_CXX_STANDARD": "17",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
             }
+        },
+        {
+            "name": "macos-vcpkg",
+            "binaryDir": "${sourceDir}/build",
+            "generator": "Ninja",
+            "cacheVariables": {
+                "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+                "VCPKG_TARGET_TRIPLET": "arm64-osx",
+                "CMAKE_CXX_STANDARD": "17",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+            }
         }
     ],
     "buildPresets": [
@@ -28,6 +39,18 @@
             "displayName": "msvc-vcpkg debug",
             "configuration": "Debug",
             "configurePreset": "msvc-vcpkg"
+        },
+        {
+            "name": "macos-release",
+            "configurePreset": "macos-vcpkg",
+            "configuration": "Release"
+        },
+        {
+            "name": "macos-debug",
+            "description": "debug",
+            "displayName": "macos debug",
+            "configuration": "Debug",
+            "configurePreset": "macos-vcpkg"
         }
     ]
 }

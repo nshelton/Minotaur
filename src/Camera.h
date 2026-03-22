@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include <glad/glad.h>
-#include <core/core.h>
+#include <core/Core.h>
 #include <cmath>
 
 class Camera

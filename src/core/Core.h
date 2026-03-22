@@ -7,4 +7,4 @@
 #include "core/Bitmap.h"
 #include "core/FloatImage.h"
 #include "core/ColorImage.h"
-#include "core/Entity.h"
+#include "core/entity.h"

@@ -3,7 +3,9 @@
 #if defined(_MSC_VER)
   #include <intrin.h>
 #endif
-#include <emmintrin.h> // SSE2
+#if defined(__SSE2__) || defined(_M_X64) || (defined(_M_IX86_FP) && _M_IX86_FP >= 2)
+  #include <emmintrin.h> // SSE2
+#endif
 
 void ThresholdFilter::applyTyped(const Bitmap &in, Bitmap &out) const
 {
