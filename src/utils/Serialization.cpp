@@ -233,7 +233,11 @@ static void to_json(json &j, const Entity &e)
         // Generic parameters from FilterBase map (e.g., Threshold)
         for (const auto &kv : fb->m_parameters)
         {
-            params[kv.first] = kv.second.value;
+            json pj;
+            pj["value"] = kv.second.value;
+            if (kv.second.type != FilterParameter::Float)
+                pj["param_type"] = static_cast<int>(kv.second.type);
+            params[kv.first] = std::move(pj);
         }
 
         jf["params"] = std::move(params);
@@ -399,7 +403,15 @@ namespace serialization
                         for (auto it = params.begin(); it != params.end(); ++it)
                         {
                             if (it.value().is_number())
+                            {
+                                // Legacy format: bare float value
                                 f->setParameter(it.key(), it.value().get<float>());
+                            }
+                            else if (it.value().is_object() && it.value().contains("value"))
+                            {
+                                // New format: {value, param_type}
+                                f->setParameter(it.key(), it.value()["value"].get<float>());
+                            }
                         }
                     }
 

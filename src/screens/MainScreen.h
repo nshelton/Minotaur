@@ -13,6 +13,9 @@
 class MainScreen : public IScreen
 {
 public:
+    explicit MainScreen(const std::string &projectPath = "page.json")
+        : m_projectPath(projectPath) {}
+
     void onAttach(App &app) override;
     void onResize(int width, int height) override;
     void onUpdate(double dt) override;
@@ -42,4 +45,7 @@ private:
 
     // Plot progress visualization
     bool m_showPlotProgress{false};
+
+    // Project file path
+    std::string m_projectPath;
 };

@@ -2,6 +2,7 @@
 #include "utils/PathSetGenerator.h"
 #include "utils/BitmapGenerator.h"
 #include <string>
+#include <cmath>
 #include <fmt/format.h>
 #include <ctime>
 #include "filters/FilterChain.h"
@@ -460,10 +461,61 @@ void MainScreen::onGui()
                     {
                         std::string label = fmt::format("{}###param:{}:{}", param.name, paramKey, i);
 
-                        float val = param.value;
-                        if (ImGui::SliderFloat(label.c_str(), &val, param.minValue, param.maxValue))
+                        switch (param.type)
                         {
-                            f->setParameter(paramKey, val);
+                        case FilterParameter::Int:
+                        {
+                            int ival = static_cast<int>(std::lround(param.value));
+                            if (ImGui::SliderInt(label.c_str(), &ival,
+                                                 static_cast<int>(param.minValue),
+                                                 static_cast<int>(param.maxValue)))
+                            {
+                                f->setParameter(paramKey, static_cast<float>(ival));
+                            }
+                            break;
+                        }
+                        case FilterParameter::Bool:
+                        {
+                            bool bval = param.value > 0.5f;
+                            if (ImGui::Checkbox(label.c_str(), &bval))
+                            {
+                                f->setParameter(paramKey, bval ? 1.0f : 0.0f);
+                            }
+                            break;
+                        }
+                        case FilterParameter::Enum:
+                        {
+                            int cur = static_cast<int>(std::lround(param.value));
+                            if (!param.enumLabels.empty())
+                            {
+                                if (ImGui::BeginCombo(label.c_str(),
+                                    (cur >= 0 && cur < static_cast<int>(param.enumLabels.size()))
+                                        ? param.enumLabels[cur].c_str() : "?"))
+                                {
+                                    for (int ei = 0; ei < static_cast<int>(param.enumLabels.size()); ++ei)
+                                    {
+                                        bool selected = (ei == cur);
+                                        if (ImGui::Selectable(param.enumLabels[ei].c_str(), selected))
+                                        {
+                                            f->setParameter(paramKey, static_cast<float>(ei));
+                                        }
+                                        if (selected) ImGui::SetItemDefaultFocus();
+                                    }
+                                    ImGui::EndCombo();
+                                }
+                            }
+                            break;
+                        }
+                        case FilterParameter::Float:
+                        default:
+                        {
+                            float val = param.value;
+                            if (ImGui::SliderFloat(label.c_str(), &val, param.minValue, param.maxValue))
+                            {
+                                f->setParameter(paramKey, val);
+                            }
+                            break;
+                        }
                         }
                     }
 

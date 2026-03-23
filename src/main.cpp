@@ -4,10 +4,11 @@
 #include "screens/MainScreen.h"
 #include "filters/FilterRegistry.h"
 
-int main() {
+int main(int argc, char *argv[]) {
     FilterRegistry::initDefaults();
     App app(2200, 1600, "Minotaur");
-    MainScreen screen;
+    std::string projectPath = (argc > 1) ? argv[1] : "page.json";
+    MainScreen screen(projectPath);
     app.run(screen);
     return 0;
 }

@@ -13,10 +13,13 @@
 
 struct FilterParameter
 {
+    enum Type { Float, Int, Bool, Enum };
     std::string name;
     float minValue{0.0f};
     float maxValue{1.0f};
     float value{0.5f};
+    Type type{Float};
+    std::vector<std::string> enumLabels;  // only used when type == Enum
 };
 
 // Base interface for all filters

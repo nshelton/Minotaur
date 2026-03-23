@@ -9,10 +9,7 @@ struct BlurFilter : public FilterTyped<Bitmap, Bitmap>
     BlurFilter()
     {
         m_parameters["radius"] = FilterParameter{
-            "radius",
-            0.0f,
-            10.0f,
-            2.0f};
+            "radius", 0.0f, 10.0f, 2.0f, FilterParameter::Int};
     }
 
     const char *name() const override { return "Blur"; }

@@ -19,7 +19,7 @@ void MainScreen::onAttach(App &app)
     // Seed plotter config from current AxiDraw state before attempting to load
     m_plotter.penUpPos = m_axState.penUpPos;
     m_plotter.penDownPos = m_axState.penDownPos;
-    if (!serialization::loadProject(m_page, m_camera, m_renderer, m_plotter, "page.json", &err))
+    if (!serialization::loadProject(m_page, m_camera, m_renderer, m_plotter, m_projectPath, &err))
     {
         if (!err.empty())
         {
@@ -123,7 +123,7 @@ void MainScreen::onDetach()
     // Keep pen positions in sync with the last known AxiDraw state
     m_plotter.penUpPos = m_axState.penUpPos;
     m_plotter.penDownPos = m_axState.penDownPos;
-    if (!serialization::saveProject(m_page, m_camera, m_renderer, m_plotter, "page.json", &err))
+    if (!serialization::saveProject(m_page, m_camera, m_renderer, m_plotter, m_projectPath, &err))
     {
         LOG(ERROR) << "Failed to save page.json: " << err;
     }

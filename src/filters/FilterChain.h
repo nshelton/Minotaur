@@ -83,7 +83,7 @@ public:
 
     size_t size() const { return m_filters.size(); }
 
-    const LayerPtr &output()
+    const LayerPtr &output() const
     {
         if (m_filters.empty())
             return m_base;
@@ -222,7 +222,7 @@ public:
     {
         return canRemoveFilterAtIndex(index);
     }
-    const LayerPtr &evaluate(size_t i)
+    const LayerPtr &evaluate(size_t i) const
     {
         assert(i < m_filters.size());
         // Ensure upstream is evaluated so its cache.data is valid
@@ -282,8 +282,8 @@ public:
     }
 
     std::vector<std::unique_ptr<FilterBase>> m_filters;
-    std::vector<LayerCache> m_layers;
+    mutable std::vector<LayerCache> m_layers;
     std::vector<bool> m_enabled;
     LayerPtr m_base;
-    uint64_t m_baseGen{0};
+    mutable uint64_t m_baseGen{0};
 };

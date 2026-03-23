@@ -7,22 +7,13 @@ struct LevelsFilter : public FilterTyped<Bitmap, Bitmap>
     LevelsFilter()
     {
         m_parameters["bias"] = FilterParameter{
-            "Bias",
-            -1.0f,
-            1.0f,
-            0.0f
+            "Bias", -1.0f, 1.0f, 0.0f
         };
         m_parameters["gain"] = FilterParameter{
-            "Gain",
-            0.0f,
-            4.0f,
-            1.0f
+            "Gain", 0.0f, 4.0f, 1.0f
         };
         m_parameters["invert"] = FilterParameter{
-            "Invert (>=0.5 on)",
-            0.0f,
-            1.0f,
-            0.0f
+            "Invert", 0.0f, 1.0f, 0.0f, FilterParameter::Bool
         };
     }
 

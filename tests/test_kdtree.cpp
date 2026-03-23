@@ -1,168 +1,121 @@
 #include <gtest/gtest.h>
 
 #include <cstdlib>
-#include <ctime>
-#include <iostream>
-#include "../src/utils/nanoflann.hpp"
-#include "../src/core/Vec2.h"
-#include <type_traits>
+#include <cmath>
+#include <vector>
+#include "../src/utils/KdTree2D.h"
 
-
-struct PointCloud
+TEST(KdTree2D, InsertAndNearest)
 {
-    using coord_t = float;
+	KdTree2D tree;
+	tree.insert(Vec2(1.0f, 1.0f), 0);
+	tree.insert(Vec2(5.0f, 5.0f), 1);
+	tree.insert(Vec2(9.0f, 9.0f), 2);
 
-    std::vector<Vec2> pts;
-
-    // Must return the number of data points
-    inline size_t kdtree_get_point_count() const { return pts.size(); }
-
-    // Returns the dim'th component of the idx'th point in the class:
-    // Since this is inlined and the "dim" argument is typically an immediate
-    // value, the
-    //  "if/else's" are actually solved at compile time.
-    inline float kdtree_get_pt(const size_t idx, const size_t dim) const
-    {
-        if (dim == 0)
-            return pts[idx].x;
-        else
-            return pts[idx].y;
-    }
-
-    // Optional bounding-box computation: return false to default to a standard
-    // bbox computation loop.
-    //   Return true if the BBOX was already computed by the class and returned
-    //   in "bb" so it can be avoided to redo it again. Look at bb.size() to
-    //   find out the expected dimensionality (e.g. 2 or 3 for point clouds)
-    template <class BBOX>
-    bool kdtree_get_bbox(BBOX& /* bb */) const  { return false;}
-};
-
- 
-void generateRandomPointCloudRanges(
-    PointCloud& pc, const size_t N, const float max_range_x, const float max_range_y)
-{
-    // Generating Random Point Cloud
-    pc.pts.resize(N);
-    for (size_t i = 0; i < N; i++)
-    {
-        pc.pts[i].x = max_range_x * (rand() % 1000) / 1000.0f;
-        pc.pts[i].y = max_range_y * (rand() % 1000) / 1000.0f;
-    }
+	auto [key, dist2] = tree.nearest(Vec2(1.1f, 1.1f));
+	EXPECT_EQ(key, 0);
+	EXPECT_LT(dist2, 0.1f);
 }
 
-template <typename T>
-void generateRandomPointCloud(
-    PointCloud& pc, const size_t N, const float max_range = 10)
+TEST(KdTree2D, NearestAmongMany)
 {
-    generateRandomPointCloudRanges(pc, N, max_range, max_range);
+	KdTree2D tree;
+	// Insert a grid of points
+	int id = 0;
+	for (int x = 0; x < 10; ++x)
+	{
+		for (int y = 0; y < 10; ++y)
+		{
+			tree.insert(Vec2(static_cast<float>(x), static_cast<float>(y)), id++);
+		}
+	}
+
+	// Query near (3.1, 7.2) — nearest should be (3, 7) which is id = 3*10 + 7 = 37
+	auto [key, dist2] = tree.nearest(Vec2(3.1f, 7.2f));
+	EXPECT_EQ(key, 37);
+	EXPECT_LT(dist2, 0.1f);
 }
 
-
-inline void dump_mem_usage()
+TEST(KdTree2D, Remove)
 {
-    FILE* f = fopen("/proc/self/statm", "rt");
-    if (!f) return;
-    char   str[300];
-    size_t n = fread(str, 1, 200, f);
-    str[n]   = 0;
-    printf("MEM: %s\n", str);
-    fclose(f);
+	KdTree2D tree;
+	tree.insert(Vec2(0.0f, 0.0f), 0);
+	tree.insert(Vec2(10.0f, 10.0f), 1);
+	tree.insert(Vec2(5.0f, 5.0f), 2);
+
+	// Nearest to origin is key 0
+	auto [key1, d1] = tree.nearest(Vec2(0.1f, 0.1f));
+	EXPECT_EQ(key1, 0);
+
+	// Remove key 0, nearest to origin should now be key 2
+	EXPECT_TRUE(tree.remove(0));
+	auto [key2, d2] = tree.nearest(Vec2(0.1f, 0.1f));
+	EXPECT_EQ(key2, 2);
 }
 
-void kdtree_demo(const size_t N)
+TEST(KdTree2D, RemoveNonexistent)
 {
-    PointCloud cloud;
-
-    // construct a kd-tree index:
-    using my_kd_tree_t = nanoflann::KDTreeSingleIndexDynamicAdaptor<
-        nanoflann::L2_Simple_Adaptor<float, PointCloud>,
-        PointCloud, 2 /* dim */
-        >;
-
-    dump_mem_usage();
-
-    my_kd_tree_t index(3 /*dim*/, cloud, {10 /* max leaf */});
-
-
-    float query_pt[3] = {0.5, 0.5};
-
-    // add points in chunks at a time
-    size_t chunk_size = 100;
-    for (size_t i = 0; i < N; i = i + chunk_size)
-    {
-        size_t end = std::min<size_t>(i + chunk_size, N - 1);
-        // Inserts all points from [i, end]
-        index.addPoints(i, end);
-    }
-
-    // remove a point
-    size_t removePointIndex = N - 1;
-    index.removePoint(removePointIndex);
-
-    dump_mem_usage();
-    {
-        std::cout << "Searching for 1 element..." << std::endl;
-        // do a knn search
-        const size_t num_results = 1;
-        size_t ret_index;
-        float out_dist_sqr;
-        nanoflann::KNNResultSet<float> resultSet(num_results);
-        resultSet.init(&ret_index, &out_dist_sqr);
-        index.findNeighbors(resultSet, query_pt, {10});
-
-        std::cout << "knnSearch(nn=" << num_results << "): \n";
-        std::cout << "ret_index=" << ret_index
-                  << " out_dist_sqr=" << out_dist_sqr << std::endl;
-        std::cout << "point: ("
-                  << "point: (" << cloud.pts[ret_index].x << ", "
-                  << cloud.pts[ret_index].y << ")" << std::endl;
-        std::cout << std::endl;
-    }
-    {
-        // do a knn search searching for more than one result
-        const size_t num_results = 5;
-        std::cout << "Searching for " << num_results << " elements"
-                  << std::endl;
-        size_t ret_index[num_results];
-        float out_dist_sqr[num_results];
-        nanoflann::KNNResultSet<float> resultSet(num_results);
-        resultSet.init(ret_index, out_dist_sqr);
-        index.findNeighbors(resultSet, query_pt);
-
-        std::cout << "knnSearch(nn=" << num_results << "): \n";
-        std::cout << "Results: " << std::endl;
-        for (size_t i = 0; i < resultSet.size(); ++i)
-        {
-            std::cout << "#" << i << ",\t"
-                      << "index: " << ret_index[i] << ",\t"
-                      << "dist: " << out_dist_sqr[i] << ",\t"
-                      << "point: (" << cloud.pts[ret_index[i]].x << ", "
-                      << cloud.pts[ret_index[i]].y <<  ")" << std::endl;
-        }
-        std::cout << std::endl;
-    }
-    {
-        // Unsorted radius search:
-        std::cout << "Unsorted radius search" << std::endl;
-        const float radiusSqr = 1;
-        std::vector<nanoflann::ResultItem<size_t, float>> indices_dists;
-        nanoflann::RadiusResultSet<float, size_t> resultSet(
-            radiusSqr, indices_dists);
-
-        index.findNeighbors(resultSet, query_pt);
-
-        nanoflann::ResultItem<size_t, float> worst_pair =
-            resultSet.worst_item();
-        std::cout << "Worst pair: idx=" << worst_pair.first
-                  << " dist=" << worst_pair.second << std::endl;
-        std::cout << "point: (" << cloud.pts[worst_pair.first].x << ", "
-                  << cloud.pts[worst_pair.first].y << ")" << std::endl;
-        std::cout << std::endl;
-    }
+	KdTree2D tree;
+	tree.insert(Vec2(1.0f, 1.0f), 0);
+	EXPECT_FALSE(tree.remove(99));
 }
 
-TEST(kdtree, Basic)
+TEST(KdTree2D, EmptyTree)
 {
-    kdtree_demo(1000000);
+	KdTree2D tree;
+	auto [key, dist2] = tree.nearest(Vec2(0.0f, 0.0f));
+	EXPECT_EQ(key, -1);
+	EXPECT_TRUE(std::isinf(dist2));
+}
+
+TEST(KdTree2D, Clear)
+{
+	KdTree2D tree;
+	tree.insert(Vec2(1.0f, 1.0f), 0);
+	tree.insert(Vec2(2.0f, 2.0f), 1);
+	tree.clear();
+
+	auto [key, dist2] = tree.nearest(Vec2(1.0f, 1.0f));
+	EXPECT_EQ(key, -1);
+}
+
+TEST(KdTree2D, ManyRandomPoints)
+{
+	KdTree2D tree;
+	std::srand(42);
+	const int N = 1000;
+	std::vector<Vec2> points(N);
+
+	for (int i = 0; i < N; ++i)
+	{
+		points[i] = Vec2(
+			10.0f * static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX),
+			10.0f * static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX));
+		tree.insert(points[i], i);
+	}
+
+	// Verify nearest by brute force for several queries
+	Vec2 queries[] = {Vec2(5.0f, 5.0f), Vec2(0.0f, 0.0f), Vec2(10.0f, 10.0f), Vec2(3.7f, 8.2f)};
+	for (const auto &q : queries)
+	{
+		auto [treeKey, treeDist2] = tree.nearest(q);
+
+		// Brute force
+		int bestKey = -1;
+		float bestD2 = std::numeric_limits<float>::infinity();
+		for (int i = 0; i < N; ++i)
+		{
+			float dx = points[i].x - q.x;
+			float dy = points[i].y - q.y;
+			float d2 = dx * dx + dy * dy;
+			if (d2 < bestD2)
+			{
+				bestD2 = d2;
+				bestKey = i;
+			}
+		}
+
+		EXPECT_EQ(treeKey, bestKey) << "Query: (" << q.x << ", " << q.y << ")";
+		EXPECT_NEAR(treeDist2, bestD2, 1e-6f);
+	}
 }

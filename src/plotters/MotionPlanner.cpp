@@ -87,10 +87,18 @@ PlanResult planPath(const PlannerSettings &s,
         size_t idxOut = i;
         float dot = segDir[idxIn].x * segDir[idxOut].x + segDir[idxIn].y * segDir[idxOut].y;
         dot = clampf(dot, -1.0f, 1.0f);
-        float sinHalf = std::sqrt(std::max(0.0f, 0.5f * (1.0f + dot)));
-        float vMax = speedLimit;
-        if (sinHalf > 1e-6f && sinHalf < (1.0f - 1e-6f) && jd > 0.0f) {
-            float R = jd * sinHalf / (1.0f - sinHalf);
+        // cosHalf = cos(θ/2) where θ is the angle between the two segment directions.
+        // Straight (θ=0): cosHalf=1, Hairpin (θ=π): cosHalf=0.
+        float cosHalf = std::sqrt(std::max(0.0f, 0.5f * (1.0f + dot)));
+        float vMax;
+        if (cosHalf <= 1e-6f) {
+            // Near-reversal: must decelerate to stop
+            vMax = 0.0f;
+        } else if (cosHalf >= (1.0f - 1e-6f) || jd <= 0.0f) {
+            // Near-straight or no junction deviation: no speed reduction
+            vMax = speedLimit;
+        } else {
+            float R = jd * cosHalf / (1.0f - cosHalf);
             vMax = std::sqrt(std::max(0.0f, accel * R));
         }
         // Apply optional floor
