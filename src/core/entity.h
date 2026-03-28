@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <string>
 #include <variant>
 #include "core/Pathset.h"
@@ -7,6 +8,7 @@
 #include "core/FloatImage.h"
 #include "core/ColorImage.h"
 #include "filters/FilterChain.h"
+#include "generators/GeneratorBase.h"
 
 enum class EntityType
 {
@@ -72,6 +74,10 @@ struct Entity
     // Filter chain: transforms from base payload to display/output layer
     FilterChain filterChain;
 
+    // Optional generator that produces the base payload parametrically.
+    // Null for entities loaded from file (static payload).
+    std::unique_ptr<GeneratorBase> generator;
+
     // Helper to package current payload into a LayerPtr
     LayerPtr baseLayer() const
     {
@@ -89,4 +95,33 @@ struct Entity
     {
         filterChain.setBase(baseLayer(), payloadVersion);
     }
+
+    // Call once per frame. If the generator's parameters have changed since the
+    // last call, re-runs generate(), updates payload, and invalidates the filter chain.
+    void tickGenerator()
+    {
+        if (!generator) return;
+        if (generator->paramVersion() == m_lastGenVer) return;
+
+        LayerPtr out;
+        generator->generate(out);
+
+        // Unpack LayerPtr back into the typed payload variant so that
+        // boundsLocal(), type(), and all downstream code remains correct.
+        if (isPathSetLayer(out))
+            payload = *asPathSetPtr(out);
+        else if (isBitmapLayer(out))
+            payload = *asBitmapPtr(out);
+        else if (isFloatImageLayer(out))
+            payload = *asFloatImagePtr(out);
+        else if (isColorImageLayer(out))
+            payload = *asColorImagePtr(out);
+
+        m_lastGenVer = generator->paramVersion();
+        payloadVersion++;
+        refreshFilterBase();
+    }
+
+private:
+    uint64_t m_lastGenVer{0};
 };

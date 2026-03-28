@@ -1,13 +1,12 @@
 #include "MainScreen.h"
-#include "utils/PathSetGenerator.h"
-#include "utils/BitmapGenerator.h"
 #include <string>
 #include <cmath>
 #include <fmt/format.h>
-#include <ctime>
 #include "filters/FilterChain.h"
 #include "filters/FilterRegistry.h"
 #include "filters/Types.h"
+#include "generators/GeneratorRegistry.h"
+#include "generators/pathset/TextGenerator.h"
 #include "core/Theme.h"
 
 void MainScreen::onGui()
@@ -51,62 +50,35 @@ void MainScreen::onGui()
 
         ImGui::Separator();
         ImGui::Text("Add Entities");
-        Vec2 center = Vec2(m_page.page_width_mm, m_page.page_height_mm) * 0.5f;
-        if (ImGui::Button("Add Circle"))
         {
-            auto ps = PathSetGenerator::Circle(center, 50.0f, 96, Color(0.9f, 0.2f, 0.2f, 1.0f));
-            m_page.addPathSet(std::move(ps));
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Add Square"))
-        {
-            auto ps = PathSetGenerator::Square(center, 80.0f, Color(0.2f, 0.7f, 0.9f, 1.0f));
-            m_page.addPathSet(std::move(ps));
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Add Star"))
-        {
-            auto ps = PathSetGenerator::Star(center, 60.0f, 30.0f, 5, Color(0.95f, 0.8f, 0.2f, 1.0f));
-            m_page.addPathSet(std::move(ps));
-        }
-
-        if (ImGui::Button("Add Date/Time Text"))
-        {
-            std::time_t now = std::time(nullptr);
-            std::tm tm{};
-#if defined(_WIN32)
-            localtime_s(&tm, &now);
-#else
-            tm = *std::localtime(&now);
-#endif
-            std::string dt = fmt::format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
-                                         tm.tm_year + 1900,
-                                         tm.tm_mon + 1,
-                                         tm.tm_mday,
-                                         tm.tm_hour,
-                                         tm.tm_min,
-                                         tm.tm_sec);
-
-            auto ps = PathSetGenerator::Text(dt, center, 12.0f, 2.0f, theme::PathsetColor);
-            m_page.addPathSet(std::move(ps));
-        }
-
-        if (ImGui::Button("Add Gradient Bitmap"))
-        {
-            auto bm = BitmapGenerator::Gradient(256, 256, 0.5f);
-            m_page.addBitmap(bm);
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Add Checker Bitmap"))
-        {
-            auto bm = BitmapGenerator::Checkerboard(256, 256, 16, 0.5f);
-            m_page.addBitmap(bm);
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Add Radial Bitmap"))
-        {
-            auto bm = BitmapGenerator::Radial(256, 256, 0.5f);
-            m_page.addBitmap(bm);
+            Vec2 center = Vec2(m_page.page_width_mm, m_page.page_height_mm) * 0.5f;
+            const auto &gens = GeneratorRegistry::instance().all();
+            for (const auto &info : gens)
+            {
+                Color gc = (info.outputKind == LayerKind::PathSet)
+                    ? theme::PathsetColor : theme::BitmapColor;
+                auto toImVec4 = [](const Color &c) { return ImVec4(c.r, c.g, c.b, c.a); };
+                auto lighten  = [](ImVec4 c, float s) {
+                    auto cl = [](float v){ return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); };
+                    c.x = cl(c.x * s); c.y = cl(c.y * s); c.z = cl(c.z * s);
+                    return c;
+                };
+                ImVec4 b  = toImVec4(gc);
+                ImVec4 bh = lighten(b, 1.08f);
+                ImVec4 ba = lighten(b, 1.16f);
+                ImGui::PushStyleColor(ImGuiCol_Button,        b);
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, bh);
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ba);
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 0, 0, 1));
+                std::string label = fmt::format("Add {}", info.name);
+                if (ImGui::Button(label.c_str()))
+                {
+                    m_page.addGeneratedEntity(info.factory(), center);
+                }
+                ImGui::PopStyleColor(4);
+                ImGui::SameLine();
+            }
+            ImGui::NewLine();
         }
 
         ImGui::Separator();
@@ -306,10 +278,101 @@ void MainScreen::onGui()
         {
             Entity &e = m_page.entities.at(selectedId);
             ImGui::Text("Selected Entity: %d", selectedId);
-            // ImGui::Text("Payload Version: %llu", static_cast<unsigned long long>(e.payloadVersion));
             auto kindToString = [](LayerKind k) {
                 return (k == LayerKind::Bitmap) ? "Bitmap" : (k == LayerKind::PathSet ? "PathSet" : "Float");
             };
+
+            // --- Generator panel (shown only for parametric entities) ---
+            if (e.generator)
+            {
+                Color gc = (e.generator->outputKind() == LayerKind::PathSet)
+                    ? theme::PathsetColor : theme::BitmapColor;
+                auto toImVec4g = [](const Color &c) { return ImVec4(c.r, c.g, c.b, c.a); };
+                auto lighten   = [](ImVec4 c, float s) {
+                    auto cl = [](float v){ return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); };
+                    c.x = cl(c.x * s); c.y = cl(c.y * s); c.z = cl(c.z * s);
+                    return c;
+                };
+                ImVec4 hdr  = toImVec4g(gc);
+                ImVec4 hdrH = lighten(hdr, 1.10f);
+                ImVec4 hdrA = lighten(hdr, 1.20f);
+                ImGui::PushStyleColor(ImGuiCol_Header,        hdr);
+                ImGui::PushStyleColor(ImGuiCol_HeaderHovered, hdrH);
+                ImGui::PushStyleColor(ImGuiCol_HeaderActive,  hdrA);
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 0, 0, 1));
+                std::string genHeader = fmt::format("{}  [generator]###genheader", e.generator->name());
+                bool genOpen = ImGui::CollapsingHeader(genHeader.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
+                ImGui::PopStyleColor(4);
+
+                if (genOpen)
+                {
+                    // Text input for TextGenerator
+                    if (auto *tg = dynamic_cast<TextGenerator *>(e.generator.get()))
+                    {
+                        static char textBuf[512];
+                        strncpy(textBuf, tg->text.c_str(), sizeof(textBuf) - 1);
+                        textBuf[sizeof(textBuf) - 1] = '\0';
+                        if (ImGui::InputText("Text###gentext", textBuf, sizeof(textBuf)))
+                            tg->setText(textBuf);
+                    }
+
+                    // Float/Int/Bool/Enum parameters
+                    for (auto &[paramKey, param] : e.generator->m_parameters)
+                    {
+                        std::string label = fmt::format("{}###genparam:{}", param.name, paramKey);
+                        switch (param.type)
+                        {
+                        case FilterParameter::Int:
+                        {
+                            int ival = static_cast<int>(std::lround(param.value));
+                            if (ImGui::SliderInt(label.c_str(), &ival,
+                                                 static_cast<int>(param.minValue),
+                                                 static_cast<int>(param.maxValue)))
+                                e.generator->setParameter(paramKey, static_cast<float>(ival));
+                            break;
+                        }
+                        case FilterParameter::Bool:
+                        {
+                            bool bval = param.value > 0.5f;
+                            if (ImGui::Checkbox(label.c_str(), &bval))
+                                e.generator->setParameter(paramKey, bval ? 1.0f : 0.0f);
+                            break;
+                        }
+                        case FilterParameter::Enum:
+                        {
+                            int cur = static_cast<int>(std::lround(param.value));
+                            if (!param.enumLabels.empty())
+                            {
+                                const char *preview = (cur >= 0 && cur < static_cast<int>(param.enumLabels.size()))
+                                    ? param.enumLabels[cur].c_str() : "?";
+                                if (ImGui::BeginCombo(label.c_str(), preview))
+                                {
+                                    for (int ei = 0; ei < static_cast<int>(param.enumLabels.size()); ++ei)
+                                    {
+                                        bool sel = (ei == cur);
+                                        if (ImGui::Selectable(param.enumLabels[ei].c_str(), sel))
+                                            e.generator->setParameter(paramKey, static_cast<float>(ei));
+                                        if (sel) ImGui::SetItemDefaultFocus();
+                                    }
+                                    ImGui::EndCombo();
+                                }
+                            }
+                            break;
+                        }
+                        case FilterParameter::Float:
+                        default:
+                        {
+                            float val = param.value;
+                            if (ImGui::SliderFloat(label.c_str(), &val, param.minValue, param.maxValue))
+                                e.generator->setParameter(paramKey, val);
+                            break;
+                        }
+                        }
+                    }
+                }
+                ImGui::Separator();
+            }
+
             ImGui::Text("Base Kind: %s", kindToString(e.filterChain.baseKind()));
             // ImGui::Text("Base Gen: %llu", static_cast<unsigned long long>(e.filterChain.baseGen()));
             // ImGui::Separator();

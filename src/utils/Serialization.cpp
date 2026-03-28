@@ -14,6 +14,8 @@
 #include "filters/bitmap/ThresholdFilter.h"
 #include "filters/bitmap/TraceFilter.h"
 #include "filters/pathset/SimplifyFilter.h"
+#include "generators/GeneratorRegistry.h"
+#include "generators/pathset/TextGenerator.h"
 
 #include "Camera.h"
 #include "Renderer.h"
@@ -195,26 +197,56 @@ static void to_json(json &j, const Entity &e)
     j["visible"] = e.visible;
     j["color"] = e.color;
 
-    // Serialize payload based on type
-    if (e.pathset())
+    if (e.generator)
     {
-        j["type"] = "pathset";
-        j["pathset"] = *e.pathset();
+        // Generated entity: store generator info (name + params) only.
+        // Payload is regenerated on load by tickGenerator().
+        json jg;
+        jg["type"] = e.generator->name();
+        // Float parameters
+        json params = json::object();
+        for (const auto &kv : e.generator->m_parameters)
+        {
+            json pj;
+            pj["value"] = kv.second.value;
+            if (kv.second.type != FilterParameter::Float)
+                pj["param_type"] = static_cast<int>(kv.second.type);
+            params[kv.first] = std::move(pj);
+        }
+        jg["params"] = std::move(params);
+        // String attributes (TextGenerator)
+        if (const auto *tg = dynamic_cast<const TextGenerator *>(e.generator.get()))
+            jg["text"] = tg->text;
+        j["generator"] = std::move(jg);
+        // Record the output kind so load code can initialise the payload variant
+        j["type"] = (e.generator->outputKind() == LayerKind::Bitmap)     ? "bitmap"
+                  : (e.generator->outputKind() == LayerKind::FloatImage)  ? "floatimage"
+                  : (e.generator->outputKind() == LayerKind::ColorImage)  ? "colorimage"
+                  : "pathset";
     }
-    else if (e.bitmap())
+    else
     {
-        j["type"] = "bitmap";
-        j["bitmap"] = *e.bitmap();
-    }
-    else if (e.colorImage())
-    {
-        j["type"] = "colorimage";
-        j["colorimage"] = *e.colorImage();
-    }
-    else if (e.floatImage())
-    {
-        j["type"] = "floatimage";
-        j["floatimage"] = *e.floatImage();
+        // Static entity: serialize payload as before
+        if (e.pathset())
+        {
+            j["type"] = "pathset";
+            j["pathset"] = *e.pathset();
+        }
+        else if (e.bitmap())
+        {
+            j["type"] = "bitmap";
+            j["bitmap"] = *e.bitmap();
+        }
+        else if (e.colorImage())
+        {
+            j["type"] = "colorimage";
+            j["colorimage"] = *e.colorImage();
+        }
+        else if (e.floatImage())
+        {
+            j["type"] = "floatimage";
+            j["floatimage"] = *e.floatImage();
+        }
     }
 
     // Serialize filter chain (optional)
@@ -257,27 +289,70 @@ static void from_json(const json &j, Entity &e)
     e.visible = j.value("visible", true);
     e.color = j.value("color", Color{1.0f, 1.0f, 1.0f, 1.0f});
 
-    // Deserialize payload based on type
-    std::string type = j.value("type", std::string("pathset"));
-    if (type == "bitmap" && j.contains("bitmap"))
+    // Restore generator if present
+    if (j.contains("generator") && j["generator"].is_object())
     {
-        e.payload = j.at("bitmap").get<Bitmap>();
-    }
-    else if (type == "colorimage" && j.contains("colorimage"))
-    {
-        e.payload = j.at("colorimage").get<ColorImage>();
-    }
-    else if (type == "floatimage" && j.contains("floatimage"))
-    {
-        e.payload = j.at("floatimage").get<FloatImage>();
+        const json &jg = j["generator"];
+        std::string genType = jg.value("type", std::string{});
+        const auto &allGens = GeneratorRegistry::instance().all();
+        for (const auto &info : allGens)
+        {
+            if (info.name == genType)
+            {
+                e.generator = info.factory();
+                // Restore float parameters
+                if (jg.contains("params") && jg["params"].is_object())
+                {
+                    for (auto it = jg["params"].begin(); it != jg["params"].end(); ++it)
+                    {
+                        if (it.value().is_number())
+                            e.generator->setParameter(it.key(), it.value().get<float>());
+                        else if (it.value().is_object() && it.value().contains("value"))
+                            e.generator->setParameter(it.key(), it.value()["value"].get<float>());
+                    }
+                }
+                // Restore string content for TextGenerator
+                if (auto *tg = dynamic_cast<TextGenerator *>(e.generator.get()))
+                {
+                    if (jg.contains("text"))
+                        tg->setText(jg["text"].get<std::string>());
+                }
+                break;
+            }
+        }
+
+        // Initialise payload variant to match generator output kind
+        std::string type = j.value("type", std::string("pathset"));
+        if (type == "bitmap")           e.payload = Bitmap{};
+        else if (type == "floatimage")  e.payload = FloatImage{};
+        else if (type == "colorimage")  e.payload = ColorImage{};
+        else                            e.payload = PathSet{};
+        // tickGenerator() will be called in loadPageModel after refreshFilterBase()
     }
     else
     {
-        // Default to pathset for backward compatibility
-        if (j.contains("pathset"))
-            e.payload = j.at("pathset").get<PathSet>();
+        // Static entity: deserialize payload as before
+        std::string type = j.value("type", std::string("pathset"));
+        if (type == "bitmap" && j.contains("bitmap"))
+        {
+            e.payload = j.at("bitmap").get<Bitmap>();
+        }
+        else if (type == "colorimage" && j.contains("colorimage"))
+        {
+            e.payload = j.at("colorimage").get<ColorImage>();
+        }
+        else if (type == "floatimage" && j.contains("floatimage"))
+        {
+            e.payload = j.at("floatimage").get<FloatImage>();
+        }
         else
-            e.payload = PathSet{};
+        {
+            // Default to pathset for backward compatibility
+            if (j.contains("pathset"))
+                e.payload = j.at("pathset").get<PathSet>();
+            else
+                e.payload = PathSet{};
+        }
     }
 }
 
@@ -358,6 +433,8 @@ namespace serialization
                 for (const auto &je : j["entities"])
                 {
                     Entity e = je.get<Entity>();
+                    // For generated entities, run the generator to populate the payload
+                    e.tickGenerator();
                     // Ensure filter chain base is set after payload deserialization
                     e.refreshFilterBase();
 
@@ -538,6 +615,7 @@ namespace serialization
                 for (const auto &je : j["entities"])
                 {
                     Entity e = je.get<Entity>();
+                    e.tickGenerator();  // populate payload for generated entities
                     e.refreshFilterBase();
 
                     if (je.contains("filters") && je["filters"].is_array())
