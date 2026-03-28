@@ -80,7 +80,7 @@ void MainScreen::onUpdate(double /*dt*/)
 
 void MainScreen::onRender()
 {
-    m_renderer.render(m_camera, m_page, m_interaction.state());
+    m_renderer.beginFrame(m_camera, m_page, m_interaction.state());
 
     // Render plot progress overlay with 3-color visualization
     if (m_showPlotProgress && m_spooler && m_spooler->isRunning())
@@ -113,6 +113,8 @@ void MainScreen::onRender()
             }
         }
     }
+
+    m_renderer.endFrame(m_camera);
 }
 
 void MainScreen::onDetach()

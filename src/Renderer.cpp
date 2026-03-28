@@ -14,6 +14,12 @@ Renderer::Renderer()
 
 void Renderer::render(const Camera &camera, const PageModel &page, const InteractionState &uiState)
 {
+   beginFrame(camera, page, uiState);
+   endFrame(camera);
+}
+
+void Renderer::beginFrame(const Camera &camera, const PageModel &page, const InteractionState &uiState)
+{
    m_lines.clear();
    m_images.clear();
    m_floatImages.clear();
@@ -159,6 +165,10 @@ void Renderer::render(const Camera &camera, const PageModel &page, const Interac
       }
    }
 
+}
+
+void Renderer::endFrame(const Camera &camera)
+{
    // Draw images first, then overlays/lines on top
    m_images.draw(camera.Transform());
    m_floatImages.draw(camera.Transform());

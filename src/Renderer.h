@@ -25,6 +25,11 @@ public:
 
     void render(const Camera &camera, const PageModel &page, const InteractionState &uiState);
 
+    // Split rendering: beginFrame clears + builds geometry, endFrame draws.
+    // Add overlay lines (via addLine) between these two calls.
+    void beginFrame(const Camera &camera, const PageModel &page, const InteractionState &uiState);
+    void endFrame(const Camera &camera);
+
     void setLineWidth(float w) { m_lines.setLineWidth(w); }
     void setNodeDiameterPx(float d) { m_nodeDiameterPx = d; m_lines.setPointDiameterPx(d); }
     float lineWidth() const { return m_lines.lineWidth(); }
