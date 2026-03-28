@@ -15,7 +15,6 @@
 #include "filters/bitmap/TraceFilter.h"
 #include "filters/pathset/SimplifyFilter.h"
 #include "generators/GeneratorRegistry.h"
-#include "generators/pathset/TextGenerator.h"
 
 #include "Camera.h"
 #include "Renderer.h"
@@ -214,9 +213,14 @@ static void to_json(json &j, const Entity &e)
             params[kv.first] = std::move(pj);
         }
         jg["params"] = std::move(params);
-        // String attributes (TextGenerator)
-        if (const auto *tg = dynamic_cast<const TextGenerator *>(e.generator.get()))
-            jg["text"] = tg->text;
+        // String parameters (first-class on GeneratorBase)
+        if (!e.generator->m_stringParameters.empty())
+        {
+            json sp = json::object();
+            for (const auto &kv : e.generator->m_stringParameters)
+                sp[kv.first] = kv.second;
+            jg["string_params"] = std::move(sp);
+        }
         j["generator"] = std::move(jg);
         // Record the output kind so load code can initialise the payload variant
         j["type"] = (e.generator->outputKind() == LayerKind::Bitmap)     ? "bitmap"
@@ -311,11 +315,14 @@ static void from_json(const json &j, Entity &e)
                             e.generator->setParameter(it.key(), it.value()["value"].get<float>());
                     }
                 }
-                // Restore string content for TextGenerator
-                if (auto *tg = dynamic_cast<TextGenerator *>(e.generator.get()))
+                // Restore string parameters (first-class on GeneratorBase)
+                if (jg.contains("string_params") && jg["string_params"].is_object())
                 {
-                    if (jg.contains("text"))
-                        tg->setText(jg["text"].get<std::string>());
+                    for (auto it = jg["string_params"].begin(); it != jg["string_params"].end(); ++it)
+                    {
+                        if (it.value().is_string())
+                            e.generator->setStringParameter(it.key(), it.value().get<std::string>());
+                    }
                 }
                 break;
             }

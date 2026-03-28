@@ -96,18 +96,51 @@ struct Entity
         filterChain.setBase(baseLayer(), payloadVersion);
     }
 
-    // Call once per frame. If the generator's parameters have changed since the
-    // last call, re-runs generate(), updates payload, and invalidates the filter chain.
+    // Call once per frame.
+    // - Synchronous generators: runs generate() immediately when params are stale.
+    // - Async generators: calls startGenerate() when params are stale, then
+    //   returns. Call pollAsyncGenerator() each frame to check for completion.
     void tickGenerator()
     {
         if (!generator) return;
         if (generator->paramVersion() == m_lastGenVer) return;
 
-        LayerPtr out;
-        generator->generate(out);
+        m_lastGenVer = generator->paramVersion();
 
-        // Unpack LayerPtr back into the typed payload variant so that
-        // boundsLocal(), type(), and all downstream code remains correct.
+        if (generator->isAsync())
+        {
+            generator->startGenerate();
+            // Result will be collected by pollAsyncGenerator() when ready
+        }
+        else
+        {
+            LayerPtr out;
+            generator->generate(out);
+            applyGeneratorResult(out);
+        }
+    }
+
+    // Call once per frame after tickGenerator() for entities with async generators.
+    // When the background job finishes, transfers the result into the payload
+    // and invalidates the filter chain. No-op for synchronous generators.
+    void pollAsyncGenerator()
+    {
+        if (!generator || !generator->isAsync()) return;
+        if (!generator->isReady()) return;
+
+        LayerPtr out;
+        generator->collectResult(out);
+        applyGeneratorResult(out);
+    }
+
+private:
+    uint64_t m_lastGenVer{0};
+
+    // Unpack a completed LayerPtr into the payload variant and refresh the
+    // filter chain. Used by both the sync and async paths.
+    void applyGeneratorResult(const LayerPtr &out)
+    {
+        if (!out) return;
         if (isPathSetLayer(out))
             payload = *asPathSetPtr(out);
         else if (isBitmapLayer(out))
@@ -117,11 +150,7 @@ struct Entity
         else if (isColorImageLayer(out))
             payload = *asColorImagePtr(out);
 
-        m_lastGenVer = generator->paramVersion();
         payloadVersion++;
         refreshFilterBase();
     }
-
-private:
-    uint64_t m_lastGenVer{0};
 };

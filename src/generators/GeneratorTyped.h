@@ -29,13 +29,15 @@ struct GeneratorTyped : public GeneratorBase
 		generateTyped(dst);
 	}
 
-	// Default clone: create a fresh Derived instance and copy all float parameters.
-	// Subclasses with extra state (e.g. a text string) must override clone().
+	// Default clone: copies float parameters and string parameters.
+	// Subclasses with additional state must override clone().
 	std::unique_ptr<GeneratorBase> clone() const override
 	{
 		auto copy = std::make_unique<Derived>();
 		for (const auto &kv : m_parameters)
 			copy->setParameter(kv.first, kv.second.value);
+		for (const auto &kv : m_stringParameters)
+			copy->setStringParameter(kv.first, kv.second);
 		return copy;
 	}
 

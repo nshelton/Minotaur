@@ -6,7 +6,6 @@
 #include "filters/FilterRegistry.h"
 #include "filters/Types.h"
 #include "generators/GeneratorRegistry.h"
-#include "generators/pathset/TextGenerator.h"
 #include "core/Theme.h"
 
 void MainScreen::onGui()
@@ -306,14 +305,25 @@ void MainScreen::onGui()
 
                 if (genOpen)
                 {
-                    // Text input for TextGenerator
-                    if (auto *tg = dynamic_cast<TextGenerator *>(e.generator.get()))
+                    // String parameters (text inputs, file paths, etc.)
+                    for (auto &[paramKey, value] : e.generator->m_stringParameters)
                     {
-                        static char textBuf[512];
-                        strncpy(textBuf, tg->text.c_str(), sizeof(textBuf) - 1);
-                        textBuf[sizeof(textBuf) - 1] = '\0';
-                        if (ImGui::InputText("Text###gentext", textBuf, sizeof(textBuf)))
-                            tg->setText(textBuf);
+                        // Per-entity string buffer stored in a map keyed by entity id + param key
+                        std::string bufKey = fmt::format("{}:{}", selectedId, paramKey);
+                        auto &buf = m_genStringBufs[bufKey];
+                        // Sync buffer from model if it appears out of date
+                        if (buf != value)
+                            buf = value;
+
+                        std::string label = fmt::format("{}###genstr:{}", paramKey, bufKey);
+                        char tmp[1024];
+                        strncpy(tmp, buf.c_str(), sizeof(tmp) - 1);
+                        tmp[sizeof(tmp) - 1] = '\0';
+                        if (ImGui::InputText(label.c_str(), tmp, sizeof(tmp)))
+                        {
+                            buf = tmp;
+                            e.generator->setStringParameter(paramKey, buf);
+                        }
                     }
 
                     // Float/Int/Bool/Enum parameters

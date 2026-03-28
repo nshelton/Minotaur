@@ -46,9 +46,12 @@ void MainScreen::onResize(int width, int height)
 
 void MainScreen::onUpdate(double /*dt*/)
 {
-    // Tick all generators so parametric entities stay up to date
+    // Tick all generators so parametric entities stay up to date.
+    // Two passes: first kick stale generators, then collect any async results.
     for (auto &[id, e] : m_page.entities)
         e.tickGenerator();
+    for (auto &[id, e] : m_page.entities)
+        e.pollAsyncGenerator();
 
     // Handle keyboard-driven actions that should work outside of ImGui widgets
     ImGuiIO &io = ImGui::GetIO();
