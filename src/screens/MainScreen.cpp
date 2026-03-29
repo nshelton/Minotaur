@@ -40,7 +40,6 @@ void MainScreen::onAttach(App &app)
 
 void MainScreen::onResize(int width, int height)
 {
-    m_renderer.setSize(width, height);
     m_camera.setSize(width, height);
 }
 

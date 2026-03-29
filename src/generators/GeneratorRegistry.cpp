@@ -4,6 +4,7 @@
 #include "generators/pathset/SquareGenerator.h"
 #include "generators/pathset/StarGenerator.h"
 #include "generators/pathset/TextGenerator.h"
+#include "generators/pathset/GridGenerator.h"
 #include "generators/bitmap/GradientGenerator.h"
 #include "generators/bitmap/CheckerboardGenerator.h"
 #include "generators/bitmap/RadialGenerator.h"
@@ -50,6 +51,12 @@ void GeneratorRegistry::initDefaults()
 		"Text",
 		LayerKind::PathSet,
 		[]() { return std::make_unique<TextGenerator>(); }
+	});
+
+	reg.registerGenerator(GeneratorInfo{
+		"Grid",
+		LayerKind::PathSet,
+		[]() { return std::make_unique<GridGenerator>(); }
 	});
 
 	reg.registerGenerator(GeneratorInfo{

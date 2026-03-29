@@ -58,8 +58,10 @@ App::App(int width, int height, const char *title)
     }
 
     glfwSwapInterval(1);
-    glfwGetFramebufferSize(m_window, &m_width, &m_height);
-    glViewport(0, 0, m_width, m_height);
+    int fbW, fbH;
+    glfwGetFramebufferSize(m_window, &fbW, &fbH);
+    glViewport(0, 0, fbW, fbH);
+    glfwGetWindowSize(m_window, &m_width, &m_height);
     glClearColor(0.1f, 0.1f, 0.12f, 1.0f);
 
     // ImGui setup
@@ -143,12 +145,15 @@ void App::run(IScreen &screen)
 void App::framebufferSizeCallback(GLFWwindow *window, int width, int height)
 {
     LOG(INFO) << "Framebuffer resized to " << width << "x" << height;
+    glViewport(0, 0, width, height);
     auto *app = reinterpret_cast<App *>(glfwGetWindowUserPointer(window));
     if (!app)
         return;
-    app->m_width = width;
-    app->m_height = height;
-    app->m_activeScreen->onResize(width, height);
+    int logW, logH;
+    glfwGetWindowSize(window, &logW, &logH);
+    app->m_width = logW;
+    app->m_height = logH;
+    app->m_activeScreen->onResize(logW, logH);
 }
 
 void App::mouseButtonCallback(GLFWwindow *window, int button, int action, int mods)
