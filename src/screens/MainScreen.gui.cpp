@@ -20,10 +20,10 @@ void MainScreen::onGui()
         Vec2 camPos = m_camera.Transform().translation();
         ImGui::Text("camPosX: %.2f", camPos.x);
         ImGui::Text("camPosY: %.2f", camPos.y);
-        ImGui::Text("mousePixelX: %.2f", m_page.mouse_pixel.x);
-        ImGui::Text("mousePixelY: %.2f", m_page.mouse_pixel.y);
-        ImGui::Text("mouseMmX: %.2f", m_page.mouse_page_mm.x);
-        ImGui::Text("mouse_mmY: %.2f", m_page.mouse_page_mm.y);
+        ImGui::Text("mousePixelX: %.2f", m_interaction.state().mouse_pixel.x);
+        ImGui::Text("mousePixelY: %.2f", m_interaction.state().mouse_pixel.y);
+        ImGui::Text("mouseMmX: %.2f", m_interaction.state().mouse_page_mm.x);
+        ImGui::Text("mouse_mmY: %.2f", m_interaction.state().mouse_page_mm.y);
         if (ImGui::Button("Reset View"))
             m_camera.reset();
         ImGui::Separator();
