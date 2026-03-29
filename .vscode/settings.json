@@ -1,8 +1,8 @@
 {
   "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
   "cmake.configureOnOpen": true,
-  "cmake.configurePreset": "macos-vcpkg",
-  "cmake.buildPreset": "macos-debug",
+  "cmake.configurePreset": "macos-local",
+  "cmake.buildPreset": "macos-local-debug",
   "cmake.configureEnvironment": {
     "VCPKG_ROOT": "${env:VCPKG_ROOT}"
   },
