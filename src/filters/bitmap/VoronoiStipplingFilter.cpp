@@ -202,6 +202,7 @@ void VoronoiStipplingFilter::applyTyped(const Bitmap &in, PathSet &out) const
 
     for (int iter = 0; iter < maxIterations; ++iter)
     {
+        setProgress(static_cast<float>(iter) / static_cast<float>(maxIterations));
         // Build flat bucket grid
         grid.build(points, numPoints, cellSize, gridWidth, gridHeight);
 
@@ -318,6 +319,7 @@ void VoronoiStipplingFilter::applyTyped(const Bitmap &in, PathSet &out) const
     circleLut.build(circleSegments);
 
     // Generate final output
+    setProgress(1.0f);
     out.paths.reserve(numPoints);
     for (int i = 0; i < numPoints; ++i)
     {

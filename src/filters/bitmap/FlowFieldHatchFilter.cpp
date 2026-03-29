@@ -314,9 +314,11 @@ void FlowFieldHatchFilter::applyTyped(const Bitmap &in, PathSet &out) const
     size_t totalVertices = 0;
     size_t totalPaths = 0;
 
-    for (int i = 0; i < static_cast<int>(seeds.size()); ++i)
+    const int seedCount = static_cast<int>(seeds.size());
+    for (int i = 0; i < seedCount; ++i)
     {
         if (used[i]) continue;
+        setProgress(static_cast<float>(i) / static_cast<float>(seedCount));
 
         Path path;
         path.closed = false;
@@ -361,6 +363,7 @@ void FlowFieldHatchFilter::applyTyped(const Bitmap &in, PathSet &out) const
         }
     }
 
+    setProgress(1.0f);
     const_cast<FlowFieldHatchFilter *>(this)->setLastVertexCount(totalVertices);
     const_cast<FlowFieldHatchFilter *>(this)->setLastPathCount(totalPaths);
 

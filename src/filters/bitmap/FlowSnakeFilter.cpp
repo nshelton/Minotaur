@@ -167,6 +167,9 @@ void FlowSnakeFilter::applyTyped(const Bitmap &in, PathSet &out) const
 
 	for (int step = 0; step < maxSteps; ++step)
 	{
+		if ((step & 0xFF) == 0)  // report every 256 steps to avoid overhead
+			setProgress(static_cast<float>(step) / static_cast<float>(maxSteps));
+
 		// === Sensing: cast rays in a fan across the FOV ===
 		float desiredDx = 0.0f;
 		float desiredDy = 0.0f;
@@ -294,6 +297,8 @@ void FlowSnakeFilter::applyTyped(const Bitmap &in, PathSet &out) const
 		// === Drop path node ===
 		path.points.emplace_back(posX * in.pixel_size_mm, posY * in.pixel_size_mm);
 	}
+
+	setProgress(1.0f);
 
 	// --- Finalize ---
 	size_t totalVertices = path.points.size();

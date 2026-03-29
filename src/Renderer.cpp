@@ -33,7 +33,7 @@ void Renderer::beginFrame(const Camera &camera, const PageModel &page, const Int
          continue;
       }
       auto transform = entity.localToPage;
-      const LayerPtr &layer = entity.filterChain.output();
+      const LayerPtr layer = entity.filterChain.output();
 
       if (isPathSetLayer(layer))
       {
@@ -134,7 +134,7 @@ void Renderer::beginFrame(const Camera &camera, const PageModel &page, const Int
          const Entity &entity = page.entities.at(*uiState.activeId);
          BoundingBox bb = entity.boundsLocal();
          // Outline color reflects current output kind (vector vs raster)
-         const LayerPtr &selLayer = entity.filterChain.output();
+         const LayerPtr selLayer = entity.filterChain.output();
          Color selCol = isPathSetLayer(selLayer) ? theme::PathsetColor : theme::BitmapColor;
          drawRect(
              entity.localToPage * bb.min - 1,

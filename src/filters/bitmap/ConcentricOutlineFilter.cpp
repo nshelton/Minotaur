@@ -231,9 +231,11 @@ void ConcentricOutlineFilter::applyTyped(const Bitmap &in, PathSet &out) const
     std::vector<uint8_t> boundary;
     for (int level = 1; level <= maxDist; level += spacing)
     {
+        setProgress(static_cast<float>(level) / static_cast<float>(maxDist));
         extractLevelBoundary(distMap, level, boundary, W, H);
         traceBoundaryPaths(boundary, W, H, in.pixel_size_mm, out);
     }
+    setProgress(1.0f);
 
     out.computeAABB();
 }
