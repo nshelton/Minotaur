@@ -6,6 +6,7 @@
 #include "filters/FilterRegistry.h"
 #include "filters/Types.h"
 #include "generators/GeneratorRegistry.h"
+#include "generators/mesh/MeshGenerator.h"
 #include "core/Theme.h"
 
 void MainScreen::onGui()
@@ -380,6 +381,63 @@ void MainScreen::onGui()
                                 e.generator->setParameter(paramKey, val);
                             break;
                         }
+                        }
+                    }
+                    // --- Mesh generator: inline 3D preview with trackball ---
+                    if (auto *meshGen = dynamic_cast<MeshGenerator *>(e.generator.get()))
+                    {
+                        if (meshGen->hasMesh())
+                        {
+                            ImGui::Separator();
+                            ImGui::Text("3D Preview (drag to rotate)");
+
+                            // Dynamic size: fill available panel width, square aspect
+                            float avail = ImGui::GetContentRegionAvail().x;
+                            float previewSize = std::max(128.0f, avail);
+                            int pw = static_cast<int>(previewSize);
+                            int ph = static_cast<int>(previewSize);
+
+                            // Sync rotation from generator params to preview widget
+                            float rx = meshGen->m_parameters.at("rotX").value;
+                            float ry = meshGen->m_parameters.at("rotY").value;
+                            float rz = meshGen->m_parameters.at("rotZ").value;
+                            meshGen->previewWidget().setRotation(rx, ry, rz);
+                            meshGen->previewWidget().render(pw, ph);
+
+                            GLuint tex = meshGen->previewWidget().texture();
+                            if (tex)
+                            {
+                                // Render the FBO texture (flip V because FBO is bottom-up)
+                                ImVec2 uv0(0, 1), uv1(1, 0);
+                                ImGui::Image(
+                                    static_cast<ImTextureID>(static_cast<uintptr_t>(tex)),
+                                    ImVec2(previewSize, previewSize), uv0, uv1);
+
+                                // Trackball: drag on the image to rotate
+                                if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+                                {
+                                    ImVec2 delta = ImGui::GetIO().MouseDelta;
+                                    // Horizontal drag -> rotY, vertical drag -> rotX
+                                    float sensitivity = 0.5f;
+                                    float newRy = ry + delta.x * sensitivity;
+                                    float newRx = rx + delta.y * sensitivity;
+                                    // Clamp to parameter range
+                                    newRy = std::max(-180.0f, std::min(180.0f, newRy));
+                                    newRx = std::max(-180.0f, std::min(180.0f, newRx));
+                                    meshGen->setParameter("rotY", newRy);
+                                    meshGen->setParameter("rotX", newRx);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            ImGui::TextColored(ImVec4(1, 0.5f, 0.3f, 1), "No mesh loaded. Drop an .obj file or set the file path.");
+                        }
+
+                        // Load OBJ button
+                        if (ImGui::Button("Reload OBJ"))
+                        {
+                            meshGen->onStringParameterChanged("file");
                         }
                     }
                 }

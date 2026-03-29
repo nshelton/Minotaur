@@ -2,6 +2,7 @@
 #include "app/App.h"
 #include <GLFW/glfw3.h>
 #include "generators/pathset/CircleGenerator.h"
+#include "generators/mesh/MeshGenerator.h"
 #include "utils/ImageLoader.h"
 #include "utils/Clipboard.h"
 #include <iostream>
@@ -139,6 +140,32 @@ void MainScreen::onFilesDropped(const std::vector<std::string>& paths)
 {
     for (const auto &p : paths)
     {
+        // Check for .obj mesh files first
+        {
+            size_t dot = p.rfind('.');
+            if (dot != std::string::npos)
+            {
+                std::string ext = p.substr(dot);
+                // Case-insensitive .obj check
+                if (ext == ".obj" || ext == ".OBJ" || ext == ".Obj")
+                {
+                    Vec2 center(m_page.page_width_mm * 0.5f, m_page.page_height_mm * 0.5f);
+                    auto gen = std::make_unique<MeshGenerator>(p);
+                    if (gen->hasMesh())
+                    {
+                        m_page.addGeneratedEntity(std::move(gen), center);
+                        LOG(INFO) << "Loaded OBJ mesh: " << p;
+                        continue;
+                    }
+                    else
+                    {
+                        LOG(WARNING) << "Failed to load OBJ: " << p;
+                        continue;
+                    }
+                }
+            }
+        }
+
         // Try PGM first for minimal dependency
         Bitmap bm;
         std::string err;
