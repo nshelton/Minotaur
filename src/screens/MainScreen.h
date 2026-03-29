@@ -4,7 +4,9 @@
 #include <imgui.h>
 #include "Camera.h"
 #include "Renderer.h"
+#include <map>
 #include <memory>
+#include <string>
 #include "serial/SerialController.h"
 #include "plotters/AxidrawController.h"
 #include "plotters/PlotSpooler.h"
@@ -48,4 +50,8 @@ private:
 
     // Project file path
     std::string m_projectPath;
+
+    // Per-entity string parameter input buffers for the generator UI panel.
+    // Keyed by "<entityId>:<paramKey>".
+    std::map<std::string, std::string> m_genStringBufs;
 };

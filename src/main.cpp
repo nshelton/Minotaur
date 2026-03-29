@@ -3,9 +3,11 @@
 #include "core/Vec2.h"
 #include "screens/MainScreen.h"
 #include "filters/FilterRegistry.h"
+#include "generators/GeneratorRegistry.h"
 
 int main(int argc, char *argv[]) {
     FilterRegistry::initDefaults();
+    GeneratorRegistry::initDefaults();
     App app(2200, 1600, "Minotaur");
     std::string projectPath = (argc > 1) ? argv[1] : "page.json";
     MainScreen screen(projectPath);

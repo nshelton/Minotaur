@@ -225,16 +225,21 @@ public:
     const LayerPtr &evaluate(size_t i) const
     {
         assert(i < m_filters.size());
-        // Ensure upstream is evaluated so its cache.data is valid
-        const LayerPtr &upstream = (i == 0) ? m_base : evaluate(i - 1);
-        uint64_t upstreamGen = (i == 0) ? m_baseGen : m_layers[i - 1].gen;
 
         LayerCache &cache = m_layers[i];
         FilterBase &filter = *m_filters[i];
 
+        // Read upstream generation from the previous cache (or base) without
+        // recursing — this is enough to determine whether we are stale.
+        uint64_t upstreamGen = (i == 0) ? m_baseGen : m_layers[i - 1].gen;
+
         if (!m_enabled[i])
         {
-            // Bypass: forward upstream unchanged
+            // Bypass: only recurse upstream if our cached gen is stale
+            if (cache.valid && cache.upstreamGen == upstreamGen)
+                return cache.data;
+            const LayerPtr &upstream = (i == 0) ? m_base : evaluate(i - 1);
+            upstreamGen = (i == 0) ? m_baseGen : m_layers[i - 1].gen;
             cache.data = upstream;
             cache.upstreamGen = upstreamGen;
             cache.paramVer = filter.paramVersion();
@@ -249,6 +254,9 @@ public:
 
         if (needsRecompute)
         {
+            // Only recurse upstream when we actually need fresh input data
+            const LayerPtr &upstream = (i == 0) ? m_base : evaluate(i - 1);
+            upstreamGen = (i == 0) ? m_baseGen : m_layers[i - 1].gen;
             auto t0 = std::chrono::high_resolution_clock::now();
             // Avoid aliasing: if our output pointer aliases upstream, reset so we don't mutate upstream in-place
             if (cache.data == upstream)

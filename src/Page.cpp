@@ -3,44 +3,7 @@
 #include "filters/FilterRegistry.h"
 #include "filters/FilterChain.h"
 
-int PageModel::addPathSet(const PathSet &ps)
-{
-    int id = static_cast<int>(entities.size());
-    Entity e;
-    e.id = id;
-    e.name = "Entity " + std::to_string(id);
-    e.payload = ps;
-    e.localToPage = Mat3();
-    e.refreshFilterBase();
-    entities[id] = e;
-    return id;
-}
-
-void PageModel::addBitmap(const Bitmap &bm)
-{
-    int id = static_cast<int>(entities.size());
-    Entity e;
-    e.id = id;
-    e.name = "Entity " + std::to_string(id);
-    e.payload = bm;
-    e.localToPage = Mat3();
-    e.refreshFilterBase();
-    entities[id] = e;
-}
-
-void PageModel::addColorImage(const ColorImage &ci)
-{
-    int id = static_cast<int>(entities.size());
-    Entity e;
-    e.id = id;
-    e.name = "Entity " + std::to_string(id);
-    e.payload = ci;
-    e.localToPage = Mat3();
-    e.refreshFilterBase();
-    entities[id] = e;
-}
-
-static int page_next_id(const std::map<int, Entity>& ents)
+static int page_next_id(const std::map<int, Entity> &ents)
 {
     int maxId = -1;
     for (const auto &kv : ents)
@@ -48,6 +11,64 @@ static int page_next_id(const std::map<int, Entity>& ents)
         if (kv.first > maxId) maxId = kv.first;
     }
     return maxId + 1;
+}
+
+int PageModel::addPathSet(const PathSet &ps)
+{
+    int id = page_next_id(entities);
+    Entity e;
+    e.id = id;
+    e.name = "Entity " + std::to_string(id);
+    e.payload = ps;
+    e.localToPage = Mat3();
+    e.refreshFilterBase();
+    entities[id] = std::move(e);
+    return id;
+}
+
+void PageModel::addBitmap(const Bitmap &bm)
+{
+    int id = page_next_id(entities);
+    Entity e;
+    e.id = id;
+    e.name = "Entity " + std::to_string(id);
+    e.payload = bm;
+    e.localToPage = Mat3();
+    e.refreshFilterBase();
+    entities[id] = std::move(e);
+}
+
+void PageModel::addColorImage(const ColorImage &ci)
+{
+    int id = page_next_id(entities);
+    Entity e;
+    e.id = id;
+    e.name = "Entity " + std::to_string(id);
+    e.payload = ci;
+    e.localToPage = Mat3();
+    e.refreshFilterBase();
+    entities[id] = std::move(e);
+}
+
+int PageModel::addGeneratedEntity(std::unique_ptr<GeneratorBase> gen, Vec2 positionMm)
+{
+    int id = page_next_id(entities);
+    Entity e;
+    e.id = id;
+    e.name = std::string(gen->name()) + " " + std::to_string(id);
+    e.localToPage = Mat3::translation(positionMm);
+    // Initialise payload with a default value matching the generator's output kind.
+    switch (gen->outputKind())
+    {
+    case LayerKind::Bitmap:     e.payload = Bitmap{};     break;
+    case LayerKind::FloatImage: e.payload = FloatImage{}; break;
+    case LayerKind::ColorImage: e.payload = ColorImage{}; break;
+    default:                    e.payload = PathSet{};    break;
+    }
+    e.generator = std::move(gen);
+    e.tickGenerator();   // populate payload immediately
+    entities[id] = std::move(e);
+    return id;
 }
 
 int PageModel::duplicateEntity(int sourceId)
@@ -65,6 +86,12 @@ int PageModel::duplicateEntity(int sourceId)
     dst.localToPage = src.localToPage;
     dst.visible = src.visible;
     dst.color = src.color;
+
+    // Clone generator if present
+    if (src.generator)
+        dst.generator = src.generator->clone();
+
+    dst.tickGenerator();  // regenerate payload if generator present
     dst.refreshFilterBase();
 
     // Rebuild filter chain using registry and copy parameters/enabled flags

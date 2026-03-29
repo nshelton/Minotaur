@@ -1,7 +1,7 @@
 ﻿#include "MainScreen.h"
 #include "app/App.h"
 #include <GLFW/glfw3.h>
-#include "utils/PathSetGenerator.h"
+#include "generators/pathset/CircleGenerator.h"
 #include "utils/ImageLoader.h"
 #include "utils/Clipboard.h"
 #include <iostream>
@@ -26,12 +26,9 @@ void MainScreen::onAttach(App &app)
             LOG(WARNING) << "Failed to load page.json: " << err;
         }
         // Fallback demo content
-        m_page.addPathSet(
-            PathSetGenerator::Circle(
-                Vec2(297.0f / 2.0f, 420.0f / 2.0f),
-                50.0f,
-                96,
-                Color(0.2f, 0.8f, 0.3f, 1.0f)));
+        m_page.addGeneratedEntity(
+            std::make_unique<CircleGenerator>(),
+            Vec2(297.0f / 2.0f, 420.0f / 2.0f));
     }
     else
     {
@@ -49,6 +46,13 @@ void MainScreen::onResize(int width, int height)
 
 void MainScreen::onUpdate(double /*dt*/)
 {
+    // Tick all generators so parametric entities stay up to date.
+    // Two passes: first kick stale generators, then collect any async results.
+    for (auto &[id, e] : m_page.entities)
+        e.tickGenerator();
+    for (auto &[id, e] : m_page.entities)
+        e.pollAsyncGenerator();
+
     // Handle keyboard-driven actions that should work outside of ImGui widgets
     ImGuiIO &io = ImGui::GetIO();
     if (!io.WantCaptureKeyboard && ImGui::IsKeyPressed(ImGuiKey_Delete))
