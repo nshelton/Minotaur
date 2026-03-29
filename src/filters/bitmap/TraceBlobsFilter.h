@@ -21,12 +21,13 @@ struct TraceBlobsFilter : public FilterTyped<Bitmap, PathSet>
             100.0f,
             8.0f
         };
-        // When enabled (>0.5), also trace inner contours (holes) fully enclosed by a blob
+        // When enabled, also trace inner contours (holes) fully enclosed by a blob
         m_parameters["traceHoles"] = FilterParameter{
-            "Trace Holes (0/1)",
+            "Trace Holes",
             0.0f,
             1.0f,
-            1.0f
+            1.0f,
+            FilterParameter::Bool
         };
     }
 

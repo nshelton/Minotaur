@@ -12,13 +12,15 @@ struct VoronoiStipplingFilter : public FilterTyped<Bitmap, PathSet>
             "Number of Points",
             10.0f,
             100000.0f,
-            500.0f
+            500.0f,
+            FilterParameter::Int
         };
         m_parameters["iterations"] = FilterParameter{
             "Iterations",
             1.0f,
             100.0f,
-            20.0f
+            20.0f,
+            FilterParameter::Int
         };
         m_parameters["circle_radius"] = FilterParameter{
             "Circle Radius (mm)",
@@ -36,7 +38,8 @@ struct VoronoiStipplingFilter : public FilterTyped<Bitmap, PathSet>
             "Circle Segments",
             3.0f,
             10.0f,
-            5.0f
+            5.0f,
+            FilterParameter::Int
         };
     }
 

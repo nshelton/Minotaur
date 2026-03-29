@@ -10,7 +10,8 @@ struct LaplacianSmoothFilter : public FilterTyped<PathSet, PathSet>
 			"Iterations",
 			0.0f,
 			50.0f,
-			5.0f
+			5.0f,
+			FilterParameter::Int
 		};
 		m_parameters["weight"] = FilterParameter{
 			"Weight",

@@ -22,7 +22,8 @@ struct CurlNoiseFilter : public FilterTyped<PathSet, PathSet>
             "Octaves",
             1.0f,
             8.0f,
-            3.0f
+            3.0f,
+            FilterParameter::Int
         };
         m_parameters["lacunarity"] = FilterParameter{
             "Lacunarity",
@@ -40,7 +41,8 @@ struct CurlNoiseFilter : public FilterTyped<PathSet, PathSet>
             "Seed",
             0.0f,
             1000.0f,
-            0.0f
+            0.0f,
+            FilterParameter::Int
         };
     }
 

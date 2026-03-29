@@ -6,8 +6,8 @@ struct FloatToPathFilter : public FilterTyped<FloatImage, PathSet>
 {
     FloatToPathFilter()
     {
-        m_parameters["maximaRadius"] = FilterParameter{"maxima radius (px)", 1.0f, 7.0f, 1.0f};
-        m_parameters["connectRadius"] = FilterParameter{"connect radius (px)", 1.0f, 7.0f, 1.0f};
+        m_parameters["maximaRadius"] = FilterParameter{"maxima radius (px)", 1.0f, 7.0f, 1.0f, FilterParameter::Int};
+        m_parameters["connectRadius"] = FilterParameter{"connect radius (px)", 1.0f, 7.0f, 1.0f, FilterParameter::Int};
     }
 
     const char *name() const override { return "Float Maxima to Paths"; }
