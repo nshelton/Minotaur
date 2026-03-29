@@ -15,13 +15,15 @@ struct ConcentricOutlineFilter : public FilterTyped<Bitmap, PathSet>
             "Threshold",
             0.0f,
             255.0f,
-            128.0f
+            128.0f,
+            FilterParameter::Int
         };
         m_parameters["spacing_px"] = FilterParameter{
             "Spacing (px)",
             1.0f,
             50.0f,
-            2.0f
+            2.0f,
+            FilterParameter::Int
         };
     }
 

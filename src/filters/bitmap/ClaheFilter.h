@@ -11,13 +11,15 @@ struct ClaheFilter : public FilterTyped<Bitmap, Bitmap>
             "Tiles X",
             1.0f,
             64.0f,
-            8.0f
+            8.0f,
+            FilterParameter::Int
         };
         m_parameters["tilesY"] = FilterParameter{
             "Tiles Y",
             1.0f,
             64.0f,
-            8.0f
+            8.0f,
+            FilterParameter::Int
         };
         m_parameters["clipLimit"] = FilterParameter{
             "Clip Limit (0=off)",

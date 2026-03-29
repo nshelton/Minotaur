@@ -26,19 +26,22 @@ struct FlowFieldHatchFilter : public FilterTyped<Bitmap, PathSet>
             "Threshold",
             0.0f,
             255.0f,
-            128.0f
+            128.0f,
+            FilterParameter::Int
         };
         m_parameters["seed_spacing_px"] = FilterParameter{
             "Seed Spacing (px)",
             2.0f,
             50.0f,
-            8.0f
+            8.0f,
+            FilterParameter::Int
         };
         m_parameters["max_connect_distance_px"] = FilterParameter{
             "Max Connect (px)",
             1.0f,
             100.0f,
-            20.0f
+            20.0f,
+            FilterParameter::Int
         };
         m_parameters["flow_strength"] = FilterParameter{
             "Flow Strength",
@@ -56,7 +59,8 @@ struct FlowFieldHatchFilter : public FilterTyped<Bitmap, PathSet>
             "Clamp Radius (px)",
             1.0f,
             100.0f,
-            20.0f
+            20.0f,
+            FilterParameter::Int
         };
     }
 

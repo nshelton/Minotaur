@@ -15,7 +15,8 @@ struct LineHatchFilter : public FilterTyped<Bitmap, PathSet>
             "Step (px)",
             1.0f,
             20.0f,
-            8.0f
+            8.0f,
+            FilterParameter::Int
         };
         m_parameters["angle_deg"] = FilterParameter{
             "Angle (deg)",
@@ -27,7 +28,8 @@ struct LineHatchFilter : public FilterTyped<Bitmap, PathSet>
             "Threshold",
             0.0f,
             255.0f,
-            128.0f
+            128.0f,
+            FilterParameter::Int
         };
     }
 

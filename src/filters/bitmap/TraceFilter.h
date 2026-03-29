@@ -13,7 +13,8 @@ struct TraceFilter : public FilterTyped<Bitmap, PathSet>
             "Threshold",
             0.0f,
             255.0f,
-            128.0f
+            128.0f,
+            FilterParameter::Int
         };
     }
 

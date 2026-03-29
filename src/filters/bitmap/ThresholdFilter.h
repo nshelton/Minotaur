@@ -11,13 +11,15 @@ struct ThresholdFilter : public FilterTyped<Bitmap, Bitmap>
             "Min",
             0.0f,
             255.0f,
-            50.0f
+            50.0f,
+            FilterParameter::Int
         };
         m_parameters["max"] = FilterParameter{
             "Max",
             0.0f,
             255.0f,
-            150.0f
+            150.0f,
+            FilterParameter::Int
         };
     }
 

@@ -34,7 +34,7 @@ struct FlowSnakeFilter : public FilterTyped<Bitmap, PathSet>
 		m_parameters["eat_strength"] = FilterParameter{
 			"Eat Strength", 0.01f, 1.0f, 0.3f};
 		m_parameters["max_steps"] = FilterParameter{
-			"Max Steps", 1000.0f, 500000.0f, 100000.0f};
+			"Max Steps", 1000.0f, 500000.0f, 100000.0f, FilterParameter::Int};
 	}
 
 	const char *name() const override { return "Flow Snake"; }

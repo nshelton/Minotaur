@@ -8,10 +8,11 @@ struct OptimizePathsFilter : public FilterTyped<PathSet, PathSet>
 	OptimizePathsFilter()
 	{
 		m_parameters["mergeEnabled"] = FilterParameter{
-			"Enable Merge (0/1)",
+			"Enable Merge",
 			0.0f,
 			1.0f,
-			0.0f
+			0.0f,
+			FilterParameter::Bool
 		};
 		m_parameters["mergeDistanceMm"] = FilterParameter{
 			"Merge Distance (mm)",
@@ -20,10 +21,11 @@ struct OptimizePathsFilter : public FilterTyped<PathSet, PathSet>
 			0.0f
 		};
 		m_parameters["reorder"] = FilterParameter{
-			"Reorder (0/1)",
+			"Reorder",
 			0.0f,
 			1.0f,
-			1.0f
+			1.0f,
+			FilterParameter::Bool
 		};
 	}
 

@@ -10,7 +10,8 @@ struct SmoothFilter : public FilterTyped<PathSet, PathSet>
             "Iterations",
             0.0f,
             10.0f,
-            1.0f
+            1.0f,
+            FilterParameter::Int
         };
     }
 
