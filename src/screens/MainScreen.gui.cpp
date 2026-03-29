@@ -48,36 +48,39 @@ void MainScreen::onGui()
         }
 
         ImGui::Separator();
-        ImGui::Text("Add Entities");
         {
             Vec2 center = Vec2(m_page.page_width_mm, m_page.page_height_mm) * 0.5f;
             const auto &gens = GeneratorRegistry::instance().all();
-            for (const auto &info : gens)
+            auto toImVec4 = [](const Color &c) { return ImVec4(c.r, c.g, c.b, c.a); };
+            auto lighten  = [](ImVec4 c, float s) {
+                auto cl = [](float v){ return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); };
+                c.x = cl(c.x * s); c.y = cl(c.y * s); c.z = cl(c.z * s);
+                return c;
+            };
+            auto drawGenButtons = [&](LayerKind kind)
             {
-                Color gc = (info.outputKind == LayerKind::PathSet)
-                    ? theme::PathsetColor : theme::BitmapColor;
-                auto toImVec4 = [](const Color &c) { return ImVec4(c.r, c.g, c.b, c.a); };
-                auto lighten  = [](ImVec4 c, float s) {
-                    auto cl = [](float v){ return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); };
-                    c.x = cl(c.x * s); c.y = cl(c.y * s); c.z = cl(c.z * s);
-                    return c;
-                };
+                Color gc = (kind == LayerKind::PathSet) ? theme::PathsetColor : theme::BitmapColor;
                 ImVec4 b  = toImVec4(gc);
                 ImVec4 bh = lighten(b, 1.08f);
                 ImVec4 ba = lighten(b, 1.16f);
-                ImGui::PushStyleColor(ImGuiCol_Button,        b);
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, bh);
-                ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ba);
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 0, 0, 1));
-                std::string label = fmt::format("Add {}", info.name);
-                if (ImGui::Button(label.c_str()))
+                for (const auto &info : gens)
                 {
-                    m_page.addGeneratedEntity(info.factory(), center);
+                    if (info.outputKind != kind) continue;
+                    ImGui::PushStyleColor(ImGuiCol_Button,        b);
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, bh);
+                    ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ba);
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 0, 0, 1));
+                    if (ImGui::Button(info.name.c_str()))
+                        m_page.addGeneratedEntity(info.factory(), center);
+                    ImGui::PopStyleColor(4);
+                    ImGui::SameLine();
                 }
-                ImGui::PopStyleColor(4);
-                ImGui::SameLine();
-            }
-            ImGui::NewLine();
+                ImGui::NewLine();
+            };
+            if (ImGui::CollapsingHeader("Path Generators", ImGuiTreeNodeFlags_DefaultOpen))
+                drawGenButtons(LayerKind::PathSet);
+            if (ImGui::CollapsingHeader("Bitmap Generators", ImGuiTreeNodeFlags_DefaultOpen))
+                drawGenButtons(LayerKind::Bitmap);
         }
 
         ImGui::Separator();

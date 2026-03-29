@@ -58,7 +58,8 @@ App::App(int width, int height, const char *title)
     }
 
     glfwSwapInterval(1);
-    glViewport(0, 0, width, height);
+    glfwGetFramebufferSize(m_window, &m_width, &m_height);
+    glViewport(0, 0, m_width, m_height);
     glClearColor(0.1f, 0.1f, 0.12f, 1.0f);
 
     // ImGui setup
