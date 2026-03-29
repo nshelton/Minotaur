@@ -691,7 +691,7 @@ void MainScreen::onGui()
                 ImGui::PushID(id * 2 + 0);
                 ImGui::TableSetColumnIndex(0);
                 // Color label by current output kind (vector vs raster)
-                const LayerPtr &layer = const_cast<Entity &>(m_page.entities.at(id)).filterChain.output();
+                const LayerPtr &layer = m_page.entities.at(id).filterChain.output();
                 const Color &c = isPathSetLayer(layer) ? theme::PathsetColor : theme::BitmapColor;
                 ImVec4 txtCol(c.r, c.g, c.b, c.a);
                 ImGui::TextColored(txtCol, "%s", label.c_str());
