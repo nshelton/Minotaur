@@ -8,6 +8,7 @@
 #include "generators/bitmap/GradientGenerator.h"
 #include "generators/bitmap/CheckerboardGenerator.h"
 #include "generators/bitmap/RadialGenerator.h"
+#include "generators/mesh/MeshGenerator.h"
 
 GeneratorRegistry &GeneratorRegistry::instance()
 {
@@ -75,5 +76,11 @@ void GeneratorRegistry::initDefaults()
 		"Radial",
 		LayerKind::Bitmap,
 		[]() { return std::make_unique<RadialGenerator>(); }
+	});
+
+	reg.registerGenerator(GeneratorInfo{
+		"Mesh",
+		LayerKind::PathSet,
+		[]() { return std::make_unique<MeshGenerator>(); }
 	});
 }
