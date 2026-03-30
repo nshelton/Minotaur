@@ -1,4 +1,4 @@
-﻿cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.21)
 project(Minotaur LANGUAGES CXX OBJCXX)
 
 
@@ -77,3 +77,17 @@ target_include_directories(motion_planner_tests PRIVATE src)
 target_link_libraries(motion_planner_tests PRIVATE GTest::gtest GTest::gtest_main)
 
 add_test(NAME motion_planner COMMAND motion_planner_tests)
+
+add_executable(filter_tests
+  tests/test_filters.cpp
+  src/filters/bitmap/BlurFilter.cpp
+  src/filters/bitmap/ThresholdFilter.cpp
+  src/filters/bitmap/LevelsFilter.cpp
+  src/filters/bitmap/TraceFilter.cpp
+  src/filters/pathset/SimplifyFilter.cpp
+)
+
+target_include_directories(filter_tests PRIVATE src)
+target_link_libraries(filter_tests PRIVATE GTest::gtest GTest::gtest_main glog::glog)
+
+add_test(NAME filter_tests COMMAND filter_tests)

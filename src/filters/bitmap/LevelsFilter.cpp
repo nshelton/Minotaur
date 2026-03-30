@@ -1,6 +1,7 @@
 #include "filters/bitmap/LevelsFilter.h"
 
 #include <algorithm>
+#include <cmath>
 
 static inline float clamp01(float v)
 {
