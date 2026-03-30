@@ -328,37 +328,37 @@ static void from_json(const json &j, Entity &e)
             }
         }
 
-        // Initialise payload variant to match generator output kind
+        // Initialise payload to match generator output kind
         std::string type = j.value("type", std::string("pathset"));
-        if (type == "bitmap")           e.payload = Bitmap{};
-        else if (type == "floatimage")  e.payload = FloatImage{};
-        else if (type == "colorimage")  e.payload = ColorImage{};
-        else                            e.payload = PathSet{};
+        if (type == "bitmap")           e.payload = std::make_shared<Bitmap>();
+        else if (type == "floatimage")  e.payload = std::make_shared<FloatImage>();
+        else if (type == "colorimage")  e.payload = std::make_shared<ColorImage>();
+        else                            e.payload = std::make_shared<PathSet>();
         // tickGenerator() will be called in loadPageModel after refreshFilterBase()
     }
     else
     {
-        // Static entity: deserialize payload as before
+        // Static entity: deserialize payload
         std::string type = j.value("type", std::string("pathset"));
         if (type == "bitmap" && j.contains("bitmap"))
         {
-            e.payload = j.at("bitmap").get<Bitmap>();
+            e.payload = std::make_shared<Bitmap>(j.at("bitmap").get<Bitmap>());
         }
         else if (type == "colorimage" && j.contains("colorimage"))
         {
-            e.payload = j.at("colorimage").get<ColorImage>();
+            e.payload = std::make_shared<ColorImage>(j.at("colorimage").get<ColorImage>());
         }
         else if (type == "floatimage" && j.contains("floatimage"))
         {
-            e.payload = j.at("floatimage").get<FloatImage>();
+            e.payload = std::make_shared<FloatImage>(j.at("floatimage").get<FloatImage>());
         }
         else
         {
             // Default to pathset for backward compatibility
             if (j.contains("pathset"))
-                e.payload = j.at("pathset").get<PathSet>();
+                e.payload = std::make_shared<PathSet>(j.at("pathset").get<PathSet>());
             else
-                e.payload = PathSet{};
+                e.payload = std::make_shared<PathSet>();
         }
     }
 }
