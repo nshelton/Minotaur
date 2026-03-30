@@ -115,12 +115,17 @@ struct GeneratorBase
 		{
 			it->second = value;
 			m_version.fetch_add(1);
+			onStringParameterChanged(key);
 		}
 		else
 		{
 			LOG(INFO) << "tried to set string param \"" << key << "\", not found on generator " << name();
 		}
 	}
+
+	// Override to react when a string parameter is set (e.g. reload a file).
+	// Called from setStringParameter after the value is stored.
+	virtual void onStringParameterChanged(const std::string &) {}
 
 	const std::string &stringParameter(const std::string &key) const
 	{

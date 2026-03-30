@@ -37,8 +37,8 @@ struct OsmGenerator : public GeneratorBase
 	OsmGenerator()
 	{
 		// Location
-		m_parameters["lat"]  = FilterParameter{"Latitude",  -85.0f,  85.0f, 40.7128f};  // NYC default
-		m_parameters["lon"]  = FilterParameter{"Longitude", -180.0f, 180.0f, -74.006f};
+		m_parameters["lat"]  = FilterParameter{"Latitude",  -85.0f,  85.0f, 40.7128f, FilterParameter::Precise};  // NYC default
+		m_parameters["lon"]  = FilterParameter{"Longitude", -180.0f, 180.0f, -74.006f, FilterParameter::Precise};
 		m_parameters["zoom"] = FilterParameter{"Zoom", 10.0f, 16.0f, 14.0f, FilterParameter::Int};
 
 		// Output sizing
@@ -46,6 +46,12 @@ struct OsmGenerator : public GeneratorBase
 
 		// Tile grid: how many tiles to fetch (NxN centered on lat/lon)
 		m_parameters["tile_count"] = FilterParameter{"Tiles NxN", 1.0f, 5.0f, 1.0f, FilterParameter::Int};
+
+		// Clip box (0 width/height = disabled)
+		m_parameters["clip_offset_x"] = FilterParameter{"Clip Offset X (mm)", -200.0f, 200.0f, 0.0f};
+		m_parameters["clip_offset_y"] = FilterParameter{"Clip Offset Y (mm)", -200.0f, 200.0f, 0.0f};
+		m_parameters["clip_width"]    = FilterParameter{"Clip Width (mm)",      0.0f, 400.0f, 0.0f};
+		m_parameters["clip_height"]   = FilterParameter{"Clip Height (mm)",     0.0f, 400.0f, 0.0f};
 
 		// Layer toggles (0 = off, 1 = on) — OpenMapTiles schema
 		m_parameters["layer_transportation"]   = FilterParameter{"Transportation",  0.0f, 1.0f, 1.0f, FilterParameter::Bool};
@@ -87,6 +93,10 @@ struct OsmGenerator : public GeneratorBase
 		const int   zoom     = static_cast<int>(std::lround(m_parameters.at("zoom").value));
 		const float sizeMm   = m_parameters.at("size_mm").value;
 		const int   tileN    = static_cast<int>(std::lround(m_parameters.at("tile_count").value));
+		const float clipOx   = m_parameters.at("clip_offset_x").value;
+		const float clipOy   = m_parameters.at("clip_offset_y").value;
+		const float clipW    = m_parameters.at("clip_width").value;
+		const float clipH    = m_parameters.at("clip_height").value;
 
 		// Snapshot layer toggles
 		LayerToggles toggles;
@@ -100,9 +110,9 @@ struct OsmGenerator : public GeneratorBase
 		toggles.park            = m_parameters.at("layer_park").value > 0.5f;
 		toggles.aeroway         = m_parameters.at("layer_aeroway").value > 0.5f;
 
-		m_worker = std::thread([this, lat, lon, zoom, sizeMm, tileN, toggles]()
+		m_worker = std::thread([this, lat, lon, zoom, sizeMm, tileN, clipOx, clipOy, clipW, clipH, toggles]()
 		{
-			doGenerate(lat, lon, zoom, sizeMm, tileN, toggles);
+			doGenerate(lat, lon, zoom, sizeMm, tileN, clipOx, clipOy, clipW, clipH, toggles);
 		});
 	}
 
@@ -235,6 +245,109 @@ private:
 		return {};
 	}
 
+	// ── Line clipping (Cohen-Sutherland) ────────────────────────────────
+
+	enum OutCode { INSIDE = 0, LEFT = 1, RIGHT = 2, BOTTOM = 4, TOP = 8 };
+
+	static int computeOutCode(float x, float y, float xmin, float ymin, float xmax, float ymax)
+	{
+		int code = INSIDE;
+		if      (x < xmin) code |= LEFT;
+		else if (x > xmax) code |= RIGHT;
+		if      (y < ymin) code |= BOTTOM;
+		else if (y > ymax) code |= TOP;
+		return code;
+	}
+
+	// Clip segment (x0,y0)-(x1,y1) to the rectangle. Returns false if fully outside.
+	static bool clipSegment(float &x0, float &y0, float &x1, float &y1,
+	                         float xmin, float ymin, float xmax, float ymax)
+	{
+		int code0 = computeOutCode(x0, y0, xmin, ymin, xmax, ymax);
+		int code1 = computeOutCode(x1, y1, xmin, ymin, xmax, ymax);
+
+		while (true)
+		{
+			if (!(code0 | code1))       return true;   // both inside
+			if (code0 & code1)          return false;  // both in same outside zone
+
+			int codeOut = code0 ? code0 : code1;
+			float x, y;
+
+			if (codeOut & TOP)        { x = x0 + (x1 - x0) * (ymax - y0) / (y1 - y0); y = ymax; }
+			else if (codeOut & BOTTOM) { x = x0 + (x1 - x0) * (ymin - y0) / (y1 - y0); y = ymin; }
+			else if (codeOut & RIGHT)  { y = y0 + (y1 - y0) * (xmax - x0) / (x1 - x0); x = xmax; }
+			else                       { y = y0 + (y1 - y0) * (xmin - x0) / (x1 - x0); x = xmin; }
+
+			if (codeOut == code0) { x0 = x; y0 = y; code0 = computeOutCode(x0, y0, xmin, ymin, xmax, ymax); }
+			else                  { x1 = x; y1 = y; code1 = computeOutCode(x1, y1, xmin, ymin, xmax, ymax); }
+		}
+	}
+
+	// Clip a polyline to a rectangle, producing zero or more sub-paths.
+	static void clipPath(const Path &in, float xmin, float ymin, float xmax, float ymax,
+	                      std::vector<Path> &out)
+	{
+		if (in.points.size() < 2) return;
+
+		// For closed paths, treat as a loop (add closing segment)
+		size_t n = in.points.size();
+		size_t segments = in.closed ? n : n - 1;
+
+		Path current;
+		current.closed = false; // clipped fragments are always open
+
+		for (size_t i = 0; i < segments; ++i)
+		{
+			size_t j = (i + 1) % n;
+			float x0 = in.points[i].x, y0 = in.points[i].y;
+			float x1 = in.points[j].x, y1 = in.points[j].y;
+
+			float cx0 = x0, cy0 = y0, cx1 = x1, cy1 = y1;
+			if (clipSegment(cx0, cy0, cx1, cy1, xmin, ymin, xmax, ymax))
+			{
+				// If the clipped start doesn't continue from the current path, flush and start new
+				if (!current.points.empty())
+				{
+					Vec2 &last = current.points.back();
+					if (last.x != cx0 || last.y != cy0)
+					{
+						if (current.points.size() >= 2)
+							out.push_back(std::move(current));
+						current = Path{};
+						current.closed = false;
+					}
+				}
+
+				if (current.points.empty())
+					current.points.push_back(Vec2{cx0, cy0});
+				current.points.push_back(Vec2{cx1, cy1});
+			}
+			else
+			{
+				// Segment fully outside — flush current path
+				if (current.points.size() >= 2)
+					out.push_back(std::move(current));
+				current = Path{};
+				current.closed = false;
+			}
+		}
+
+		if (current.points.size() >= 2)
+			out.push_back(std::move(current));
+	}
+
+	static PathSet clipPathSet(const PathSet &ps, float ox, float oy, float clipW, float clipH)
+	{
+		float hw = clipW * 0.5f;
+		float hh = clipH * 0.5f;
+
+		PathSet result;
+		for (const auto &path : ps.paths)
+			clipPath(path, ox - hw, oy - hh, ox + hw, oy + hh, result.paths);
+		return result;
+	}
+
 	// Expand a TileJSON URL template by replacing {z}, {x}, {y}.
 	static std::string expandTileUrl(const std::string &tmpl, int z, int x, int y)
 	{
@@ -251,6 +364,7 @@ private:
 	}
 
 	void doGenerate(float lat, float lon, int zoom, float sizeMm, int tileN,
+	                float clipOx, float clipOy, float clipW, float clipH,
 	                const LayerToggles &toggles)
 	{
 		PathSet ps;
@@ -376,6 +490,13 @@ private:
 		{
 			setStatus("Cancelled");
 			return;
+		}
+
+		// Clip to bounding box if enabled
+		if (clipW > 0.0f && clipH > 0.0f)
+		{
+			setStatus("Clipping paths...");
+			ps = clipPathSet(ps, clipOx, clipOy, clipW, clipH);
 		}
 
 		setStatus(fmt::format("Done - {} paths from {} tiles", ps.paths.size(), tilesDone));

@@ -373,6 +373,16 @@ void MainScreen::onGui()
                             }
                             break;
                         }
+                        case FilterParameter::Precise:
+                        {
+                            float val = param.value;
+                            if (ImGui::InputFloat(label.c_str(), &val, 0.0f, 0.0f, "%.6f"))
+                            {
+                                val = std::max(param.minValue, std::min(val, param.maxValue));
+                                e.generator->setParameter(paramKey, val);
+                            }
+                            break;
+                        }
                         case FilterParameter::Float:
                         default:
                         {
@@ -642,6 +652,16 @@ void MainScreen::onGui()
                                     }
                                     ImGui::EndCombo();
                                 }
+                            }
+                            break;
+                        }
+                        case FilterParameter::Precise:
+                        {
+                            float val = param.value;
+                            if (ImGui::InputFloat(label.c_str(), &val, 0.0f, 0.0f, "%.6f"))
+                            {
+                                val = std::max(param.minValue, std::min(val, param.maxValue));
+                                f->setParameter(paramKey, val);
                             }
                             break;
                         }

@@ -13,7 +13,7 @@
 
 struct FilterParameter
 {
-    enum Type { Float, Int, Bool, Enum };
+    enum Type { Float, Int, Bool, Enum, Precise };
     std::string name;
     float minValue{0.0f};
     float maxValue{1.0f};

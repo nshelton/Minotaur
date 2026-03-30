@@ -8,6 +8,7 @@
 #include "generators/GeneratorTyped.h"
 #include "core/Core.h"
 #include "utils/ObjLoader.h"
+#include "utils/MeshDecimator.h"
 #include "utils/MeshPreviewWidget.h"
 
 // Generates a PathSet by projecting a 3D OBJ mesh onto 2D.
@@ -43,6 +44,7 @@ struct MeshGenerator : public GeneratorTyped<MeshGenerator, PathSet>
 		m_parameters["hiddenLines"] = FilterParameter{
 			"Hidden Line Removal", 0.0f, 1.0f, 0.0f, FilterParameter::Bool
 		};
+		m_parameters["depthBias"] = FilterParameter{"HLR Depth Bias", 0.0f, 0.01f, 0.005f};
 
 		m_stringParameters["file"] = "";
 	}
@@ -73,6 +75,12 @@ struct MeshGenerator : public GeneratorTyped<MeshGenerator, PathSet>
 		float scaleMm = m_parameters.at("scale_mm").value;
 		bool perspective = m_parameters.at("projection").value > 0.5f;
 		bool hlr = m_parameters.at("hiddenLines").value > 0.5f;
+		float decimation = m_parameters.at("decimation").value;
+
+		// Apply QEM decimation in 3D before projection
+		const ObjMesh &workMesh = (decimation > 0.0f)
+			? (m_decimatedCache = MeshDecimator::decimate(m_mesh, decimation))
+			: m_mesh;
 
 		// Build rotation matrix (reuse the widget's Mat4 helpers)
 		using M4 = MeshPreviewWidget::Mat4;
@@ -80,10 +88,10 @@ struct MeshGenerator : public GeneratorTyped<MeshGenerator, PathSet>
 
 		// Transform all vertices
 		struct V3 { float x, y, z; };
-		std::vector<V3> transformed(m_mesh.vertices.size());
-		for (size_t i = 0; i < m_mesh.vertices.size(); ++i)
+		std::vector<V3> transformed(workMesh.vertices.size());
+		for (size_t i = 0; i < workMesh.vertices.size(); ++i)
 		{
-			const auto &v = m_mesh.vertices[i];
+			const auto &v = workMesh.vertices[i];
 			float ox = model.m[0]*v.x + model.m[4]*v.y + model.m[8]*v.z;
 			float oy = model.m[1]*v.x + model.m[5]*v.y + model.m[9]*v.z;
 			float oz = model.m[2]*v.x + model.m[6]*v.y + model.m[10]*v.z;
@@ -106,38 +114,10 @@ struct MeshGenerator : public GeneratorTyped<MeshGenerator, PathSet>
 			}
 		};
 
-		// Decimation: sort edges by projected 2D length, skip shortest ones
-		float decimation = m_parameters.at("decimation").value;
-		int totalEdges = static_cast<int>(m_mesh.edges.size());
-		int skipCount = static_cast<int>(decimation * totalEdges);
-
-		// Build index + length pairs for sorting
-		std::vector<std::pair<float, int>> edgeLengths(totalEdges);
-		for (int i = 0; i < totalEdges; ++i)
-		{
-			Vec2 a = project(transformed[m_mesh.edges[i].a]);
-			Vec2 b = project(transformed[m_mesh.edges[i].b]);
-			float dx = b.x - a.x, dy = b.y - a.y;
-			edgeLengths[i] = {dx * dx + dy * dy, i};
-		}
-		std::sort(edgeLengths.begin(), edgeLengths.end());
-
-		// Output edges, skipping the shortest ones
-		for (int i = skipCount; i < totalEdges; ++i)
-		{
-			const auto &edge = m_mesh.edges[edgeLengths[i].second];
-			Vec2 a = project(transformed[edge.a]);
-			Vec2 b = project(transformed[edge.b]);
-			Path p;
-			p.closed = false;
-			p.points.push_back(a);
-			p.points.push_back(b);
-			out.paths.push_back(std::move(p));
-
-    // Simple path: no hidden line removal
+		// Simple path: no hidden line removal
 		if (!hlr)
 		{
-			for (const auto &edge : m_mesh.edges)
+			for (const auto &edge : workMesh.edges)
 			{
 				Vec2 a = project(transformed[edge.a]);
 				Vec2 b = project(transformed[edge.b]);
@@ -179,79 +159,6 @@ struct MeshGenerator : public GeneratorTyped<MeshGenerator, PathSet>
 			return {u, v, w};
 		};
 
-		// Cyrus-Beck clip of parametric segment [0,1] against triangle half-planes.
-		// Returns the sub-interval [tEnter, tExit] inside the triangle, or empty.
-		auto clipSegmentToTriangle = [&](Vec2 pa, Vec2 pb,
-			Vec2 t0, Vec2 t1, Vec2 t2)
-			-> std::pair<float, float>
-		{
-			float tEnter = 0.0f, tExit = 1.0f;
-			Vec2 d = pb - pa;
-
-			// Three edges of the triangle: (t0,t1), (t1,t2), (t2,t0)
-			Vec2 triVerts[3] = {t0, t1, t2};
-			for (int i = 0; i < 3; ++i)
-			{
-				Vec2 e0 = triVerts[i];
-				Vec2 e1 = triVerts[(i + 1) % 3];
-				Vec2 edgeDir = e1 - e0;
-				// Outward normal (right perpendicular for CCW triangle)
-				Vec2 n{edgeDir.y, -edgeDir.x};
-
-				Vec2 w = pa - e0;
-				float num = -(n.x * w.x + n.y * w.y);
-				float den = n.x * d.x + n.y * d.y;
-
-				if (std::fabs(den) < EPS)
-				{
-					// Segment parallel to this edge
-					if (num < 0.0f) return {1.0f, 0.0f}; // outside
-					continue; // inside this half-plane
-				}
-
-				float t = num / den;
-				if (den < 0.0f)
-				{
-					// Entering
-					if (t > tEnter) tEnter = t;
-				}
-				else
-				{
-					// Exiting
-					if (t < tExit) tExit = t;
-				}
-				if (tEnter > tExit) return {1.0f, 0.0f}; // empty
-			}
-			return {tEnter, tExit};
-		};
-
-		// Subtract interval [lo,hi] from a list of intervals
-		auto subtractInterval = [](
-			std::vector<std::pair<float,float>> &intervals,
-			float lo, float hi)
-		{
-			if (lo >= hi) return;
-			std::vector<std::pair<float,float>> result;
-			result.reserve(intervals.size() + 1);
-			for (auto &iv : intervals)
-			{
-				if (iv.second <= lo || iv.first >= hi)
-				{
-					// No overlap
-					result.push_back(iv);
-				}
-				else
-				{
-					// Partial overlap - emit surviving portions
-					if (iv.first < lo)
-						result.push_back({iv.first, lo});
-					if (iv.second > hi)
-						result.push_back({hi, iv.second});
-				}
-			}
-			intervals = std::move(result);
-		};
-
 		// Step A: Build projected front-facing triangles
 		struct ProjTri
 		{
@@ -261,29 +168,30 @@ struct MeshGenerator : public GeneratorTyped<MeshGenerator, PathSet>
 			Vec2 bmin, bmax;
 		};
 
-		// Auto-detect winding order: count which sign convention
-		// produces more front-facing triangles
-		int posFacing = 0, negFacing = 0;
-		for (const auto &face : m_mesh.faces)
+		// Detect winding order via signed volume of the original mesh.
+		// This is view-independent (pure rotation preserves handedness).
+		float signedVolume = 0.0f;
+		for (const auto &face : workMesh.faces)
 		{
 			int nv = static_cast<int>(face.indices.size());
 			if (nv < 3) continue;
-			const V3 &a = transformed[face.indices[0]];
-			const V3 &b = transformed[face.indices[1]];
-			const V3 &c = transformed[face.indices[2]];
-			float ex1 = b.x - a.x, ey1 = b.y - a.y;
-			float ex2 = c.x - a.x, ey2 = c.y - a.y;
-			float nz = ex1 * ey2 - ey1 * ex2;
-			if (nz > 0.0f) ++posFacing;
-			else if (nz < 0.0f) ++negFacing;
+			for (int i = 1; i < nv - 1; ++i)
+			{
+				const auto &a = workMesh.vertices[face.indices[0]];
+				const auto &b = workMesh.vertices[face.indices[i]];
+				const auto &c = workMesh.vertices[face.indices[i + 1]];
+				signedVolume += a.x * (b.y * c.z - b.z * c.y)
+				              + a.y * (b.z * c.x - b.x * c.z)
+				              + a.z * (b.x * c.y - b.y * c.x);
+			}
 		}
-		// If more faces have negative nz, the mesh uses CW winding
-		float windingSign = (negFacing > posFacing) ? -1.0f : 1.0f;
+		// Positive signed volume = CCW outward normals; negative = CW
+		float windingSign = (signedVolume >= 0.0f) ? 1.0f : -1.0f;
 
 		std::vector<ProjTri> frontTris;
-		frontTris.reserve(m_mesh.faces.size());
+		frontTris.reserve(workMesh.faces.size());
 
-		for (const auto &face : m_mesh.faces)
+		for (const auto &face : workMesh.faces)
 		{
 			int nv = static_cast<int>(face.indices.size());
 			if (nv < 3) continue;
@@ -336,114 +244,109 @@ struct MeshGenerator : public GeneratorTyped<MeshGenerator, PathSet>
 			}
 		}
 
-		// Step B: For each edge, compute visible intervals after occlusion
-		for (const auto &edge : m_mesh.edges)
+		// Step B: Rasterize front-facing triangles into a software depth buffer
+		constexpr int DBUF_SIZE = 1024;
+
+		// Find projected bounding box of all vertices
+		float projMinX =  1e30f, projMinY =  1e30f;
+		float projMaxX = -1e30f, projMaxY = -1e30f;
+		for (const auto &v : transformed)
+		{
+			Vec2 p = project(v);
+			projMinX = std::min(projMinX, p.x);
+			projMinY = std::min(projMinY, p.y);
+			projMaxX = std::max(projMaxX, p.x);
+			projMaxY = std::max(projMaxY, p.y);
+		}
+		float padX = (projMaxX - projMinX) * 0.05f;
+		float padY = (projMaxY - projMinY) * 0.05f;
+		projMinX -= padX; projMinY -= padY;
+		projMaxX += padX; projMaxY += padY;
+		float projW = projMaxX - projMinX;
+		float projH = projMaxY - projMinY;
+		if (projW < EPS || projH < EPS) return;
+
+		// Map projected coords <-> pixel coords
+		auto toPixelX = [&](float x) -> int {
+			return std::clamp(static_cast<int>((x - projMinX) / projW * (DBUF_SIZE - 1)),
+				0, DBUF_SIZE - 1);
+		};
+		auto toPixelY = [&](float y) -> int {
+			return std::clamp(static_cast<int>((y - projMinY) / projH * (DBUF_SIZE - 1)),
+				0, DBUF_SIZE - 1);
+		};
+		auto fromPixelX = [&](int px) -> float {
+			return projMinX + (px + 0.5f) / DBUF_SIZE * projW;
+		};
+		auto fromPixelY = [&](int py) -> float {
+			return projMinY + (py + 0.5f) / DBUF_SIZE * projH;
+		};
+
+		// Initialize depth buffer (higher z = closer to camera)
+		std::vector<float> depthBuf(DBUF_SIZE * DBUF_SIZE, -1e30f);
+
+		// Rasterize each front-facing triangle
+		for (const auto &tri : frontTris)
+		{
+			int px0 = toPixelX(tri.p0.x), py0 = toPixelY(tri.p0.y);
+			int px1 = toPixelX(tri.p1.x), py1 = toPixelY(tri.p1.y);
+			int px2 = toPixelX(tri.p2.x), py2 = toPixelY(tri.p2.y);
+
+			int minPx = std::min({px0, px1, px2});
+			int maxPx = std::max({px0, px1, px2});
+			int minPy = std::min({py0, py1, py2});
+			int maxPy = std::max({py0, py1, py2});
+
+			for (int py = minPy; py <= maxPy; ++py)
+			{
+				for (int px = minPx; px <= maxPx; ++px)
+				{
+					Vec2 pt{fromPixelX(px), fromPixelY(py)};
+					auto [u, v, w] = barycentricCoords(pt, tri.p0, tri.p1, tri.p2);
+					if (u >= 0.0f && v >= 0.0f && w >= 0.0f)
+					{
+						float z = u * tri.z0 + v * tri.z1 + w * tri.z2;
+						int idx = py * DBUF_SIZE + px;
+						if (z > depthBuf[idx]) depthBuf[idx] = z;
+					}
+				}
+			}
+		}
+
+		// Step C: Test each edge against depth buffer with multiple samples.
+		// If ANY sample is visible, emit the edge.
+		float DEPTH_EPS = m_parameters.at("depthBias").value;
+		constexpr int NUM_SAMPLES = 8;
+
+		for (const auto &edge : workMesh.edges)
 		{
 			const V3 &va = transformed[edge.a];
 			const V3 &vb = transformed[edge.b];
 			Vec2 pa = project(va);
 			Vec2 pb = project(vb);
 
-			// Edge bounding box
-			float eMinX = std::min(pa.x, pb.x);
-			float eMinY = std::min(pa.y, pb.y);
-			float eMaxX = std::max(pa.x, pb.x);
-			float eMaxY = std::max(pa.y, pb.y);
-
-			std::vector<std::pair<float,float>> intervals;
-			intervals.push_back({0.0f, 1.0f});
-
-			for (const auto &tri : frontTris)
+			bool anyVisible = false;
+			for (int s = 0; s < NUM_SAMPLES; ++s)
 			{
-				if (intervals.empty()) break;
-
-				// Skip triangles that share a vertex with this edge
-				if (tri.vi0 == edge.a || tri.vi0 == edge.b ||
-				    tri.vi1 == edge.a || tri.vi1 == edge.b ||
-				    tri.vi2 == edge.a || tri.vi2 == edge.b)
-					continue;
-
-				// Bounding box early rejection
-				if (eMaxX < tri.bmin.x || eMinX > tri.bmax.x ||
-				    eMaxY < tri.bmin.y || eMinY > tri.bmax.y)
-					continue;
-
-				// Clip edge segment to triangle in 2D
-				auto [tEnter, tExit] = clipSegmentToTriangle(
-					pa, pb, tri.p0, tri.p1, tri.p2);
-				if (tEnter >= tExit) continue;
-
-				// Depth test: interpolate edge z and triangle z at tEnter and tExit
-				float edgeZ0 = va.z + tEnter * (vb.z - va.z);
-				float edgeZ1 = va.z + tExit  * (vb.z - va.z);
-
-				// Triangle z via barycentric interpolation at each endpoint
-				Vec2 ptEnter = pa + (pb - pa) * tEnter;
-				Vec2 ptExit  = pa + (pb - pa) * tExit;
-
-				auto [u0, v0, w0] = barycentricCoords(ptEnter,
-					tri.p0, tri.p1, tri.p2);
-				auto [u1, v1, w1] = barycentricCoords(ptExit,
-					tri.p0, tri.p1, tri.p2);
-
-				float triZ0 = u0 * tri.z0 + v0 * tri.z1 + w0 * tri.z2;
-				float triZ1 = u1 * tri.z0 + v1 * tri.z1 + w1 * tri.z2;
-
-				// Triangle occludes where triZ > edgeZ (closer to camera = higher z)
-				constexpr float DEPTH_EPS = 1e-4f;
-				float diff0 = triZ0 - edgeZ0;
-				float diff1 = triZ1 - edgeZ1;
-
-				float occStart, occEnd;
-
-				if (diff0 > DEPTH_EPS && diff1 > DEPTH_EPS)
+				float t = static_cast<float>(s) / (NUM_SAMPLES - 1);
+				float edgeZ = va.z + t * (vb.z - va.z);
+				Vec2 pt = pa + (pb - pa) * t;
+				int px = toPixelX(pt.x);
+				int py = toPixelY(pt.y);
+				float bufZ = depthBuf[py * DBUF_SIZE + px];
+				if (bufZ <= edgeZ + DEPTH_EPS)
 				{
-					// Entire overlap is occluded
-					occStart = tEnter;
-					occEnd = tExit;
+					anyVisible = true;
+					break;
 				}
-				else if (diff0 <= DEPTH_EPS && diff1 <= DEPTH_EPS)
-				{
-					// Triangle is behind the edge throughout - no occlusion
-					continue;
-				}
-				else
-				{
-					// Depth crossover: find the t where depths are equal
-					// diff(t) = diff0 + (diff1 - diff0) * (t - tEnter) / (tExit - tEnter)
-					float tCross = tEnter + (tExit - tEnter) *
-						(-diff0 + DEPTH_EPS) / (diff1 - diff0);
-					tCross = std::max(tEnter, std::min(tExit, tCross));
-
-					if (diff0 > DEPTH_EPS)
-					{
-						// Occluded from tEnter to tCross
-						occStart = tEnter;
-						occEnd = tCross;
-					}
-					else
-					{
-						// Occluded from tCross to tExit
-						occStart = tCross;
-						occEnd = tExit;
-					}
-				}
-
-				subtractInterval(intervals, occStart, occEnd);
 			}
+			if (!anyVisible) continue;
 
-			// Emit surviving visible segments as paths
-			for (auto &[t0, t1] : intervals)
-			{
-				if (t1 - t0 < EPS) continue;
-				Vec2 startPt = pa + (pb - pa) * t0;
-				Vec2 endPt   = pa + (pb - pa) * t1;
-				Path p;
-				p.closed = false;
-				p.points.push_back(startPt);
-				p.points.push_back(endPt);
-				out.paths.push_back(std::move(p));
-			}
+			Path p;
+			p.closed = false;
+			p.points.push_back(pa);
+			p.points.push_back(pb);
+			out.paths.push_back(std::move(p));
 		}
 	}
 
@@ -477,8 +380,7 @@ struct MeshGenerator : public GeneratorTyped<MeshGenerator, PathSet>
 		return true;
 	}
 
-	// Called by GUI when the file path string parameter changes
-	void onStringParameterChanged(const std::string &key)
+	void onStringParameterChanged(const std::string &key) override
 	{
 		if (key == "file")
 		{
@@ -488,5 +390,6 @@ struct MeshGenerator : public GeneratorTyped<MeshGenerator, PathSet>
 
 private:
 	ObjMesh m_mesh;
+	mutable ObjMesh m_decimatedCache;
 	mutable MeshPreviewWidget m_preview;
 };
