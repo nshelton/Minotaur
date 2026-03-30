@@ -77,3 +77,12 @@ target_include_directories(motion_planner_tests PRIVATE src)
 target_link_libraries(motion_planner_tests PRIVATE GTest::gtest GTest::gtest_main)
 
 add_test(NAME motion_planner COMMAND motion_planner_tests)
+
+add_executable(filter_tests
+  tests/test_filters.cpp
+)
+
+target_include_directories(filter_tests PRIVATE src)
+target_link_libraries(filter_tests PRIVATE GTest::gtest GTest::gtest_main glog::glog fmt::fmt)
+
+add_test(NAME filters COMMAND filter_tests)
