@@ -385,8 +385,6 @@ namespace serialization
             json j = {
                 {"version", kSchemaVersion},
                 {"page_size_mm", json{{"w", model.page_width_mm}, {"h", model.page_height_mm}}},
-                {"mouse_pixel", model.mouse_pixel},
-                {"mouse_page_mm", model.mouse_page_mm},
                 {"entities", entities}};
 
             std::ofstream ofs(filePath, std::ios::binary | std::ios::trunc);
@@ -430,9 +428,6 @@ namespace serialization
             // optional version check
             int version = j.value("version", 1);
             (void)version; // keep reserved for future migrations
-
-            model.mouse_pixel = j.value("mouse_pixel", Vec2{});
-            model.mouse_page_mm = j.value("mouse_page_mm", Vec2{});
 
             model.entities.clear();
             if (j.contains("entities") && j["entities"].is_array())
@@ -539,8 +534,6 @@ namespace serialization
             json j = {
                 {"version", kSchemaVersion},
                 {"page_size_mm", json{{"w", model.page_width_mm}, {"h", model.page_height_mm}}},
-                {"mouse_pixel", model.mouse_pixel},
-                {"mouse_page_mm", model.mouse_page_mm},
                 {"entities", entities}
             };
 
@@ -612,9 +605,6 @@ namespace serialization
             // optional version check
             int version = j.value("version", 1);
             (void)version;
-
-            model.mouse_pixel = j.value("mouse_pixel", Vec2{});
-            model.mouse_page_mm = j.value("mouse_page_mm", Vec2{});
 
             model.entities.clear();
             if (j.contains("entities") && j["entities"].is_array())

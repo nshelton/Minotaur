@@ -218,10 +218,11 @@ void MainScreen::onMouseButton(int button, int action, int /*mods*/, Vec2 px)
 {
     LOG(INFO) << "MouseDown at pixel (" << px.x << ", " << px.y << ")";
 
-    m_page.mouse_page_mm = m_camera.screenToWorld(px);
+    Vec2 worldPos = m_camera.screenToWorld(px);
+    m_interaction.SetMousePageMm(worldPos);
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
     {
-        m_interaction.onMouseDown(m_page, m_camera, m_page.mouse_page_mm);
+        m_interaction.onMouseDown(m_page, m_camera, worldPos);
     }
     else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE)
     {
@@ -230,7 +231,7 @@ void MainScreen::onMouseButton(int button, int action, int /*mods*/, Vec2 px)
     else if (button == GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW_PRESS)
     {
         // Middle click always pans the page; never selects/moves entities
-        m_interaction.beginPan(m_camera, m_page.mouse_page_mm);
+        m_interaction.beginPan(m_camera, worldPos);
     }
     else if (button == GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW_RELEASE)
     {
@@ -240,9 +241,10 @@ void MainScreen::onMouseButton(int button, int action, int /*mods*/, Vec2 px)
 
 void MainScreen::onCursorPos(Vec2 px)
 {
-    m_page.mouse_pixel = px;
-    m_page.mouse_page_mm = m_camera.screenToWorld(px);
-    m_interaction.onCursorPos(m_page, m_camera, m_page.mouse_page_mm);
+    m_interaction.SetMousePixel(px);
+    Vec2 worldPos = m_camera.screenToWorld(px);
+    m_interaction.SetMousePageMm(worldPos);
+    m_interaction.onCursorPos(m_page, m_camera, worldPos);
 }
 
 void MainScreen::onScroll(double xoffset, double yoffset, Vec2 px)

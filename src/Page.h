@@ -23,8 +23,6 @@ struct PageModel
     const float page_width_mm = 297.0f;
     const float page_height_mm = 420.0f;
 
-    Vec2 mouse_pixel;
-    Vec2 mouse_page_mm;
     std::map<int, Entity> entities;
 
 };

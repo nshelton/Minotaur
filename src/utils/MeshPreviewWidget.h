@@ -48,6 +48,22 @@ public:
 
 	void shutdown();
 
+	struct Vtx { float x, y, z; };
+
+	// 4x4 matrix helpers (column-major, local to this widget)
+	struct Mat4
+	{
+		float m[16];
+		static Mat4 identity();
+		static Mat4 perspective(float fovDeg, float aspect, float zn, float zf);
+		static Mat4 ortho(float halfExtent, float aspect, float zn, float zf);
+		static Mat4 rotationX(float deg);
+		static Mat4 rotationY(float deg);
+		static Mat4 rotationZ(float deg);
+		static Mat4 translation(float x, float y, float z);
+		Mat4 operator*(const Mat4 &rhs) const;
+	};
+
 private:
 	const ObjMesh *m_mesh{nullptr};
 	float m_rotX{0}, m_rotY{0}, m_rotZ{0};
@@ -67,20 +83,4 @@ private:
 
 	bool ensureFBO(int w, int h);
 	bool ensureShader();
-
-	struct Vtx { float x, y, z; };
-
-	// 4x4 matrix helpers (column-major, local to this widget)
-	struct Mat4
-	{
-		float m[16];
-		static Mat4 identity();
-		static Mat4 perspective(float fovDeg, float aspect, float zn, float zf);
-		static Mat4 ortho(float halfExtent, float aspect, float zn, float zf);
-		static Mat4 rotationX(float deg);
-		static Mat4 rotationY(float deg);
-		static Mat4 rotationZ(float deg);
-		static Mat4 translation(float x, float y, float z);
-		Mat4 operator*(const Mat4 &rhs) const;
-	};
 };

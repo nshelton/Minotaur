@@ -9,6 +9,7 @@
 #include "generators/bitmap/CheckerboardGenerator.h"
 #include "generators/bitmap/RadialGenerator.h"
 #include "generators/mesh/MeshGenerator.h"
+#include "generators/pathset/OsmGenerator.h"
 
 GeneratorRegistry &GeneratorRegistry::instance()
 {
@@ -82,5 +83,11 @@ void GeneratorRegistry::initDefaults()
 		"Mesh",
 		LayerKind::PathSet,
 		[]() { return std::make_unique<MeshGenerator>(); }
+	});
+
+	reg.registerGenerator(GeneratorInfo{
+		"OSM Tiles",
+		LayerKind::PathSet,
+		[]() { return std::make_unique<OsmGenerator>(); }
 	});
 }

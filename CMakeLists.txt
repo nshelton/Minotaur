@@ -12,6 +12,7 @@ find_package(fmt CONFIG REQUIRED)
 find_package(glog CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
+find_package(CURL REQUIRED)
 
 file(GLOB_RECURSE SRC_FILES CONFIGURE_DEPENDS
   src/*.cpp
@@ -44,7 +45,7 @@ endif()
 
 target_include_directories(minotaur PRIVATE src)
 
-target_link_libraries(minotaur PRIVATE glad::glad glfw imgui::imgui glog::glog fmt::fmt nlohmann_json::nlohmann_json)
+target_link_libraries(minotaur PRIVATE glad::glad glfw imgui::imgui glog::glog fmt::fmt nlohmann_json::nlohmann_json CURL::libcurl)
 
 if(WIN32)
   target_link_libraries(minotaur PRIVATE opengl32 ole32 windowscodecs)

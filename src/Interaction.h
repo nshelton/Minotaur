@@ -44,6 +44,10 @@ struct InteractionState
     Vec2 resizeHandleLocal;   // local-space handle point
     Vec2 resizeAnchorPage;    // page-space anchor position at drag start
 
+    // Mouse state (transient, not serialized)
+    Vec2 mouse_pixel;
+    Vec2 mouse_page_mm;
+
     // Rendering options
     bool showPathNodes{true};
 };
@@ -70,6 +74,9 @@ public:
 
     bool ShowPathNodes() const { return m_state.showPathNodes; }
     void SetShowPathNodes(bool v) { m_state.showPathNodes = v; }
+
+    void SetMousePixel(const Vec2 &v) { m_state.mouse_pixel = v; }
+    void SetMousePageMm(const Vec2 &v) { m_state.mouse_page_mm = v; }
 
 private:
     std::optional<int> pick(const PageModel &scene, const Vec2 &world);
