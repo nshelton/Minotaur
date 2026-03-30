@@ -653,7 +653,14 @@ void MainScreen::onGui()
                         }
                     }
 
-                    if (f->outputKind() == LayerKind::PathSet)
+                    // Show progress bar while filter is computing
+                    if (f->isRunning())
+                    {
+                        float prog = f->progress();
+                        ImGui::ProgressBar(prog, ImVec2(-1, 0));
+                        ImGui::Text("Computing... %.0f%%", prog * 100.0f);
+                    }
+                    else if (f->outputKind() == LayerKind::PathSet)
                     {
                         std::string ioinfo = fmt::format(
                             "Output {:.3f} ms | {} verts | {} paths",
@@ -749,7 +756,7 @@ void MainScreen::onGui()
                 ImGui::PushID(id * 2 + 0);
                 ImGui::TableSetColumnIndex(0);
                 // Color label by current output kind (vector vs raster)
-                const LayerPtr &layer = m_page.entities.at(id).filterChain.output();
+                const LayerPtr layer = m_page.entities.at(id).filterChain.output();
                 const Color &c = isPathSetLayer(layer) ? theme::PathsetColor : theme::BitmapColor;
                 ImVec4 txtCol(c.r, c.g, c.b, c.a);
                 ImGui::TextColored(txtCol, "%s", label.c_str());

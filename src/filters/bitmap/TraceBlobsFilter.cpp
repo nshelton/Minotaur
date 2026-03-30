@@ -119,6 +119,8 @@ void TraceBlobsFilter::applyTyped(const Bitmap &in, PathSet &out) const
 
     for (int y = 0; y < H; ++y)
     {
+        if ((y & 0xF) == 0)  // report every 16 rows
+            setProgress(static_cast<float>(y) / static_cast<float>(H));
         for (int x = 0; x < W; ++x)
         {
             const int idx = idxOf(x, y);
@@ -474,6 +476,7 @@ void TraceBlobsFilter::applyTyped(const Bitmap &in, PathSet &out) const
         }
     }
 
+    setProgress(1.0f);
     out.computeAABB();
 }
 

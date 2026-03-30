@@ -374,6 +374,8 @@ void OptimizePathsFilter::applyTyped(const PathSet &in, PathSet &out) const
 
 	for (size_t picked = 1; picked < m; ++picked)
 	{
+		if ((picked & 0x3F) == 0)  // report every 64 paths
+			setProgress(static_cast<float>(picked) / static_cast<float>(m));
 		auto [bestIdx, reverseCandidate] = pickNearest(lastPoint);
 		if (bestIdx == static_cast<size_t>(-1)) break;
 		Path chosen = working[bestIdx];
@@ -383,6 +385,7 @@ void OptimizePathsFilter::applyTyped(const PathSet &in, PathSet &out) const
 		lastPoint = chosen.points.empty() ? lastPoint : chosen.points.back();
 		out.paths.push_back(std::move(chosen));
 	}
+	setProgress(1.0f);
 
 	out.computeAABB();
 }

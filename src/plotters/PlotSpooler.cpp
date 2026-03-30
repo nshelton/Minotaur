@@ -405,7 +405,7 @@ bool PlotSpooler::prepareJob(const PageModel &page, bool liftPen)
         }
         else
         {
-            const auto &output = e.filterChain.outputLayer();
+            const auto output = e.filterChain.outputBlocking();
             if (output && output->kind() == LayerKind::PathSet)
                 ps = asPathSetConstPtr(output);
         }

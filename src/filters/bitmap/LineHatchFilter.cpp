@@ -157,12 +157,16 @@ void LineHatchFilter::applyTyped(const Bitmap &in, PathSet &out) const
     // Sweep across the image with parallel lines spaced by stepPx along the normal
     const int sStart = static_cast<int>(std::floor(sMin));
     const int sEnd = static_cast<int>(std::ceil(sMax));
+    const float sRange = static_cast<float>(sEnd - sStart);
     for (float s = static_cast<float>(sStart); s <= static_cast<float>(sEnd); s += stepPx)
     {
+        if (sRange > 0.0f)
+            setProgress((s - static_cast<float>(sStart)) / sRange);
         const std::vector<Vec2> ints = addIntersections(s);
         if (ints.size() < 2) continue;
         emitRuns(ints[0], ints[1]);
     }
+    setProgress(1.0f);
 
     out.computeAABB();
 }

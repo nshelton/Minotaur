@@ -5,6 +5,8 @@
 #include <vector>
 #include <cassert>
 #include <chrono>
+#include <future>
+#include <mutex>
 
 #include "Types.h"
 #include "Filter.h"
@@ -23,7 +25,12 @@ class FilterChain
 public:
     FilterChain() = default;
 
-    // Copy: copy base only, do not copy filters or caches
+    ~FilterChain()
+    {
+        waitForEval();
+    }
+
+    // Copy: copy base only, do not copy filters, caches, or async state
     FilterChain(const FilterChain &other)
         : m_filters(), m_layers(), m_base(other.m_base), m_baseGen(other.m_baseGen) {}
 
@@ -31,29 +38,61 @@ public:
     {
         if (this != &other)
         {
+            waitForEval();
             m_filters.clear();
             m_layers.clear();
             m_base = other.m_base;
             m_baseGen = other.m_baseGen;
+            std::lock_guard<std::mutex> lock(m_resultMutex);
+            m_completedOutput.reset();
         }
         return *this;
     }
 
-    // Move defaulted
-    FilterChain(FilterChain &&) noexcept = default;
-    FilterChain &operator=(FilterChain &&) noexcept = default;
+    // Move: wait for eval to complete, then move all state
+    FilterChain(FilterChain &&other) noexcept
+        : FilterChain()
+    {
+        if (other.m_evalFuture.valid()) other.m_evalFuture.wait();
+        m_filters = std::move(other.m_filters);
+        m_layers = std::move(other.m_layers);
+        m_enabled = std::move(other.m_enabled);
+        m_base = std::move(other.m_base);
+        m_baseGen = other.m_baseGen;
+        m_completedOutput = std::move(other.m_completedOutput);
+    }
+
+    FilterChain &operator=(FilterChain &&other) noexcept
+    {
+        if (this != &other)
+        {
+            waitForEval();
+            if (other.m_evalFuture.valid()) other.m_evalFuture.wait();
+            m_filters = std::move(other.m_filters);
+            m_layers = std::move(other.m_layers);
+            m_enabled = std::move(other.m_enabled);
+            m_base = std::move(other.m_base);
+            m_baseGen = other.m_baseGen;
+            m_completedOutput = std::move(other.m_completedOutput);
+        }
+        return *this;
+    }
 
     void clear()
     {
+        waitForEval();
         m_filters.clear();
         m_layers.clear();
         m_enabled.clear();
         m_base.reset();
         m_baseGen = 0;
+        std::lock_guard<std::mutex> lock(m_resultMutex);
+        m_completedOutput.reset();
     }
 
     void setBase(const LayerPtr &base, uint64_t baseGen)
     {
+        waitForEval();
         m_base = base;
         m_baseGen = baseGen;
         // Invalidate all caches
@@ -63,6 +102,8 @@ public:
 
     size_t addFilter(std::unique_ptr<FilterBase> f)
     {
+        waitForEval();
+
         // Validate chain typing
         if (m_filters.empty())
         {
@@ -83,24 +124,86 @@ public:
 
     size_t size() const { return m_filters.size(); }
 
-    const LayerPtr &output() const
+    // Non-blocking output: returns last completed result.
+    // Kicks off background evaluation if caches are stale.
+    LayerPtr output() const
     {
         if (m_filters.empty())
             return m_base;
-        return evaluate(m_filters.size() - 1);
+
+        if (!isEvaluating())
+        {
+            if (needsEval())
+            {
+                m_evalFuture = std::async(std::launch::async, [this]() {
+                    evaluate(m_filters.size() - 1);
+                    std::lock_guard<std::mutex> lock(m_resultMutex);
+                    m_completedOutput = m_layers.back().data;
+                });
+            }
+        }
+
+        std::lock_guard<std::mutex> lock(m_resultMutex);
+        return m_completedOutput ? m_completedOutput : m_base;
     }
 
-    const LayerPtr &outputLayer() const
+    // Blocking output: waits for evaluation to complete.
+    // Use when you need the definitive result (e.g. plotting).
+    LayerPtr outputBlocking() const
     {
         if (m_filters.empty())
             return m_base;
-        return m_layers[m_layers.size() - 1].data;
+
+        // If an eval is in flight, wait for it
+        waitForEval();
+
+        // If still stale (e.g. params changed during wait), evaluate synchronously
+        if (needsEval())
+        {
+            evaluate(m_filters.size() - 1);
+            std::lock_guard<std::mutex> lock(m_resultMutex);
+            m_completedOutput = m_layers.back().data;
+        }
+
+        std::lock_guard<std::mutex> lock(m_resultMutex);
+        return m_completedOutput ? m_completedOutput : m_base;
+    }
+
+    LayerPtr outputLayer() const
+    {
+        if (m_filters.empty())
+            return m_base;
+        std::lock_guard<std::mutex> lock(m_resultMutex);
+        return m_completedOutput ? m_completedOutput : LayerPtr{};
     }
 
     void invalidateAll()
     {
         for (auto &lc : m_layers)
             lc.valid = false;
+    }
+
+    // Wait for any in-flight background evaluation to finish
+    void waitForEval() const
+    {
+        if (m_evalFuture.valid()) m_evalFuture.wait();
+    }
+
+    // Returns true if a background evaluation is currently running
+    bool isEvaluating() const
+    {
+        if (!m_evalFuture.valid()) return false;
+        return m_evalFuture.wait_for(std::chrono::seconds(0)) != std::future_status::ready;
+    }
+
+    // Returns the index of the filter currently being evaluated, or -1 if none
+    int activeFilterIndex() const
+    {
+        for (size_t i = 0; i < m_filters.size(); ++i)
+        {
+            if (m_filters[i]->isRunning()) return static_cast<int>(i);
+        }
+        return -1;
     }
 
     // Debug/inspection accessors (read-only)
@@ -113,6 +216,8 @@ public:
     // Modification: remove a filter by index
     bool removeFilter(size_t index)
     {
+        waitForEval();
+
         if (index >= m_filters.size())
             return false;
 
@@ -130,6 +235,8 @@ public:
     // Enable/disable a filter (bypass when disabled)
     void setFilterEnabled(size_t index, bool enabled)
     {
+        waitForEval();
+
         if (index >= m_enabled.size())
             return;
         if (m_enabled[index] == enabled)
@@ -222,6 +329,22 @@ public:
     {
         return canRemoveFilterAtIndex(index);
     }
+    // Quick check whether any cache in the chain is stale (does not recurse/recompute)
+    bool needsEval() const
+    {
+        for (size_t i = 0; i < m_filters.size(); ++i)
+        {
+            if (!m_enabled[i]) continue;
+            const LayerCache &cache = m_layers[i];
+            uint64_t upGen = (i == 0) ? m_baseGen : m_layers[i - 1].gen;
+            if (!cache.valid ||
+                cache.upstreamGen != upGen ||
+                cache.paramVer != m_filters[i]->paramVersion())
+                return true;
+        }
+        return false;
+    }
+
     const LayerPtr &evaluate(size_t i) const
     {
         assert(i < m_filters.size());
@@ -263,7 +386,12 @@ public:
             {
                 cache.data.reset();
             }
+
+            filter.setRunning(true);
+            filter.setProgress(0.0f);
             filter.apply(upstream, cache.data);
+            filter.setRunning(false);
+
             auto t1 = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double, std::milli> dt = t1 - t0;
             filter.setLastRunMs(dt.count());
@@ -294,4 +422,9 @@ public:
     std::vector<bool> m_enabled;
     LayerPtr m_base;
     mutable uint64_t m_baseGen{0};
+
+    // Background evaluation state
+    mutable std::future<void> m_evalFuture;
+    mutable std::mutex m_resultMutex;
+    mutable LayerPtr m_completedOutput;
 };

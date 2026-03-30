@@ -64,11 +64,19 @@ struct FilterBase
     double lastRunMs() const { return m_lastRunMs.load(); }
     void setLastRunMs(double ms) { m_lastRunMs.store(ms); }
 
+    // Progress reporting for long-running filters (0.0 .. 1.0)
+    float progress() const { return m_progress.load(std::memory_order_relaxed); }
+    void setProgress(float p) const { m_progress.store(p, std::memory_order_relaxed); }
+    bool isRunning() const { return m_running.load(std::memory_order_relaxed); }
+    void setRunning(bool r) const { m_running.store(r, std::memory_order_relaxed); }
+
 protected:
     std::atomic<uint64_t> m_version{1};
     std::atomic<double> m_lastRunMs{0.0};
     std::atomic<size_t> m_lastVertexCount{0};
     std::atomic<size_t> m_lastPathCount{0};
+    mutable std::atomic<float> m_progress{0.0f};
+    mutable std::atomic<bool> m_running{false};
 };
 
 template <typename T>
