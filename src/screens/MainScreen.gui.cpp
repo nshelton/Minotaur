@@ -407,14 +407,19 @@ void MainScreen::onGui()
                             GLuint tex = meshGen->previewWidget().texture();
                             if (tex)
                             {
-                                // Render the FBO texture (flip V because FBO is bottom-up)
-                                ImVec2 uv0(0, 1), uv1(1, 0);
-                                ImGui::Image(
+                                // Use InvisibleButton for mouse capture, draw image via draw list
+                                ImVec2 pos = ImGui::GetCursorScreenPos();
+                                ImGui::InvisibleButton("##meshPreviewDrag", ImVec2(previewSize, previewSize));
+                                bool isDragging = ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left);
+
+                                // Draw the FBO texture over the button (flip V because FBO is bottom-up)
+                                ImGui::GetWindowDrawList()->AddImage(
                                     static_cast<ImTextureID>(static_cast<uintptr_t>(tex)),
-                                    ImVec2(previewSize, previewSize), uv0, uv1);
+                                    pos, ImVec2(pos.x + previewSize, pos.y + previewSize),
+                                    ImVec2(0, 1), ImVec2(1, 0));
 
                                 // Trackball: drag on the image to rotate
-                                if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+                                if (isDragging)
                                 {
                                     ImVec2 delta = ImGui::GetIO().MouseDelta;
                                     // Horizontal drag -> rotY, vertical drag -> rotX
