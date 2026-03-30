@@ -10,6 +10,8 @@
 #include <fmt/format.h>
 #include <glog/logging.h>
 
+#include <nlohmann/json.hpp>
+
 #include "core/Core.h"
 #include "generators/GeneratorBase.h"
 #include "filters/Filter.h"
@@ -26,9 +28,9 @@
 // This is an async generator: tile fetching happens on a background thread so
 // the UI remains responsive.
 //
-// Shortbread tile schema layers exposed as toggles:
-//   streets, buildings, water_polygons, water_lines, boundaries,
-//   land_use, sites, streets_labels_only (excluded by default)
+// OpenMapTiles schema layers exposed as toggles:
+//   transportation, building, water, waterway, boundary,
+//   landuse, landcover, park, aeroway
 
 struct OsmGenerator : public GeneratorBase
 {
@@ -45,17 +47,16 @@ struct OsmGenerator : public GeneratorBase
 		// Tile grid: how many tiles to fetch (NxN centered on lat/lon)
 		m_parameters["tile_count"] = FilterParameter{"Tiles NxN", 1.0f, 5.0f, 1.0f, FilterParameter::Int};
 
-		// Layer toggles (0 = off, 1 = on)
-		m_parameters["layer_streets"]         = FilterParameter{"Streets",         0.0f, 1.0f, 1.0f, FilterParameter::Bool};
-		m_parameters["layer_buildings"]        = FilterParameter{"Buildings",       0.0f, 1.0f, 1.0f, FilterParameter::Bool};
-		m_parameters["layer_water_polygons"]   = FilterParameter{"Water Polygons",  0.0f, 1.0f, 1.0f, FilterParameter::Bool};
-		m_parameters["layer_water_lines"]      = FilterParameter{"Water Lines",     0.0f, 1.0f, 1.0f, FilterParameter::Bool};
-		m_parameters["layer_boundaries"]       = FilterParameter{"Boundaries",      0.0f, 1.0f, 0.0f, FilterParameter::Bool};
-		m_parameters["layer_land_use"]         = FilterParameter{"Land Use",        0.0f, 1.0f, 0.0f, FilterParameter::Bool};
-		m_parameters["layer_sites"]            = FilterParameter{"Sites",           0.0f, 1.0f, 0.0f, FilterParameter::Bool};
-		m_parameters["layer_ocean"]            = FilterParameter{"Ocean",           0.0f, 1.0f, 0.0f, FilterParameter::Bool};
-		m_parameters["layer_ferries"]          = FilterParameter{"Ferries",         0.0f, 1.0f, 0.0f, FilterParameter::Bool};
-		m_parameters["layer_public_transport"] = FilterParameter{"Public Transport",0.0f, 1.0f, 0.0f, FilterParameter::Bool};
+		// Layer toggles (0 = off, 1 = on) — OpenMapTiles schema
+		m_parameters["layer_transportation"]   = FilterParameter{"Transportation",  0.0f, 1.0f, 1.0f, FilterParameter::Bool};
+		m_parameters["layer_building"]         = FilterParameter{"Buildings",       0.0f, 1.0f, 1.0f, FilterParameter::Bool};
+		m_parameters["layer_water"]            = FilterParameter{"Water",           0.0f, 1.0f, 1.0f, FilterParameter::Bool};
+		m_parameters["layer_waterway"]         = FilterParameter{"Waterways",       0.0f, 1.0f, 1.0f, FilterParameter::Bool};
+		m_parameters["layer_boundary"]         = FilterParameter{"Boundaries",      0.0f, 1.0f, 0.0f, FilterParameter::Bool};
+		m_parameters["layer_landuse"]          = FilterParameter{"Land Use",        0.0f, 1.0f, 0.0f, FilterParameter::Bool};
+		m_parameters["layer_landcover"]        = FilterParameter{"Land Cover",      0.0f, 1.0f, 0.0f, FilterParameter::Bool};
+		m_parameters["layer_park"]             = FilterParameter{"Parks",           0.0f, 1.0f, 0.0f, FilterParameter::Bool};
+		m_parameters["layer_aeroway"]          = FilterParameter{"Aeroways",        0.0f, 1.0f, 0.0f, FilterParameter::Bool};
 	}
 
 	~OsmGenerator() override
@@ -89,16 +90,15 @@ struct OsmGenerator : public GeneratorBase
 
 		// Snapshot layer toggles
 		LayerToggles toggles;
-		toggles.streets         = m_parameters.at("layer_streets").value > 0.5f;
-		toggles.buildings       = m_parameters.at("layer_buildings").value > 0.5f;
-		toggles.waterPolygons   = m_parameters.at("layer_water_polygons").value > 0.5f;
-		toggles.waterLines      = m_parameters.at("layer_water_lines").value > 0.5f;
-		toggles.boundaries      = m_parameters.at("layer_boundaries").value > 0.5f;
-		toggles.landUse         = m_parameters.at("layer_land_use").value > 0.5f;
-		toggles.sites           = m_parameters.at("layer_sites").value > 0.5f;
-		toggles.ocean           = m_parameters.at("layer_ocean").value > 0.5f;
-		toggles.ferries         = m_parameters.at("layer_ferries").value > 0.5f;
-		toggles.publicTransport = m_parameters.at("layer_public_transport").value > 0.5f;
+		toggles.transportation  = m_parameters.at("layer_transportation").value > 0.5f;
+		toggles.building        = m_parameters.at("layer_building").value > 0.5f;
+		toggles.water           = m_parameters.at("layer_water").value > 0.5f;
+		toggles.waterway        = m_parameters.at("layer_waterway").value > 0.5f;
+		toggles.boundary        = m_parameters.at("layer_boundary").value > 0.5f;
+		toggles.landuse         = m_parameters.at("layer_landuse").value > 0.5f;
+		toggles.landcover       = m_parameters.at("layer_landcover").value > 0.5f;
+		toggles.park            = m_parameters.at("layer_park").value > 0.5f;
+		toggles.aeroway         = m_parameters.at("layer_aeroway").value > 0.5f;
 
 		m_worker = std::thread([this, lat, lon, zoom, sizeMm, tileN, toggles]()
 		{
@@ -138,9 +138,9 @@ struct OsmGenerator : public GeneratorBase
 private:
 	struct LayerToggles
 	{
-		bool streets = true, buildings = true, waterPolygons = true, waterLines = true;
-		bool boundaries = false, landUse = false, sites = false, ocean = false;
-		bool ferries = false, publicTransport = false;
+		bool transportation = true, building = true, water = true, waterway = true;
+		bool boundary = false, landuse = false, landcover = false, park = false;
+		bool aeroway = false;
 	};
 
 	std::thread m_worker;
@@ -195,27 +195,77 @@ private:
 
 	static bool isLayerEnabled(const std::string &layerName, const LayerToggles &t)
 	{
-		if (layerName == "streets" || layerName == "street_labels")  return t.streets;
-		if (layerName == "buildings")       return t.buildings;
-		if (layerName == "water_polygons")  return t.waterPolygons;
-		if (layerName == "water_lines")     return t.waterLines;
-		if (layerName == "boundaries")      return t.boundaries;
-		if (layerName == "land" || layerName == "land_use" || layerName == "landuse")
-			return t.landUse;
-		if (layerName == "sites")           return t.sites;
-		if (layerName == "ocean")           return t.ocean;
-		if (layerName == "ferries")         return t.ferries;
-		if (layerName == "public_transport") return t.publicTransport;
+		if (layerName == "transportation" || layerName == "transportation_name")
+			return t.transportation;
+		if (layerName == "building")        return t.building;
+		if (layerName == "water")           return t.water;
+		if (layerName == "waterway")        return t.waterway;
+		if (layerName == "boundary")        return t.boundary;
+		if (layerName == "landuse")         return t.landuse;
+		if (layerName == "landcover")       return t.landcover;
+		if (layerName == "park")            return t.park;
+		if (layerName == "aeroway")         return t.aeroway;
 		return false;
 	}
 
 	// ── Background work ─────────────────────────────────────────────────
+
+	// Fetch the TileJSON to discover the current tile URL template.
+	// Returns empty string on failure.
+	static std::string discoverTileUrlTemplate()
+	{
+		auto resp = HttpFetcher::get("https://tiles.openfreemap.org/planet");
+		if (!resp.ok())
+		{
+			LOG(ERROR) << "Failed to fetch TileJSON: " << resp.error;
+			return {};
+		}
+
+		try
+		{
+			auto j = nlohmann::json::parse(resp.data.begin(), resp.data.end());
+			auto &tiles = j.at("tiles");
+			if (tiles.is_array() && !tiles.empty())
+				return tiles[0].get<std::string>();
+		}
+		catch (const std::exception &e)
+		{
+			LOG(ERROR) << "Failed to parse TileJSON: " << e.what();
+		}
+		return {};
+	}
+
+	// Expand a TileJSON URL template by replacing {z}, {x}, {y}.
+	static std::string expandTileUrl(const std::string &tmpl, int z, int x, int y)
+	{
+		std::string url = tmpl;
+		auto replace = [&](const std::string &token, int val) {
+			auto pos = url.find(token);
+			if (pos != std::string::npos)
+				url.replace(pos, token.size(), std::to_string(val));
+		};
+		replace("{z}", z);
+		replace("{x}", x);
+		replace("{y}", y);
+		return url;
+	}
 
 	void doGenerate(float lat, float lon, int zoom, float sizeMm, int tileN,
 	                const LayerToggles &toggles)
 	{
 		PathSet ps;
 		ps.paths.clear();
+
+		// Discover current tile URL from TileJSON
+		setStatus("Discovering tile endpoint...");
+		std::string tileUrlTemplate = discoverTileUrlTemplate();
+		if (tileUrlTemplate.empty())
+		{
+			setStatus("Error: could not discover tile URL");
+			return;
+		}
+
+		if (m_cancel.load()) { setStatus("Cancelled"); return; }
 
 		// Determine center tile
 		int cx, cy;
@@ -248,9 +298,7 @@ private:
 				setStatus(fmt::format("Fetching tile {}/{} (z={} x={} y={})",
 					tilesDone + 1, tilesTotal, zoom, tx, ty));
 
-				std::string url = fmt::format(
-					"https://tiles.openfreemap.org/tiles/bright/{}/{}/{}.pbf",
-					zoom, tx, ty);
+				std::string url = expandTileUrl(tileUrlTemplate, zoom, tx, ty);
 
 				auto resp = HttpFetcher::get(url);
 				if (!resp.ok())
