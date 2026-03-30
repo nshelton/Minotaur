@@ -39,6 +39,7 @@ struct MeshGenerator : public GeneratorTyped<MeshGenerator, PathSet>
 			"Projection", 0.0f, 1.0f, 0.0f,
 			FilterParameter::Enum, {"Orthographic", "Perspective"}
 		};
+		m_parameters["decimation"] = FilterParameter{"Decimation", 0.0f, 1.0f, 0.0f};
 		m_parameters["hiddenLines"] = FilterParameter{
 			"Hidden Line Removal", 0.0f, 1.0f, 0.0f, FilterParameter::Bool
 		};
@@ -105,7 +106,35 @@ struct MeshGenerator : public GeneratorTyped<MeshGenerator, PathSet>
 			}
 		};
 
-		// Simple path: no hidden line removal
+		// Decimation: sort edges by projected 2D length, skip shortest ones
+		float decimation = m_parameters.at("decimation").value;
+		int totalEdges = static_cast<int>(m_mesh.edges.size());
+		int skipCount = static_cast<int>(decimation * totalEdges);
+
+		// Build index + length pairs for sorting
+		std::vector<std::pair<float, int>> edgeLengths(totalEdges);
+		for (int i = 0; i < totalEdges; ++i)
+		{
+			Vec2 a = project(transformed[m_mesh.edges[i].a]);
+			Vec2 b = project(transformed[m_mesh.edges[i].b]);
+			float dx = b.x - a.x, dy = b.y - a.y;
+			edgeLengths[i] = {dx * dx + dy * dy, i};
+		}
+		std::sort(edgeLengths.begin(), edgeLengths.end());
+
+		// Output edges, skipping the shortest ones
+		for (int i = skipCount; i < totalEdges; ++i)
+		{
+			const auto &edge = m_mesh.edges[edgeLengths[i].second];
+			Vec2 a = project(transformed[edge.a]);
+			Vec2 b = project(transformed[edge.b]);
+			Path p;
+			p.closed = false;
+			p.points.push_back(a);
+			p.points.push_back(b);
+			out.paths.push_back(std::move(p));
+
+    // Simple path: no hidden line removal
 		if (!hlr)
 		{
 			for (const auto &edge : m_mesh.edges)
