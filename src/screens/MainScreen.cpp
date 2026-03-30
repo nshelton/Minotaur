@@ -1,4 +1,4 @@
-﻿#include "MainScreen.h"
+#include "MainScreen.h"
 #include "app/App.h"
 #include <GLFW/glfw3.h>
 #include "generators/pathset/CircleGenerator.h"
@@ -17,10 +17,7 @@ void MainScreen::onAttach(App &app)
 
     m_app = &app;
     std::string err;
-    // Seed plotter config from current AxiDraw state before attempting to load
-    m_plotter.penUpPos = m_axState.penUpPos;
-    m_plotter.penDownPos = m_axState.penDownPos;
-    if (!serialization::loadProject(m_page, m_camera, m_renderer, m_plotter, m_projectPath, &err))
+    if (!serialization::loadProject(m_page, m_camera, m_renderer, m_plotter.config(), m_projectPath, &err))
     {
         if (!err.empty())
         {
@@ -34,8 +31,7 @@ void MainScreen::onAttach(App &app)
     else
     {
         // Sync AxiDraw state from loaded plotter config
-        m_axState.penUpPos = m_plotter.penUpPos;
-        m_axState.penDownPos = m_plotter.penDownPos;
+        m_plotter.syncStateFromConfig();
     }
 }
 
@@ -76,10 +72,7 @@ void MainScreen::onUpdate(double /*dt*/)
     }
 
     // Turn off plot progress visualization when job completes
-    if (m_showPlotProgress && m_spooler && !m_spooler->isRunning())
-    {
-        m_showPlotProgress = false;
-    }
+    m_plotter.updatePlotProgress();
 }
 
 void MainScreen::onRender()
@@ -87,10 +80,10 @@ void MainScreen::onRender()
     m_renderer.beginFrame(m_camera, m_page, m_interaction.state());
 
     // Render plot progress overlay with 3-color visualization
-    if (m_showPlotProgress && m_spooler && m_spooler->isRunning())
+    if (m_plotter.showPlotProgress() && m_plotter.isRunning())
     {
-        const auto &paths = m_spooler->getOrderedPaths();
-        auto s = m_spooler->stats();
+        const auto &paths = m_plotter.getOrderedPaths();
+        auto s = m_plotter.stats();
         const int sent = s.sentPathIndex;
         const int queued = s.queuedPathIndex;
 
@@ -125,11 +118,9 @@ void MainScreen::onDetach()
 {
     m_renderer.shutdown();
     std::string err;
-    // Persist the entire plotter configuration
     // Keep pen positions in sync with the last known AxiDraw state
-    m_plotter.penUpPos = m_axState.penUpPos;
-    m_plotter.penDownPos = m_axState.penDownPos;
-    if (!serialization::saveProject(m_page, m_camera, m_renderer, m_plotter, m_projectPath, &err))
+    m_plotter.syncConfigFromState();
+    if (!serialization::saveProject(m_page, m_camera, m_renderer, m_plotter.config(), m_projectPath, &err))
     {
         LOG(ERROR) << "Failed to save page.json: " << err;
     }
