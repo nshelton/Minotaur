@@ -13,42 +13,25 @@ static int page_next_id(const std::map<int, Entity> &ents)
     return maxId + 1;
 }
 
-int PageModel::addPathSet(const PathSet &ps)
+template <typename T>
+int PageModel::addEntity(const T &data, const std::string &name)
 {
     int id = page_next_id(entities);
     Entity e;
     e.id = id;
-    e.name = "Entity " + std::to_string(id);
-    e.payload = ps;
+    e.name = name.empty() ? "Entity " + std::to_string(id) : name;
+    e.payload = data;
     e.localToPage = Mat3();
     e.refreshFilterBase();
     entities[id] = std::move(e);
     return id;
 }
 
-void PageModel::addBitmap(const Bitmap &bm)
-{
-    int id = page_next_id(entities);
-    Entity e;
-    e.id = id;
-    e.name = "Entity " + std::to_string(id);
-    e.payload = bm;
-    e.localToPage = Mat3();
-    e.refreshFilterBase();
-    entities[id] = std::move(e);
-}
-
-void PageModel::addColorImage(const ColorImage &ci)
-{
-    int id = page_next_id(entities);
-    Entity e;
-    e.id = id;
-    e.name = "Entity " + std::to_string(id);
-    e.payload = ci;
-    e.localToPage = Mat3();
-    e.refreshFilterBase();
-    entities[id] = std::move(e);
-}
+// Explicit instantiations
+template int PageModel::addEntity<PathSet>(const PathSet&, const std::string&);
+template int PageModel::addEntity<Bitmap>(const Bitmap&, const std::string&);
+template int PageModel::addEntity<ColorImage>(const ColorImage&, const std::string&);
+template int PageModel::addEntity<FloatImage>(const FloatImage&, const std::string&);
 
 int PageModel::addGeneratedEntity(std::unique_ptr<GeneratorBase> gen, Vec2 positionMm)
 {

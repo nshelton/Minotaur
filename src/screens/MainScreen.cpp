@@ -172,17 +172,17 @@ void MainScreen::onFilesDropped(const std::vector<std::string>& paths)
         ColorImage ci;
         if (ImageLoader::loadColorImage(p, ci, &err, 0.5f))
         {
-            m_page.addColorImage(ci);
+            m_page.addEntity(ci);
             LOG(INFO) << "Loaded image and added as color image: " << p;
         }
         else if (ImageLoader::loadPGM(p, bm, &err, 0.5f))
         {
-            m_page.addBitmap(bm);
+            m_page.addEntity(bm);
             LOG(INFO) << "Loaded PGM and added as bitmap: " << p;
         }
         else if (ImageLoader::loadImage(p, bm, &err, 0.5f))
         {
-            m_page.addBitmap(bm);
+            m_page.addEntity(bm);
             LOG(INFO) << "Loaded image and added as bitmap: " << p;
         }
         else
@@ -205,7 +205,7 @@ void MainScreen::onClipboardPaste()
     std::string err;
     if (ImageLoader::loadColorImageFromMemory(data.data(), data.size(), ci, &err, 0.5f))
     {
-        m_page.addColorImage(ci);
+        m_page.addEntity(ci);
         LOG(INFO) << "Pasted clipboard image as color image (" << ci.width_px << "x" << ci.height_px << ")";
     }
     else
