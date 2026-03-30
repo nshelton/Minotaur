@@ -345,41 +345,38 @@ public:
         return false;
     }
 
-    const LayerPtr &evaluate(size_t i) const
+    const LayerPtr &evaluate(size_t upTo) const
     {
-        assert(i < m_filters.size());
+        assert(upTo < m_filters.size());
 
-        LayerCache &cache = m_layers[i];
-        FilterBase &filter = *m_filters[i];
-
-        // Read upstream generation from the previous cache (or base) without
-        // recursing — this is enough to determine whether we are stale.
-        uint64_t upstreamGen = (i == 0) ? m_baseGen : m_layers[i - 1].gen;
-
-        if (!m_enabled[i])
+        // Evaluate forward from 0 to upTo so each filter sees
+        // the correct upstream gen after it has been updated.
+        for (size_t i = 0; i <= upTo; ++i)
         {
-            // Bypass: only recurse upstream if our cached gen is stale
-            if (cache.valid && cache.upstreamGen == upstreamGen)
-                return cache.data;
-            const LayerPtr &upstream = (i == 0) ? m_base : evaluate(i - 1);
-            upstreamGen = (i == 0) ? m_baseGen : m_layers[i - 1].gen;
-            cache.data = upstream;
-            cache.upstreamGen = upstreamGen;
-            cache.paramVer = filter.paramVersion();
-            cache.gen = upstreamGen; // propagate generation for downstream
-            cache.valid = true;
-            return cache.data;
-        }
+            LayerCache &cache = m_layers[i];
+            FilterBase &filter = *m_filters[i];
+            uint64_t upstreamGen = (i == 0) ? m_baseGen : m_layers[i - 1].gen;
 
-        bool needsRecompute = !cache.valid ||
-                              (cache.upstreamGen != upstreamGen) ||
-                              (cache.paramVer != filter.paramVersion());
+            if (!m_enabled[i])
+            {
+                if (cache.valid && cache.upstreamGen == upstreamGen)
+                    continue;
+                const LayerPtr &upstream = (i == 0) ? m_base : m_layers[i - 1].data;
+                cache.data = upstream;
+                cache.upstreamGen = upstreamGen;
+                cache.paramVer = filter.paramVersion();
+                cache.gen = upstreamGen; // propagate generation for downstream
+                cache.valid = true;
+                continue;
+            }
 
-        if (needsRecompute)
-        {
-            // Only recurse upstream when we actually need fresh input data
-            const LayerPtr &upstream = (i == 0) ? m_base : evaluate(i - 1);
-            upstreamGen = (i == 0) ? m_baseGen : m_layers[i - 1].gen;
+            bool needsRecompute = !cache.valid ||
+                                  (cache.upstreamGen != upstreamGen) ||
+                                  (cache.paramVer != filter.paramVersion());
+
+            if (!needsRecompute) continue;
+
+            const LayerPtr &upstream = (i == 0) ? m_base : m_layers[i - 1].data;
             auto t0 = std::chrono::high_resolution_clock::now();
             // Avoid aliasing: if our output pointer aliases upstream, reset so we don't mutate upstream in-place
             if (cache.data == upstream)
@@ -414,7 +411,7 @@ public:
             }
             LOG(INFO) << "recomputed " << filter.name();
         }
-        return cache.data;
+        return m_layers[upTo].data;
     }
 
     std::vector<std::unique_ptr<FilterBase>> m_filters;
