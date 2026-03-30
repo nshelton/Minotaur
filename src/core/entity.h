@@ -2,7 +2,6 @@
 
 #include <memory>
 #include <string>
-#include <variant>
 #include "core/Pathset.h"
 #include "core/Bitmap.h"
 #include "core/FloatImage.h"
@@ -10,19 +9,11 @@
 #include "filters/FilterChain.h"
 #include "generators/GeneratorBase.h"
 
-enum class EntityType
-{
-    PathSet,
-    Bitmap,
-    FloatImage,
-    ColorImage
-};
-
 struct Entity
 {
     int id;
     std::string name;
-    std::variant<PathSet, Bitmap, FloatImage, ColorImage> payload;
+    LayerPtr payload;
     uint64_t payloadVersion{1};
     bool visible{true};
     Color color{1.0f, 1.0f, 1.0f, 1.0f};
@@ -30,31 +21,30 @@ struct Entity
     // takes a point from local entity space (mm) to page space (mm)
     Mat3 localToPage;
 
-    EntityType type() const
+    LayerKind type() const
     {
-        if (std::holds_alternative<PathSet>(payload)) return EntityType::PathSet;
-        if (std::holds_alternative<Bitmap>(payload)) return EntityType::Bitmap;
-        if (std::holds_alternative<FloatImage>(payload)) return EntityType::FloatImage;
-        return EntityType::ColorImage;
+        return payload ? payload->kind() : LayerKind::PathSet;
     }
 
     BoundingBox boundsLocal() const
     {
-        if (auto ps = std::get_if<PathSet>(&payload))
+        if (!payload) return BoundingBox{};
+        switch (payload->kind())
         {
+        case LayerKind::PathSet:
+        {
+            auto *ps = asPathSetPtr(payload);
             ps->computeAABB();
             return ps->aabb;
         }
-        if (auto bmp = std::get_if<Bitmap>(&payload))
-        {
-            return bmp->aabb();
+        case LayerKind::Bitmap:
+            return asBitmapConstPtr(payload)->aabb();
+        case LayerKind::FloatImage:
+            return asFloatImageConstPtr(payload)->aabb();
+        case LayerKind::ColorImage:
+            return asColorImageConstPtr(payload)->aabb();
         }
-        if (auto fi = std::get_if<FloatImage>(&payload))
-        {
-            return fi->aabb();
-        }
-        const ColorImage &ci = std::get<ColorImage>(payload);
-        return ci.aabb();
+        return BoundingBox{};
     }
 
     bool contains(const Vec2 &point, float margin_mm = 0) const
@@ -62,14 +52,14 @@ struct Entity
         return boundsLocal().contains(localToPage / point, margin_mm);
     }
 
-    const PathSet *pathset() const { return std::get_if<PathSet>(&payload); }
-    PathSet *pathset() { return std::get_if<PathSet>(&payload); }
-    const Bitmap *bitmap() const { return std::get_if<Bitmap>(&payload); }
-    Bitmap *bitmap() { return std::get_if<Bitmap>(&payload); }
-    const FloatImage *floatImage() const { return std::get_if<FloatImage>(&payload); }
-    FloatImage *floatImage() { return std::get_if<FloatImage>(&payload); }
-    const ColorImage *colorImage() const { return std::get_if<ColorImage>(&payload); }
-    ColorImage *colorImage() { return std::get_if<ColorImage>(&payload); }
+    const PathSet *pathset() const { return asPathSetConstPtr(payload); }
+    PathSet *pathset() { return asPathSetPtr(payload); }
+    const Bitmap *bitmap() const { return asBitmapConstPtr(payload); }
+    Bitmap *bitmap() { return asBitmapPtr(payload); }
+    const FloatImage *floatImage() const { return asFloatImageConstPtr(payload); }
+    FloatImage *floatImage() { return asFloatImagePtr(payload); }
+    const ColorImage *colorImage() const { return asColorImageConstPtr(payload); }
+    ColorImage *colorImage() { return asColorImagePtr(payload); }
 
     // Filter chain: transforms from base payload to display/output layer
     FilterChain filterChain;
@@ -78,17 +68,23 @@ struct Entity
     // Null for entities loaded from file (static payload).
     std::unique_ptr<GeneratorBase> generator;
 
-    // Helper to package current payload into a LayerPtr
+    // Helper to package current payload into a LayerPtr for the filter chain base.
+    // Returns a copy so the filter chain owns its own data.
     LayerPtr baseLayer() const
     {
-        if (auto ps = std::get_if<PathSet>(&payload))
-            return makeLayerFrom(*ps);
-        if (auto bmp = std::get_if<Bitmap>(&payload))
-            return makeLayerFrom(*bmp);
-        if (auto fi = std::get_if<FloatImage>(&payload))
-            return makeLayerFrom(*fi);
-        const ColorImage &ci = std::get<ColorImage>(payload);
-        return makeLayerFrom(ci);
+        if (!payload) return nullptr;
+        switch (payload->kind())
+        {
+        case LayerKind::PathSet:
+            return makeLayerFrom(*asPathSetConstPtr(payload));
+        case LayerKind::Bitmap:
+            return makeLayerFrom(*asBitmapConstPtr(payload));
+        case LayerKind::FloatImage:
+            return makeLayerFrom(*asFloatImageConstPtr(payload));
+        case LayerKind::ColorImage:
+            return makeLayerFrom(*asColorImageConstPtr(payload));
+        }
+        return nullptr;
     }
 
     void refreshFilterBase()
@@ -136,20 +132,11 @@ struct Entity
 private:
     uint64_t m_lastGenVer{0};
 
-    // Unpack a completed LayerPtr into the payload variant and refresh the
-    // filter chain. Used by both the sync and async paths.
+    // Transfer a completed LayerPtr into the payload and refresh the filter chain.
     void applyGeneratorResult(const LayerPtr &out)
     {
         if (!out) return;
-        if (isPathSetLayer(out))
-            payload = *asPathSetPtr(out);
-        else if (isBitmapLayer(out))
-            payload = *asBitmapPtr(out);
-        else if (isFloatImageLayer(out))
-            payload = *asFloatImagePtr(out);
-        else if (isColorImageLayer(out))
-            payload = *asColorImagePtr(out);
-
+        payload = out;
         payloadVersion++;
         refreshFilterBase();
     }

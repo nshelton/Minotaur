@@ -399,7 +399,7 @@ bool PlotSpooler::prepareJob(const PageModel &page, bool liftPen)
         if (m_onlyEntityId.has_value() && kv.first != *m_onlyEntityId)
             continue;
         const PathSet *ps = nullptr;
-        if (e.type() == EntityType::PathSet)
+        if (e.type() == LayerKind::PathSet)
         {
             ps = e.pathset();
         }

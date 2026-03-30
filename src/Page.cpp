@@ -20,7 +20,7 @@ int PageModel::addEntity(const T &data, const std::string &name)
     Entity e;
     e.id = id;
     e.name = name.empty() ? "Entity " + std::to_string(id) : name;
-    e.payload = data;
+    e.payload = std::make_shared<T>(data);
     e.localToPage = Mat3();
     e.refreshFilterBase();
     entities[id] = std::move(e);
@@ -43,10 +43,10 @@ int PageModel::addGeneratedEntity(std::unique_ptr<GeneratorBase> gen, Vec2 posit
     // Initialise payload with a default value matching the generator's output kind.
     switch (gen->outputKind())
     {
-    case LayerKind::Bitmap:     e.payload = Bitmap{};     break;
-    case LayerKind::FloatImage: e.payload = FloatImage{}; break;
-    case LayerKind::ColorImage: e.payload = ColorImage{}; break;
-    default:                    e.payload = PathSet{};    break;
+    case LayerKind::Bitmap:     e.payload = std::make_shared<Bitmap>();     break;
+    case LayerKind::FloatImage: e.payload = std::make_shared<FloatImage>(); break;
+    case LayerKind::ColorImage: e.payload = std::make_shared<ColorImage>(); break;
+    default:                    e.payload = std::make_shared<PathSet>();    break;
     }
     e.generator = std::move(gen);
     e.tickGenerator();   // populate payload immediately
@@ -64,7 +64,7 @@ int PageModel::duplicateEntity(int sourceId)
     Entity dst;
     dst.id = page_next_id(entities);
     dst.name = src.name + " Copy";
-    dst.payload = src.payload;        // deep copy PathSet/Bitmap
+    dst.payload = src.baseLayer();     // deep copy via LayerPtr
     dst.payloadVersion = src.payloadVersion;
     dst.localToPage = src.localToPage;
     dst.visible = src.visible;
