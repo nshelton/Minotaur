@@ -2,14 +2,14 @@
 
 #include <map>
 #include <memory>
+#include <string>
 #include "core/Core.h"
 #include "generators/GeneratorBase.h"
 
 struct PageModel
 {
-    int addPathSet(const PathSet& ps);
-    void addBitmap(const Bitmap& bm);
-    void addColorImage(const ColorImage& ci);
+    template <typename T>
+    int addEntity(const T &data, const std::string &name = "");
 
     // Create an entity driven by a generator. The generator is immediately
     // ticked to populate the payload. Returns the new entity id.
