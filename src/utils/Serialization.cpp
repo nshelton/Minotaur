@@ -17,7 +17,6 @@
 #include "generators/GeneratorRegistry.h"
 
 #include "Camera.h"
-#include "Renderer.h"
 #include "utils/ImageCompression.h"
 
 
@@ -515,7 +514,7 @@ namespace serialization
         }
     }
 
-    bool saveProject(const PageModel &model, const Camera &camera, const Renderer &renderer,
+    bool saveProject(const PageModel &model, const Camera &camera, const RenderSettings &render,
                      const PlotterConfig &plotter,
                      const std::string &filePath, std::string *errorOut)
     {
@@ -544,10 +543,10 @@ namespace serialization
                 {"zoom", camera.zoom()}
             };
 
-            // Renderer state
+            // Render settings
             j["render"] = json{
-                {"line_width", renderer.lineWidth()},
-                {"node_diameter_px", renderer.nodeDiameterPx()}
+                {"line_width", render.lineWidth},
+                {"node_diameter_px", render.nodeDiameter}
             };
 
             // Plotter config
@@ -582,7 +581,7 @@ namespace serialization
         }
     }
 
-    bool loadProject(PageModel &model, Camera &camera, Renderer &renderer,
+    bool loadProject(PageModel &model, Camera &camera, RenderSettings &render,
                      PlotterConfig &plotter,
                      const std::string &filePath, std::string *errorOut)
     {
@@ -668,13 +667,11 @@ namespace serialization
                 camera.setCenterAndZoom(center, zoom);
             }
 
-            // Optional renderer
+            // Optional render settings
             if (j.contains("render"))
             {
-                float lw = j["render"].value("line_width", renderer.lineWidth());
-                float nodePx = j["render"].value("node_diameter_px", renderer.nodeDiameterPx());
-                renderer.setLineWidth(lw);
-                renderer.setNodeDiameterPx(nodePx);
+                render.lineWidth = j["render"].value("line_width", render.lineWidth);
+                render.nodeDiameter = j["render"].value("node_diameter_px", render.nodeDiameter);
             }
 
             // Plotter config (supports new key and legacy "axidraw")
