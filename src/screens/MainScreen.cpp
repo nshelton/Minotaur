@@ -17,7 +17,8 @@ void MainScreen::onAttach(App &app)
 
     m_app = &app;
     std::string err;
-    if (!serialization::loadProject(m_page, m_camera, m_renderer, m_plotter.config(), m_projectPath, &err))
+    serialization::RenderSettings rs;
+    if (!serialization::loadProject(m_page, m_camera, rs, m_plotter.config(), m_projectPath, &err))
     {
         if (!err.empty())
         {
@@ -30,6 +31,8 @@ void MainScreen::onAttach(App &app)
     }
     else
     {
+        m_renderer.setLineWidth(rs.lineWidth);
+        m_renderer.setNodeDiameterPx(rs.nodeDiameter);
         // Sync AxiDraw state from loaded plotter config
         m_plotter.syncStateFromConfig();
     }
@@ -120,7 +123,8 @@ void MainScreen::onDetach()
     std::string err;
     // Keep pen positions in sync with the last known AxiDraw state
     m_plotter.syncConfigFromState();
-    if (!serialization::saveProject(m_page, m_camera, m_renderer, m_plotter.config(), m_projectPath, &err))
+    serialization::RenderSettings rs{m_renderer.lineWidth(), m_renderer.nodeDiameterPx()};
+    if (!serialization::saveProject(m_page, m_camera, rs, m_plotter.config(), m_projectPath, &err))
     {
         LOG(ERROR) << "Failed to save page.json: " << err;
     }
