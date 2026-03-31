@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "app/Screen.h"
 #include <imgui.h>
@@ -7,10 +7,7 @@
 #include <map>
 #include <memory>
 #include <string>
-#include "serial/SerialController.h"
-#include "plotters/AxidrawController.h"
-#include "plotters/PlotSpooler.h"
-#include "plotters/PlotterConfig.h"
+#include "plotters/PlotterManager.h"
 
 class MainScreen : public IScreen
 {
@@ -37,16 +34,8 @@ private:
     InteractionController m_interaction{};
     PageModel m_page{};
 
-    // Plotter/Serial
-    SerialController m_serial{};
-    AxiDrawState m_axState{};
-    std::unique_ptr<AxiDrawController> m_ax{};
-    std::unique_ptr<PlotSpooler> m_spooler{};
-    PlotterConfig m_plotter{};
-    char m_portBuf[64] = "";
-
-    // Plot progress visualization
-    bool m_showPlotProgress{false};
+    // Plotter
+    PlotterManager m_plotter{};
 
     // Project file path
     std::string m_projectPath;
