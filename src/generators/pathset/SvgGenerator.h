@@ -70,6 +70,10 @@ struct SvgGenerator : public GeneratorTyped<SvgGenerator, PathSet>
 		float tol = m_parameters.at("tolerance").value;
 		float scale = m_parameters.at("scale").value;
 
+		// SVG uses Y-down (origin at top-left); the page uses Y-up.
+		// Flip Y around the SVG document height so the image appears right-side-up.
+		float h = m_svg.height;
+
 		for (const auto &sp : m_svg.subPaths)
 		{
 			Path path;
@@ -78,16 +82,19 @@ struct SvgGenerator : public GeneratorTyped<SvgGenerator, PathSet>
 			for (size_t i = 0; i < sp.beziers.size(); ++i)
 			{
 				const auto &b = sp.beziers[i];
+				// Flip Y: y' = (height - y) * scale
+				float x0 = b.x0 * scale, y0 = (h - b.y0) * scale;
+				float x1 = b.x1 * scale, y1 = (h - b.y1) * scale;
+				float x2 = b.x2 * scale, y2 = (h - b.y2) * scale;
+				float x3 = b.x3 * scale, y3 = (h - b.y3) * scale;
+
 				// Add start point only for first bezier (subsequent ones
 				// continue from previous endpoint)
 				if (i == 0)
-					path.points.push_back(Vec2(b.x0 * scale, b.y0 * scale));
+					path.points.push_back(Vec2(x0, y0));
 
 				flattenCubic(path.points,
-					b.x0 * scale, b.y0 * scale,
-					b.x1 * scale, b.y1 * scale,
-					b.x2 * scale, b.y2 * scale,
-					b.x3 * scale, b.y3 * scale,
+					x0, y0, x1, y1, x2, y2, x3, y3,
 					tol, 0);
 			}
 
