@@ -9,8 +9,35 @@ endif()
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(GTest CONFIG REQUIRED)
-find_package(glog CONFIG REQUIRED)
+include(FetchContent)
+
+find_package(GTest CONFIG QUIET)
+if(NOT GTest_FOUND)
+  FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG        v1.14.0
+    GIT_SHALLOW    TRUE
+  )
+  set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
+  set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(googletest)
+endif()
+
+find_package(glog CONFIG QUIET)
+if(NOT glog_FOUND)
+  FetchContent_Declare(
+    glog
+    GIT_REPOSITORY https://github.com/google/glog.git
+    GIT_TAG        v0.7.1
+    GIT_SHALLOW    TRUE
+  )
+  set(WITH_GFLAGS OFF CACHE BOOL "" FORCE)
+  set(WITH_GTEST OFF CACHE BOOL "" FORCE)
+  set(WITH_UNWIND OFF CACHE BOOL "" FORCE)
+  set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(glog)
+endif()
 
 option(BUILD_APP "Build the main Minotaur application" ON)
 
@@ -104,3 +131,64 @@ target_include_directories(filter_tests PRIVATE src)
 target_link_libraries(filter_tests PRIVATE GTest::gtest GTest::gtest_main glog::glog)
 
 add_test(NAME filter_tests COMMAND filter_tests)
+
+add_executable(filterchain_tests
+  tests/test_filterchain.cpp
+)
+
+target_include_directories(filterchain_tests PRIVATE src tests)
+target_link_libraries(filterchain_tests PRIVATE GTest::gtest glog::glog)
+
+add_test(NAME filterchain_tests COMMAND filterchain_tests)
+
+add_executable(generator_tests
+  tests/test_generators.cpp
+)
+
+target_include_directories(generator_tests PRIVATE src)
+target_link_libraries(generator_tests PRIVATE GTest::gtest glog::glog)
+
+add_test(NAME generator_tests COMMAND generator_tests)
+
+if(BUILD_APP)
+  add_executable(serialization_tests
+    tests/test_serialization.cpp
+    src/utils/Serialization.cpp
+    src/utils/ImageCompression.cpp
+    src/utils/VectorFont.cpp
+    src/Page.cpp
+    src/filters/FilterRegistry.cpp
+    src/generators/GeneratorRegistry.cpp
+    src/filters/bitmap/BlurFilter.cpp
+    src/filters/bitmap/ThresholdFilter.cpp
+    src/filters/bitmap/LevelsFilter.cpp
+    src/filters/bitmap/TraceFilter.cpp
+    src/filters/bitmap/TraceBlobsFilter.cpp
+    src/filters/bitmap/CannyFilter.cpp
+    src/filters/bitmap/LineHatchFilter.cpp
+    src/filters/bitmap/SkeletonizeFilter.cpp
+    src/filters/bitmap/ClaheFilter.cpp
+    src/filters/bitmap/BitmapToFloatFilter.cpp
+    src/filters/bitmap/FloatToPathFilter.cpp
+    src/filters/bitmap/FloatBlurFilter.cpp
+    src/filters/bitmap/VoronoiStipplingFilter.cpp
+    src/filters/bitmap/ErodeDilateFilter.cpp
+    src/filters/bitmap/FlowFieldHatchFilter.cpp
+    src/filters/bitmap/FlowSnakeFilter.cpp
+    src/filters/bitmap/RotateFilter.cpp
+    src/filters/bitmap/ConcentricOutlineFilter.cpp
+    src/filters/pathset/SimplifyFilter.cpp
+    src/filters/pathset/SmoothFilter.cpp
+    src/filters/pathset/OptimizePathsFilter.cpp
+    src/filters/pathset/LaplacianSmoothFilter.cpp
+    src/filters/pathset/CurlNoiseFilter.cpp
+    src/filters/pathset/RegularSubdivisionFilter.cpp
+  )
+
+  target_include_directories(serialization_tests PRIVATE src)
+  target_link_libraries(serialization_tests PRIVATE
+    GTest::gtest glog::glog fmt::fmt nlohmann_json::nlohmann_json glad::glad CURL::libcurl
+  )
+
+  add_test(NAME serialization_tests COMMAND serialization_tests)
+endif()
