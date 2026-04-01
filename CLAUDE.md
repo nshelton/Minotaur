@@ -17,18 +17,18 @@ cmake --build build --config Debug
 build/Debug/minotaur.exe
 
 # Tests
-cmake --build build --target minotaur_tests motion_planner_tests
+cmake --build build --target minotaur_tests motion_planner_tests filter_tests
 ctest --test-dir build
 ```
 
 Dependencies are managed via vcpkg manifest mode (`vcpkg.json`). Required: glfw3,
-glad, imgui (with glfw+opengl3 bindings), fmt, glog, nlohmann-json, gtest.
+glad, imgui (with glfw+opengl3 bindings), fmt, glog, nlohmann-json, gtest, curl.
 
 ## Source Layout
 
 ```
 src/
-  main.cpp                  # Entry point: inits FilterRegistry, boots App + MainScreen
+  main.cpp                  # Entry point: inits registries, boots App + MainScreen
   app/
     App.h/cpp               # GLFW/GLAD/ImGui init, 60fps render loop, input callbacks
     Screen.h                # IScreen interface (onAttach, onUpdate, onRender, onGui)
@@ -40,22 +40,28 @@ src/
     ColorImage.h            # RGB 8-bit interleaved image
     Pathset.h               # Path (vector<Vec2> + closed flag), PathSet (vector<Path>)
     Color.h                 # RGBA float color
-    entity.h                # Entity: payload variant + transform + FilterChain
+    Theme.h                 # Canonical UI colors for path/bitmap types
+    entity.h                # Entity: payload + generator + FilterChain + transform
     Core.h                  # Convenience include for all core types
   filters/                  # The filter pipeline framework
-    Filter.h                # FilterBase interface, FilterTyped<In,Out> template
-    FilterChain.h           # Ordered filter list with lazy caching
+    Filter.h                # FilterBase, FilterParameter, FilterTyped<In,Out> template
+    FilterChain.h           # Ordered filter list with async eval + generation-based caching
     FilterRegistry.h/cpp    # Singleton factory registry for all filters
     Types.h                 # LayerKind enum, LayerPtr typedef, type helpers
     LayerBase.h             # ILayerData base for polymorphic layer handling
-    bitmap/                 # Filters operating on raster images (18 filters)
-    pathset/                # Filters operating on vector paths (6 filters)
+    bitmap/                 # Filters operating on raster images (20 filters)
+    pathset/                # Filters operating on vector paths (7 filters)
+  generators/               # Procedural content generators
+    GeneratorBase.h         # GeneratorBase interface (sync + async models)
+    GeneratorTyped.h        # CRTP template for strongly-typed generators
+    GeneratorRegistry.h/cpp # Singleton factory registry for all generators
+    bitmap/                 # Procedural bitmap generators (3 generators)
+    pathset/                # Procedural path generators (6 generators)
+    mesh/                   # 3D mesh to 2D projection (1 generator)
   render/
     LineRenderer.h/cpp      # GL line/point rendering (embedded GLSL shaders)
     BitmapRenderer.h/cpp    # GL texture quad for grayscale/RGB images
-    FloatImageRenderer.h/cpp
-    Renderer.h/cpp          # Composite renderer dispatching by layer type
-    Camera.h/cpp            # Orthographic pan/zoom camera (mm to NDC)
+    FloatImageRenderer.h/cpp# FloatImage rendering with value-to-color mapping
   screens/
     MainScreen.h/cpp        # Main scene: page model, interaction, plotter control
     MainScreen.gui.cpp      # ImGui panel code (separate TU for build speed)
@@ -64,31 +70,49 @@ src/
     PlotSpooler.h/cpp       # Threaded job queue, path reordering, serial streaming
     AxidrawController.h/cpp # EBB protocol commands (pen, steppers, servo)
     PlotterConfig.h         # Kinematic parameters (speeds, accel, pen positions)
+    PlotterManager.h/cpp    # High-level plotter facade (connect, job control, GUI)
   serial/
     SerialController.h/cpp  # Cross-platform USB serial (Win/macOS/Linux)
   utils/
     Serialization.h/cpp     # JSON project save/load (entities, filters, camera, plotter)
-    ImageLoader.h/cpp       # stb_image-based loading (PNG/JPEG/BMP/PGM)
+    ImageLoader.h/cpp       # Image loading (WIC on Windows, stb_image elsewhere)
+    ImageCompression.h/cpp  # RLE + Base64 compression for bitmap serialization
     KdTree2D.h              # 2D spatial index (wraps nanoflann)
     VectorFont.h/cpp        # Stroke font for text-to-path
-    PathSetGenerator.h/cpp  # Procedural shapes (circle, square, star, text)
-    BitmapGenerator.h/cpp   # Procedural bitmap generation
+    PathSetGenerator.h/cpp  # Static helper functions for procedural shapes
+    BitmapGenerator.h/cpp   # Static helper functions for procedural bitmaps
     HilbertCurve.h/cpp      # Space-filling curve for path ordering
-    ImageCompression.h/cpp  # RLE compression for bitmap serialization
+    Clipboard.h             # Platform clipboard image access
+    HttpFetcher.h           # HTTP GET via libcurl
+    MvtDecoder.h            # Mapbox Vector Tile protobuf decoder
+    ObjLoader.h             # Wavefront OBJ mesh loader
+    MeshDecimator.h         # QEM mesh decimation
+    MeshPreviewWidget.h/cpp # Inline ImGui 3D mesh preview
+    stb_image.h             # stb_image single-header library
+  Renderer.h/cpp            # Composite renderer dispatching by layer type
+  Camera.h/cpp              # Orthographic pan/zoom camera (mm to NDC)
   Page.h/cpp                # PageModel: A3 (297x420mm), map<int, Entity>
   Interaction.h/cpp         # Selection, hover, drag, resize handles
 tests/
   test_kdtree.cpp           # KdTree2D unit tests
   test_motion_planner.cpp   # MotionPlanner tests (28 cases, regression tests)
+  test_blur_filter.cpp      # BlurFilter unit tests
+  test_threshold_filter.cpp # ThresholdFilter unit tests
+  test_levels_filter.cpp    # LevelsFilter unit tests
+  test_trace_filter.cpp     # TraceFilter unit tests
+  test_simplify_filter.cpp  # SimplifyFilter unit tests
 ```
 
 ## Core Architecture
 
+See also: `docs/architecture.md` for detailed design documentation.
+
 ### Data Flow
 
 ```
-Image file dropped / loaded
+Source (file drop, clipboard, or generator)
   -> Entity created in PageModel with payload (Bitmap/ColorImage/PathSet)
+  -> Generator (if present) produces payload from parameters
   -> FilterChain applied: base layer -> filter1 -> filter2 -> ... -> output LayerPtr
   -> Renderer draws output (LineRenderer for paths, BitmapRenderer for images)
   -> User hits "Plot" -> PlotSpooler streams to AxiDraw via serial
@@ -96,7 +120,7 @@ Image file dropped / loaded
 
 ### Layer Type System
 
-Four layer types flow through the filter pipeline:
+Four layer types flow through the filter and generator pipelines:
 
 | LayerKind    | C++ Type   | Description                        |
 |------------- |----------- |----------------------------------- |
@@ -110,24 +134,27 @@ Four layer types flow through the filter pipeline:
 ### Entity Model
 
 Each `Entity` in the `PageModel` has:
-- A **payload** (variant of the 4 layer types) - the raw imported data
+- A **payload** (`LayerPtr`) - the base data (imported or generated)
+- An optional **generator** (`unique_ptr<GeneratorBase>`) - produces payload parametrically
 - A **FilterChain** - ordered list of filters that transform the payload
-- A **localToPage** Mat3 transform - position/scale/rotation on the A3 canvas
+- A **localToPage** `Mat3` transform - position/scale/rotation on the A3 canvas
 - Visibility, color, name, unique ID
+
+Entities are stored in `PageModel::entities` as `map<int, Entity>`.
 
 ### Coordinate System
 
 All geometry is in **millimeters**. The page is A3 (297x420mm). Bitmaps scale via
 `pixel_size_mm`. Camera converts mm to NDC for OpenGL rendering.
 
-## Filter System - How to Add a New Filter
+## Filter System
 
-This is the most common contribution pattern. Follow these 3 steps:
+See also: `docs/filters-and-generators.md` for the complete filter/generator reference.
 
-### Step 1: Create the filter (header + implementation)
+### How to Add a New Filter (3 steps)
 
-Place in `src/filters/bitmap/` or `src/filters/pathset/` depending on domain.
-Inherit from `FilterTyped<InputType, OutputType>`:
+**Step 1:** Create the filter header (and .cpp if needed) in `src/filters/bitmap/`
+or `src/filters/pathset/`. Inherit from `FilterTyped<InputType, OutputType>`:
 
 ```cpp
 // src/filters/bitmap/MyNewFilter.h
@@ -136,7 +163,6 @@ Inherit from `FilterTyped<InputType, OutputType>`:
 
 struct MyNewFilter : public FilterTyped<Bitmap, PathSet> {
     MyNewFilter() {
-        // Define UI-exposed parameters with name, min, max, default
         m_parameters["spacing"] = FilterParameter{"spacing", 0.5f, 20.0f, 3.0f};
     }
 
@@ -146,44 +172,74 @@ struct MyNewFilter : public FilterTyped<Bitmap, PathSet> {
     void applyTyped(const Bitmap &in, PathSet &out) const override {
         float spacing = m_parameters.at("spacing").value;
         out.paths.clear();
-        // ... your algorithm here, read pixels from in, write paths to out ...
+        // ... your algorithm here ...
     }
 };
 ```
 
-Key rules:
-- Parameters are `float` with min/max range - ImGui renders them as sliders
-- `m_version` is an atomic counter; it auto-increments when `setParameter()` is called
-- `paramVersion()` must return `m_version.load()` for cache invalidation to work
-- Copy metadata from input (e.g., `out.paths.clear()` before writing)
-- All coordinates are in millimeters; use `in.pixel_size_mm` to convert pixel indices
-
-### Step 2: Register in FilterRegistry
-
-In `src/filters/FilterRegistry.cpp`:
-1. Add `#include "filters/bitmap/MyNewFilter.h"` at the top
-2. Add registration call inside `initDefaults()`:
+**Step 2:** Register in `src/filters/FilterRegistry.cpp` inside `initDefaults()`:
 ```cpp
+#include "filters/bitmap/MyNewFilter.h"
+// ...
 reg.registerFilter(FilterInfo{
     "My New Filter",
-    LayerKind::Bitmap,    // must match FilterTyped template args
-    LayerKind::PathSet,
+    LayerKind::Bitmap, LayerKind::PathSet,
     []() { return std::make_unique<MyNewFilter>(); }
 });
 ```
 
-### Step 3: That's it
-
-No other wiring needed. The filter automatically appears in the UI dropdown for
-entities whose current output matches the filter's input type. Serialization,
+**Step 3:** Done. The filter appears automatically in the UI dropdown. Serialization,
 caching, and enable/disable are handled by FilterChain.
+
+### How to Add a New Generator (3 steps)
+
+**Step 1:** Create the generator in `src/generators/{bitmap,pathset,mesh}/`.
+Use CRTP with `GeneratorTyped<Derived, OutputType>`:
+
+```cpp
+// src/generators/pathset/MyGenerator.h
+#pragma once
+#include "generators/GeneratorTyped.h"
+
+struct MyGenerator : public GeneratorTyped<MyGenerator, PathSet> {
+    MyGenerator() {
+        m_parameters["radius"] = FilterParameter{"radius", 1.0f, 200.0f, 50.0f};
+    }
+
+    const char *name() const override { return "My Generator"; }
+    uint64_t paramVersion() const override { return m_version.load(); }
+
+    void generateTyped(PathSet &out) const override {
+        out.paths.clear();
+        // ... produce geometry ...
+    }
+};
+```
+
+For expensive generators (network, file I/O), override `isAsync()` to return `true`
+and implement `startGenerate()`, `isReady()`, `collectResult()` instead.
+
+**Step 2:** Register in `src/generators/GeneratorRegistry.cpp` inside `initDefaults()`.
+
+**Step 3:** Done. The generator appears in the UI "Add Generator" menu.
+
+### Key Rules for Filters and Generators
+
+- `applyTyped()` / `generateTyped()` are `const` - do not mutate state during execution
+- All parameters are `float` stored in `FilterParameter` with min/max/default
+- `FilterParameter::Type` supports Float, Int, Bool, Enum, Precise display hints
+- String parameters (generators only) via `m_stringParameters` map
+- `m_version` (atomic counter) auto-increments on `setParameter()` calls
+- `paramVersion()` must return `m_version.load()` for cache invalidation
+- All coordinates are in millimeters; use `pixel_size_mm` to convert pixel indices
 
 ## Filter Chain Caching
 
 `FilterChain` implements lazy evaluation with generation-based cache invalidation:
 - Each filter output is cached in a `LayerCache` with upstream generation + param version
-- Changing a parameter (via `setParameter`) bumps `m_version`, invalidating the cache
-- Upstream changes propagate generation counters to invalidate downstream caches
+- Changing a parameter bumps `m_version`, invalidating downstream caches
+- Evaluation runs asynchronously via `std::async`; `output()` is non-blocking
+- `outputBlocking()` waits for completion (used when plotting)
 - Disabled filters are bypassed (upstream data passes through unchanged)
 - The chain validates type compatibility when adding/removing/toggling filters
 
@@ -193,7 +249,8 @@ OpenGL 3.3 Core Profile. All shaders are embedded as C++ string literals in rend
 - `LineRenderer`: Renders PathSet as GL_LINES + GL_POINTS with point sprites
 - `BitmapRenderer`: Renders Bitmap/ColorImage as textured quads (GL_R8 or GL_RGB8)
 - `FloatImageRenderer`: Renders FloatImage with value-to-color mapping
-- Camera provides an orthographic Mat3 projection (mm -> NDC)
+- `Renderer`: Composite facade dispatching entities by layer type
+- `Camera`: Orthographic projection (mm to NDC), pan/zoom with mouse
 
 No separate shader files exist. To modify shaders, edit the string literals in
 the renderer `.cpp` files.
@@ -204,11 +261,12 @@ The plotting stack converts vector paths to physical AxiDraw pen movements:
 
 ```
 PathSet (mm coordinates)
-  -> PlotSpooler: reorders paths (nearest-neighbor or Hilbert), manages job queue
-    -> MotionPlanner: trapezoidal velocity planning, junction deviation for corners
-      -> MoveSlice (aSteps, bSteps, dtMs) per time slice
-        -> AxidrawController: EBB protocol (SM, SP, SC commands)
-          -> SerialController: USB serial I/O to hardware
+  -> PlotterManager: high-level facade (connect, start/pause/cancel)
+    -> PlotSpooler: reorders paths (nearest-neighbor or Hilbert), manages job queue
+      -> MotionPlanner: trapezoidal velocity planning, junction deviation for corners
+        -> MoveSlice (aSteps, bSteps, dtMs) per time slice
+          -> AxidrawController: EBB protocol (SM, SP, SC commands)
+            -> SerialController: USB serial I/O to hardware
 ```
 
 `PlotSpooler` runs a background worker thread. It buffers commands with high/low
@@ -221,8 +279,9 @@ CoreXY kinematics: A = dx + dy, B = dx - dy (stepper motor mapping).
 
 Project state saves to JSON (`page.json`) via `src/utils/Serialization.cpp`.
 Saved state includes: all entities (with payload data), filter chains (filter type
-name + parameters + enabled state), camera position/zoom, plotter config. Bitmap
-data uses RLE compression. The file can be large (10+ MB with image data).
+name + parameters + enabled state), generator state (type name + float/string params),
+camera position/zoom, plotter config. Bitmap data uses RLE + Base64 compression.
+The file can be large (10+ MB with image data).
 
 ## Conventions
 
@@ -237,20 +296,25 @@ data uses RLE compression. The file can be large (10+ MB with image data).
 
 ## Testing
 
-Two test targets exist:
+Three test targets exist:
 - `minotaur_tests` - KdTree2D spatial indexing tests
 - `motion_planner_tests` - 28 test cases for MotionPlanner (velocity profiles,
   position conservation, junction deviation, step rate limits)
+- `filter_tests` - Unit tests for BlurFilter, ThresholdFilter, LevelsFilter,
+  TraceFilter, SimplifyFilter
 
-Both use Google Test. Run with `ctest --test-dir build`.
+All use Google Test. Run with `ctest --test-dir build`.
 
 ## Key Gotchas
 
 - `MainScreen.gui.cpp` is a separate compilation unit from `MainScreen.cpp` to
-  speed up incremental builds - the GUI code is ~28KB
-- Filter `apply()` is `const` - filters must not mutate their own state during execution
-  (parameters are read-only during apply, stats are written via atomics)
-- All `FilterParameter` values are `float` - there is no support for int/bool/enum
-  parameter types (use float ranges and cast in the filter)
+  speed up incremental builds
+- Filter `applyTyped()` is `const` - filters must not mutate their own state during
+  execution (stats like progress/timing are written via atomics on the base class)
+- `FilterParameter` values are `float` - use the `Type` enum (Int, Bool, Enum,
+  Precise) to control UI rendering, and cast in the filter implementation
 - The CMake build uses `GLOB_RECURSE` for source files - new `.cpp` files in `src/`
   are automatically picked up, but CMake must be re-run to detect them
+- `Renderer.h/cpp` and `Camera.h/cpp` live directly in `src/` rather than `src/render/`
+- Some utils (`HttpFetcher.h`, `MvtDecoder.h`, `ObjLoader.h`, `MeshDecimator.h`)
+  are header-only implementations
