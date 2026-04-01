@@ -338,9 +338,9 @@ void MainScreen::onGui()
             for (size_t i = 0; i < n; ++i)
             {
                 FilterBase *f = e.filterChain.filterAt(i);
-                const LayerCache *lc = e.filterChain.layerCacheAt(i);
-                if (!f || !lc)
+                if (!f)
                     continue;
+                LayerCache lc = e.filterChain.layerCacheAt(i);
 
                 // Per-filter header color based on IO kinds
                 auto toImVec4 = [](const Color &c) { return ImVec4(c.r, c.g, c.b, c.a); };
@@ -416,9 +416,9 @@ void MainScreen::onGui()
                     // ? "Bitmap" : "PathSet",
                     // f->outputKind() == LayerKind::Bitmap ? "Bitmap" : "PathSet");
                     // ImGui::Text("Param Ver: %llu", static_cast<unsigned long long>(f->paramVersion()));
-                    // ImGui::Text("Cache: %s", lc->valid ? "valid" : "invalid");
-                    // ImGui::Text("Cache Gen: %llu", static_cast<unsigned long long>(lc->gen));
-                    // ImGui::Text("Upstream Gen: %llu", static_cast<unsigned long long>(lc->upstreamGen));
+                    // ImGui::Text("Cache: %s", lc.valid ? "valid" : "invalid");
+                    // ImGui::Text("Cache Gen: %llu", static_cast<unsigned long long>(lc.gen));
+                    // ImGui::Text("Upstream Gen: %llu", static_cast<unsigned long long>(lc.upstreamGen));
 
                     // Parameter controls
                     for (auto &[paramKey, param] : f->m_parameters)
@@ -512,11 +512,11 @@ void MainScreen::onGui()
 
                     else if (f->outputKind() == LayerKind::Bitmap)
                     {
-                        const LayerCache *lcPtr = e.filterChain.layerCacheAt(i);
+                        LayerCache lcSnap = e.filterChain.layerCacheAt(i);
                         size_t w = 0, h = 0;
-                        if (lcPtr && lcPtr->data)
+                        if (lcSnap.data)
                         {
-                            if (const Bitmap *bp = asBitmapConstPtr(lcPtr->data)) { w = bp->width_px; h = bp->height_px; }
+                            if (const Bitmap *bp = asBitmapConstPtr(lcSnap.data)) { w = bp->width_px; h = bp->height_px; }
                         }
                         std::string ioinfo = fmt::format(
                             "Output {:.3f} ms, {}x{}",
@@ -527,12 +527,12 @@ void MainScreen::onGui()
 
                     else if (f->outputKind() == LayerKind::FloatImage)
                     {
-                        const LayerCache *lcPtr = e.filterChain.layerCacheAt(i);
+                        LayerCache lcSnap = e.filterChain.layerCacheAt(i);
                         size_t w = 0, h = 0;
                         float vmin = 0.0f, vmax = 0.0f;
-                        if (lcPtr && lcPtr->data)
+                        if (lcSnap.data)
                         {
-                            if (const FloatImage *fp = asFloatImageConstPtr(lcPtr->data)) { w = fp->width_px; h = fp->height_px; vmin = fp->minValue; vmax = fp->maxValue; }
+                            if (const FloatImage *fp = asFloatImageConstPtr(lcSnap.data)) { w = fp->width_px; h = fp->height_px; vmin = fp->minValue; vmax = fp->maxValue; }
                         }
                         std::string ioinfo = fmt::format(
                             "Output {:.3f} ms, {}x{} (float)  min {:.3f}  max {:.3f}",
