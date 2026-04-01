@@ -55,13 +55,12 @@ struct InteractionState
 class InteractionController
 {
 public:
-    void updateHover(const PageModel &scene, const Camera &camera, const Vec2 &mousePx);
-    void onMouseDown(PageModel &scene, Camera &camera, const Vec2 &px);
+    void onMouseDown(PageModel &scene, Camera &camera, const Vec2 &screenPx);
     // Begin a camera pan irrespective of what's under the cursor
-    void beginPan(Camera &camera, const Vec2 &px);
+    void beginPan(Camera &camera, const Vec2 &screenPx);
     void onMouseUp();
-    void onCursorPos(PageModel &scene, Camera &camera, const Vec2 &px);
-    void onScroll(PageModel &scene, Camera &camera, float yoffset, const Vec2 &px);
+    void onCursorPos(PageModel &scene, Camera &camera, const Vec2 &screenPx);
+    void onScroll(PageModel &scene, Camera &camera, float yoffset, const Vec2 &screenPx);
 
     const InteractionState &state() const { return m_state; }
 
@@ -75,10 +74,14 @@ public:
     bool ShowPathNodes() const { return m_state.showPathNodes; }
     void SetShowPathNodes(bool v) { m_state.showPathNodes = v; }
 
-    void SetMousePixel(const Vec2 &v) { m_state.mouse_pixel = v; }
-    void SetMousePageMm(const Vec2 &v) { m_state.mouse_page_mm = v; }
-
 private:
+    void updateMouseState(const Camera &camera, const Vec2 &screenPx)
+    {
+        m_state.mouse_pixel = screenPx;
+        m_state.mouse_page_mm = camera.screenToWorld(screenPx);
+    }
+
+    void updateHover(const PageModel &scene, const Camera &camera, const Vec2 &mouseWorld);
     std::optional<int> pick(const PageModel &scene, const Vec2 &world);
     ResizeHandle pickHandle(const Entity &entity, const Vec2 &world, float radiusMm) const;
     void computeHandlePointsLocal(const Entity &entity, Vec2 (&out)[8]) const;

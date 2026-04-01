@@ -17,8 +17,10 @@ void InteractionController::updateHover(const PageModel &scene, const Camera &ca
     }
 }
 
-void InteractionController::onMouseDown(PageModel &scene, Camera &camera, const Vec2 &mouseWorld)
+void InteractionController::onMouseDown(PageModel &scene, Camera &camera, const Vec2 &screenPx)
 {
+    updateMouseState(camera, screenPx);
+    Vec2 mouseWorld = m_state.mouse_page_mm;
     m_state.mouseDownWorld = mouseWorld;
 
     auto hit = pick(scene, mouseWorld);
@@ -89,16 +91,20 @@ void InteractionController::onMouseDown(PageModel &scene, Camera &camera, const 
     }
 }
 
-void InteractionController::beginPan(Camera &camera, const Vec2 &mouseWorld)
+void InteractionController::beginPan(Camera &camera, const Vec2 &screenPx)
 {
+    updateMouseState(camera, screenPx);
+    Vec2 mouseWorld = m_state.mouse_page_mm;
     m_state.mouseDownWorld = mouseWorld;
     m_state.mode = InteractionMode::PanningCamera;
     m_cameraStart = camera.Transform();
     m_cameraStartCenterMm = camera.center();
 }
 
-void InteractionController::onCursorPos(PageModel &scene, Camera &camera, const Vec2 &mouseWorld)
+void InteractionController::onCursorPos(PageModel &scene, Camera &camera, const Vec2 &screenPx)
 {
+    updateMouseState(camera, screenPx);
+    Vec2 mouseWorld = m_state.mouse_page_mm;
 
     switch (m_state.mode)
     {
