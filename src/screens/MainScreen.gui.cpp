@@ -208,6 +208,14 @@ void MainScreen::onGui()
                         }
                         }
                     }
+                    // Show progress bar while generator is working
+                    if (e.generator->isGenerating())
+                    {
+                        float prog = e.generator->progress();
+                        ImGui::ProgressBar(prog, ImVec2(-1, 0));
+                        ImGui::Text("Generating... %.0f%%", prog * 100.0f);
+                    }
+
                     // --- Mesh generator: inline 3D preview with trackball ---
                     if (auto *meshGen = dynamic_cast<MeshGenerator *>(e.generator.get()))
                     {

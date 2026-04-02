@@ -86,6 +86,8 @@ struct OsmGenerator : public GeneratorBase
 
 		m_ready.store(false);
 		m_cancel.store(false);
+		setGenerating(true);
+		setProgress(0.0f);
 
 		// Snapshot parameters for the worker thread
 		const float lat      = m_parameters.at("lat").value;
@@ -376,10 +378,11 @@ private:
 		if (tileUrlTemplate.empty())
 		{
 			setStatus("Error: could not discover tile URL");
+			setGenerating(false);
 			return;
 		}
 
-		if (m_cancel.load()) { setStatus("Cancelled"); return; }
+		if (m_cancel.load()) { setStatus("Cancelled"); setGenerating(false); return; }
 
 		// Determine center tile
 		int cx, cy;
@@ -463,7 +466,7 @@ private:
 
 								path.points.push_back(Vec2{
 									static_cast<float>(mmX),
-									static_cast<float>(-mmY) // flip Y for screen coords
+									static_cast<float>(mmY)
 								});
 							}
 
@@ -483,12 +486,14 @@ private:
 				}
 
 				tilesDone++;
+				setProgress(static_cast<float>(tilesDone) / static_cast<float>(tilesTotal));
 			}
 		}
 
 		if (m_cancel.load())
 		{
 			setStatus("Cancelled");
+			setGenerating(false);
 			return;
 		}
 
@@ -507,5 +512,6 @@ private:
 			m_result = std::move(ps);
 		}
 		m_ready.store(true);
+		setGenerating(false);
 	}
 };

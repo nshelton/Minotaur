@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <memory>
 #include <string>
 #include <vector>
@@ -47,8 +48,9 @@ public:
 	PlotSpooler::Stats stats() const;
 	const std::vector<Path> &getOrderedPaths() const;
 
-	// Called from MainScreen::onUpdate to clear progress when job ends
+	// Called each frame from MainScreen::onUpdate
 	void updatePlotProgress();
+	void pollAutoConnect();
 
 	// ImGui panel for plotter controls
 	void renderGui(const PageModel &page);
@@ -63,4 +65,9 @@ private:
 	PlotterConfig m_config{};
 	char m_portBuf[64] = "";
 	bool m_showPlotProgress{false};
+
+	// Auto-connect polling
+	using Clock = std::chrono::steady_clock;
+	Clock::time_point m_lastAutoConnectAttempt{};
+	static constexpr std::chrono::milliseconds kAutoConnectInterval{2000};
 };

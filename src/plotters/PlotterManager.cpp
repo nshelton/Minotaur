@@ -15,7 +15,12 @@ void PlotterManager::connect(const std::string &port)
 	{
 		m_ax = std::make_unique<AxiDrawController>(m_serial, m_axState);
 		std::string ierr;
-		m_ax->initialize(&ierr);
+		if (!m_ax->initialize(&ierr))
+		{
+			LOG(ERROR) << "AxiDraw initialize failed: " << ierr;
+			m_ax.reset();
+			m_serial.disconnect();
+		}
 	}
 }
 
@@ -177,37 +182,58 @@ void PlotterManager::updatePlotProgress()
 	}
 }
 
+// ---------- Auto-connect polling ----------
+
+void PlotterManager::pollAutoConnect()
+{
+	if (m_serial.isConnected()) return;
+	if (isRunning()) return; // don't disrupt an active job
+
+	auto now = Clock::now();
+	if (now - m_lastAutoConnectAttempt < kAutoConnectInterval) return;
+	m_lastAutoConnectAttempt = now;
+
+	std::string err;
+	std::string chosen;
+	if (m_serial.autoConnect(&chosen, 115200, &err))
+	{
+		strncpy(m_portBuf, chosen.c_str(), sizeof(m_portBuf) - 1);
+		m_portBuf[sizeof(m_portBuf) - 1] = '\0';
+		m_ax = std::make_unique<AxiDrawController>(m_serial, m_axState);
+		std::string ierr;
+		if (!m_ax->initialize(&ierr))
+		{
+			LOG(ERROR) << "AxiDraw initialize failed during auto-connect: " << ierr;
+			m_ax.reset();
+			m_serial.disconnect();
+		}
+		else
+		{
+			LOG(INFO) << "Auto-connected to plotter on " << chosen;
+		}
+	}
+}
+
 // ---------- GUI ----------
 
 void PlotterManager::renderGui(const PageModel &page)
 {
 	ImGui::Text("Plotter");
-	ImGui::InputText("Port", m_portBuf, sizeof(m_portBuf));
 	bool connected = m_serial.isConnected();
-	ImGui::Text("Connected: %s", connected ? "Yes" : "No");
-	if (!m_serial.state().lastError.empty())
-	{
-		ImGui::TextColored(ImVec4(1, 0.4f, 0.4f, 1), "Last error: %s", m_serial.state().lastError.c_str());
-	}
 
-	if (!connected)
+	// Persistent status indicator
+	if (connected)
 	{
 		ImGui::SameLine();
-		if (ImGui::Button("Auto Connect"))
-		{
-			std::string err;
-			std::string chosen;
-			if (m_serial.autoConnect(&chosen, 115200, &err))
-			{
-				strncpy(m_portBuf, chosen.c_str(), sizeof(m_portBuf) - 1);
-				m_portBuf[sizeof(m_portBuf) - 1] = '\0';
-				m_ax = std::make_unique<AxiDrawController>(m_serial, m_axState);
-				std::string ierr;
-				m_ax->initialize(&ierr);
-			}
-		}
+		ImGui::TextColored(ImVec4(0.2f, 0.9f, 0.2f, 1), "[Connected: %s]", m_portBuf);
 	}
 	else
+	{
+		ImGui::SameLine();
+		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1), "[Scanning...]");
+	}
+
+	if (connected)
 	{
 		if (ImGui::Button("Disconnect"))
 		{

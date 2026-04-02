@@ -75,6 +75,9 @@ void MainScreen::onUpdate(double /*dt*/)
         }
     }
 
+    // Auto-connect plotter when not connected
+    m_plotter.pollAutoConnect();
+
     // Turn off plot progress visualization when job completes
     m_plotter.updatePlotProgress();
 }

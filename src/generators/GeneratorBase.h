@@ -134,6 +134,14 @@ struct GeneratorBase
 		return (it != m_stringParameters.end()) ? it->second : empty;
 	}
 
+	// Progress reporting for long-running generators (0.0 .. 1.0)
+	float progress() const { return m_progress.load(std::memory_order_relaxed); }
+	void setProgress(float p) const { m_progress.store(p, std::memory_order_relaxed); }
+	bool isGenerating() const { return m_generating.load(std::memory_order_relaxed); }
+	void setGenerating(bool g) const { m_generating.store(g, std::memory_order_relaxed); }
+
 protected:
 	std::atomic<uint64_t> m_version{1};
+	mutable std::atomic<float> m_progress{0.0f};
+	mutable std::atomic<bool> m_generating{false};
 };
