@@ -10,6 +10,7 @@
 #include "generators/bitmap/RadialGenerator.h"
 #include "generators/mesh/MeshGenerator.h"
 #include "generators/pathset/OsmGenerator.h"
+#include "generators/pathset/SvgGenerator.h"
 
 GeneratorRegistry &GeneratorRegistry::instance()
 {
@@ -89,5 +90,11 @@ void GeneratorRegistry::initDefaults()
 		"OSM Tiles",
 		LayerKind::PathSet,
 		[]() { return std::make_unique<OsmGenerator>(); }
+	});
+
+	reg.registerGenerator(GeneratorInfo{
+		"SVG",
+		LayerKind::PathSet,
+		[]() { return std::make_unique<SvgGenerator>(); }
 	});
 }

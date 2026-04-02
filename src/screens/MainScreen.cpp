@@ -3,6 +3,7 @@
 #include <GLFW/glfw3.h>
 #include "generators/pathset/CircleGenerator.h"
 #include "generators/mesh/MeshGenerator.h"
+#include "generators/pathset/SvgGenerator.h"
 #include "utils/ImageLoader.h"
 #include "utils/Clipboard.h"
 #include <iostream>
@@ -154,6 +155,22 @@ void MainScreen::onFilesDropped(const std::vector<std::string>& paths)
                     else
                     {
                         LOG(WARNING) << "Failed to load OBJ: " << p;
+                        continue;
+                    }
+                }
+                if (ext == ".svg" || ext == ".SVG" || ext == ".Svg")
+                {
+                    Vec2 center(m_page.page_width_mm * 0.5f, m_page.page_height_mm * 0.5f);
+                    auto gen = std::make_unique<SvgGenerator>(p);
+                    if (gen->hasSvg())
+                    {
+                        m_page.addGeneratedEntity(std::move(gen), center);
+                        LOG(INFO) << "Loaded SVG: " << p;
+                        continue;
+                    }
+                    else
+                    {
+                        LOG(WARNING) << "Failed to load SVG: " << p;
                         continue;
                     }
                 }
