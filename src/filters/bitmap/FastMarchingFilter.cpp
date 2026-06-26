@@ -106,7 +106,7 @@ void FastMarchingFilter::applyTyped(const Bitmap &in, PathSet &out) const
 
 	const float px = in.pixel_size_mm;
 	const float minSpeed = std::clamp(m_parameters.at("minSpeed").value, 0.01f, 1.0f);
-	const float maxSpeed = std::max(m_parameters.at("maxSpeed").value, minSpeed);
+	const float clearAbove = m_parameters.at("clearAbove").value;
 	const float contrast = m_parameters.at("contrast").value;
 	const bool invert = m_parameters.at("invert").value > 0.5f;
 	const float spacing = std::max(m_parameters.at("levelSpacing").value, 0.005f);
@@ -116,14 +116,22 @@ void FastMarchingFilter::applyTyped(const Bitmap &in, PathSet &out) const
 	const int wh = w * h;
 	auto idx = [w](int x, int y) { return y * w + x; };
 
-	// Slowness field f = 1/speed per pixel.
+	// Slowness field f = 1/speed per pixel. Pixels brighter than clearAbove cost
+	// zero time (infinite speed): the wave floods them into a flat plateau so no
+	// contour level lands inside, leaving those regions blank.
+	const bool useClear = clearAbove < 0.999f;
 	std::vector<float> slow(wh);
 	for (int i = 0; i < wh; ++i)
 	{
 		float b = in.pixels[i] / 255.0f;
 		if (invert) b = 1.0f - b;
-		b = std::pow(std::clamp(b, 0.0f, 1.0f), contrast);
-		float speed = minSpeed + (maxSpeed - minSpeed) * b;
+		b = std::clamp(b, 0.0f, 1.0f);
+		if (useClear && b >= clearAbove)
+		{
+			slow[i] = 0.0f;
+			continue;
+		}
+		float speed = minSpeed + (1.0f - minSpeed) * std::pow(b, contrast);
 		slow[i] = 1.0f / speed;
 	}
 

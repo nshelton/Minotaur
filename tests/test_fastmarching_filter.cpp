@@ -79,10 +79,9 @@ TEST(FastMarchingFilter, BrightnessControlsRingDensity)
 	    << "dark/slow side should pack more contour detail than the bright side";
 }
 
-// Raising maxSpeed makes bright regions clear out: the wave crosses them so
-// fast that the travel-time map stays flat there, so fewer contour lines land
-// in the bright half.
-TEST(FastMarchingFilter, HigherMaxSpeedClearsBrightAreas)
+// clearAbove turns bright pixels into a zero-cost flat plateau, so contour
+// lines vanish from the bright half (apart from a thin strip at the boundary).
+TEST(FastMarchingFilter, ClearAboveBlanksBrightAreas)
 {
 	const int n = 101;
 	Bitmap in = makeSolidBitmap(n, n, 0);
@@ -91,10 +90,10 @@ TEST(FastMarchingFilter, HigherMaxSpeedClearsBrightAreas)
 			in.pixels[static_cast<size_t>(y) * n + x] = (x < n / 2) ? 235 : 40;
 
 	const float midX = static_cast<float>(n) * 0.5f;
-	auto brightVertCount = [&](float maxSpeed) {
+	auto brightVertCount = [&](float clearAbove) {
 		FastMarchingFilter filter;
 		filter.setParameter("levelSpacing", 0.05f);
-		filter.setParameter("maxSpeed", maxSpeed);
+		filter.setParameter("clearAbove", clearAbove);
 		PathSet out;
 		filter.applyTyped(in, out);
 		int bright = 0;
@@ -104,9 +103,10 @@ TEST(FastMarchingFilter, HigherMaxSpeedClearsBrightAreas)
 		return bright;
 	};
 
-	int slow = brightVertCount(1.0f);
-	int fast = brightVertCount(32.0f);
-	EXPECT_LT(fast, slow) << "higher max speed should thin out lines in bright areas";
+	int off = brightVertCount(1.0f);   // disabled
+	int on = brightVertCount(0.8f);    // clears the 235-value half
+	ASSERT_GT(off, 50) << "bright half should be full of lines when clearing is off";
+	EXPECT_LT(on, off / 5) << "clearAbove should blank out the bright half";
 }
 
 TEST(FastMarchingFilter, EmptyImageProducesNoPaths)
