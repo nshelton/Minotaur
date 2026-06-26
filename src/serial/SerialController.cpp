@@ -453,6 +453,117 @@ bool SerialController::writeLine(std::string_view asciiNoCR, std::string *errorO
 #endif
 }
 
+bool SerialController::readLine(std::string &lineOut, int timeoutMs, std::string *errorOut) {
+    lineOut.clear();
+    if (!m_state.isConnected) {
+        if (errorOut) *errorOut = "Port not connected";
+        return false;
+    }
+
+#ifdef _WIN32
+    // Set up a short read timeout
+    COMMTIMEOUTS timeouts{};
+    timeouts.ReadIntervalTimeout = 50;
+    timeouts.ReadTotalTimeoutConstant = static_cast<DWORD>(timeoutMs);
+    timeouts.ReadTotalTimeoutMultiplier = 0;
+    SetCommTimeouts(reinterpret_cast<HANDLE>(m_handle), &timeouts);
+
+    char buf[1];
+    DWORD bytesRead = 0;
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
+
+    while (std::chrono::steady_clock::now() < deadline) {
+        BOOL ok = ReadFile(reinterpret_cast<HANDLE>(m_handle), buf, 1, &bytesRead, nullptr);
+        if (!ok || bytesRead == 0) {
+            if (lineOut.empty()) {
+                if (errorOut) *errorOut = "Read timeout";
+                return false;
+            }
+            break;
+        }
+        if (buf[0] == '\r' || buf[0] == '\n') {
+            if (!lineOut.empty()) break; // end of line
+            continue; // skip leading CR/LF
+        }
+        lineOut.push_back(buf[0]);
+    }
+
+    if (lineOut.empty()) {
+        if (errorOut) *errorOut = "Read timeout";
+        return false;
+    }
+    return true;
+#else
+    // Use select() for timeout on POSIX
+    char buf[1];
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
+
+    while (std::chrono::steady_clock::now() < deadline) {
+        auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+            deadline - std::chrono::steady_clock::now());
+        if (remaining.count() <= 0) break;
+
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(m_fd, &readfds);
+        struct timeval tv;
+        tv.tv_sec = remaining.count() / 1000;
+        tv.tv_usec = (remaining.count() % 1000) * 1000;
+
+        int sel = select(m_fd + 1, &readfds, nullptr, nullptr, &tv);
+        if (sel <= 0) {
+            if (lineOut.empty()) {
+                if (errorOut) *errorOut = "Read timeout";
+                return false;
+            }
+            break;
+        }
+
+        ssize_t n = ::read(m_fd, buf, 1);
+        if (n <= 0) {
+            if (lineOut.empty()) {
+                if (errorOut) *errorOut = "Read error";
+                return false;
+            }
+            break;
+        }
+        if (buf[0] == '\r' || buf[0] == '\n') {
+            if (!lineOut.empty()) break;
+            continue;
+        }
+        lineOut.push_back(buf[0]);
+    }
+
+    if (lineOut.empty()) {
+        if (errorOut) *errorOut = "Read timeout";
+        return false;
+    }
+    return true;
+#endif
+}
+
+void SerialController::drainReceiveBuffer() {
+    if (!m_state.isConnected) return;
+
+#ifdef _WIN32
+    char buf[256];
+    DWORD bytesRead = 0;
+    COMMTIMEOUTS timeouts{};
+    timeouts.ReadIntervalTimeout = MAXDWORD;
+    timeouts.ReadTotalTimeoutConstant = 0;
+    timeouts.ReadTotalTimeoutMultiplier = 0;
+    SetCommTimeouts(reinterpret_cast<HANDLE>(m_handle), &timeouts);
+    while (ReadFile(reinterpret_cast<HANDLE>(m_handle), buf, sizeof(buf), &bytesRead, nullptr) && bytesRead > 0) {}
+#else
+    char buf[256];
+    // Set non-blocking temporarily
+    int flags = fcntl(m_fd, F_GETFL, 0);
+    fcntl(m_fd, F_SETFL, flags | O_NONBLOCK);
+    while (::read(m_fd, buf, sizeof(buf)) > 0) {}
+    fcntl(m_fd, F_SETFL, flags); // restore
+#endif
+}
+
 std::string SerialController::normalizePortPath(const std::string &portPath) const {
 #ifdef _WIN32
     if (portPath.rfind("\\\\.\\", 0) == 0) {

@@ -30,16 +30,24 @@ public:
     bool reset(std::string *errorOut = nullptr);
 
     // Send raw command (for keepalive, queries, etc.)
+    // Reads back the EBB response and verifies "OK". Returns false if no OK received.
     bool sendCmd(const std::string &cmd, std::string *errorOut = nullptr);
+
+    // Query absolute step position from EBB. Returns true on success.
+    bool queryStepPosition(int &aStepsOut, int &bStepsOut, std::string *errorOut = nullptr);
 
     // Access state
     const AxiDrawState& getState() const { return m_state; }
+
+    // Last non-OK response data from the EBB (e.g., query results)
+    const std::string &lastResponse() const { return m_lastResponse; }
 
 private:
     void recomputeUpDownMs();
 
     SerialController &m_serial;
     AxiDrawState &m_state;
+    std::string m_lastResponse;
 };
 
 

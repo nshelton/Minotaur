@@ -26,6 +26,7 @@ resulting travel-time map at evenly-spaced levels yields the contour plot.
 | `seedX`       | 0.0 – 1.0   | 0.5     | Float | normalized seed x (× width → pixel) |
 | `seedY`       | 0.0 – 1.0   | 0.5     | Float | normalized seed y (× height → pixel) |
 | `minSpeed`    | 0.01 – 1.0  | 0.05    | Float | speed floor so dark areas don't stall to ∞ |
+| `maxSpeed`    | 1.0 – 64.0  | 1.0     | Float | white-area ceiling; raise to clear lines from bright regions |
 | `contrast`    | 0.1 – 5.0   | 1.0     | Float | gamma applied to brightness before mapping |
 | `invert`      | 0/1         | 0       | Bool  | brightness → 1 − brightness |
 | `levelSpacing`| 0.005 – 0.5 | 0.05    | Float | contour spacing as fraction of normalized travel time |
@@ -39,8 +40,16 @@ Speed field per pixel:
 b = pixel / 255
 if invert: b = 1 - b
 b = pow(b, contrast)
-speed = minSpeed + (1 - minSpeed) * b     // ∈ [minSpeed, 1]
+speed = minSpeed + (maxSpeed - minSpeed) * b     // ∈ [minSpeed, maxSpeed]
 ```
+
+`maxSpeed` is the white-area ceiling: raising it makes the wave race through
+bright pixels so their travel-time stays flat and few/no contour levels land
+there. Because the mapping is linear in brightness, the boost also reaches
+mid-grays; pair a high `maxSpeed` with raised `contrast` to confine the speedup
+to the whitest pixels. The per-pixel local slowness in the Eikonal solver means
+this never "oversteps" a dark pixel — each pixel is frozen in increasing-time
+order using its own cost, so speed discontinuities are handled exactly.
 
 Travel time `T` init `+∞`; seed pixel `T = 0`. Min-heap of `(T, idx)` with lazy
 deletion. Pop smallest, freeze it (KNOWN), relax its 4-neighbors: each FAR/TRIAL

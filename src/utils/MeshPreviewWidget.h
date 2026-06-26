@@ -28,7 +28,7 @@ public:
 	MeshPreviewWidget &operator=(const MeshPreviewWidget &) = delete;
 
 	// Point to mesh data (not owned). Set to nullptr to clear.
-	void setMesh(const ObjMesh *mesh) { m_mesh = mesh; }
+	void setMesh(const ObjMesh *mesh) { m_mesh = mesh; m_vboDirty = true; }
 
 	// Euler rotation in degrees
 	void setRotation(float rx, float ry, float rz)
@@ -67,6 +67,8 @@ public:
 private:
 	const ObjMesh *m_mesh{nullptr};
 	float m_rotX{0}, m_rotY{0}, m_rotZ{0};
+	bool m_vboDirty{true};
+	GLsizei m_vertCount{0};
 
 	// FBO resources
 	GLuint m_fbo{0};

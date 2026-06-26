@@ -2,14 +2,18 @@
 
 #include <algorithm>
 #include <cmath>
+#include <deque>
 #include <string>
 #include <tuple>
+#include <unordered_map>
 #include <vector>
 #include "generators/GeneratorTyped.h"
 #include "core/Core.h"
 #include "utils/ObjLoader.h"
 #include "utils/MeshDecimator.h"
 #include "utils/MeshPreviewWidget.h"
+#include "utils/DepthBufferGPU.h"
+#include "utils/ParallelFor.h"
 
 // Generates a PathSet by projecting a 3D OBJ mesh onto 2D.
 //
@@ -82,26 +86,41 @@ struct MeshGenerator : public GeneratorTyped<MeshGenerator, PathSet>
 		bool hlr = m_parameters.at("hiddenLines").value > 0.5f;
 		float decimation = m_parameters.at("decimation").value;
 
-		// Apply QEM decimation in 3D before projection
-		const ObjMesh &workMesh = (decimation > 0.0f)
-			? (m_decimatedCache = MeshDecimator::decimate(m_mesh, decimation))
-			: m_mesh;
+		// Apply QEM decimation in 3D before projection.
+		// If no explicit decimation, use pre-built LOD for large meshes.
+		const ObjMesh *workMeshPtr = &m_mesh;
+		if (decimation > 0.0f)
+		{
+			m_decimatedCache = MeshDecimator::decimate(m_mesh, decimation);
+			workMeshPtr = &m_decimatedCache;
+		}
+		else if (!m_lodLevels.empty())
+		{
+			// Use coarsest LOD for HLR (expensive), finer LOD for wireframe
+			if (hlr && m_lodLevels.size() > 1)
+				workMeshPtr = &m_lodLevels[1];
+			else
+				workMeshPtr = &m_lodLevels[0];
+		}
+		const ObjMesh &workMesh = *workMeshPtr;
 
 		// Build rotation matrix (reuse the widget's Mat4 helpers)
 		using M4 = MeshPreviewWidget::Mat4;
 		M4 model = M4::rotationX(rx) * M4::rotationY(ry) * M4::rotationZ(rz);
 
-		// Transform all vertices
-		struct V3 { float x, y, z; };
-		std::vector<V3> transformed(workMesh.vertices.size());
-		for (size_t i = 0; i < workMesh.vertices.size(); ++i)
-		{
-			const auto &v = workMesh.vertices[i];
-			float ox = model.m[0]*v.x + model.m[4]*v.y + model.m[8]*v.z;
-			float oy = model.m[1]*v.x + model.m[5]*v.y + model.m[9]*v.z;
-			float oz = model.m[2]*v.x + model.m[6]*v.y + model.m[10]*v.z;
-			transformed[i] = {ox, oy, oz};
-		}
+		// Transform all vertices (parallel for large meshes)
+		m_transformed.resize(workMesh.vertices.size());
+		const float *mm = model.m;
+		const auto &verts = workMesh.vertices;
+		auto &xformed = m_transformed;
+		parallel::parallel_for(0, verts.size(), [&](size_t i) {
+			const auto &v = verts[i];
+			xformed[i] = {
+				mm[0]*v.x + mm[4]*v.y + mm[8]*v.z,
+				mm[1]*v.x + mm[5]*v.y + mm[9]*v.z,
+				mm[2]*v.x + mm[6]*v.y + mm[10]*v.z
+			};
+		});
 
 		// Project to 2D
 		auto project = [&](const V3 &v) -> Vec2
@@ -127,21 +146,18 @@ struct MeshGenerator : public GeneratorTyped<MeshGenerator, PathSet>
 			int axisIdx = modeIdx - 1; // 0=X, 1=Y, 2=Z
 			int numSlices = static_cast<int>(m_parameters.at("isoResolution").value + 0.5f);
 
-			// Helper to get the axis component from an object-space vertex
 			auto getAxis = [&](const ObjMesh::Vec3 &v) -> float {
 				if (axisIdx == 0) return v.x;
 				if (axisIdx == 1) return v.y;
 				return v.z;
 			};
 
-			// Transform an object-space point to view-space V3
 			auto transformPt = [&](float ox, float oy, float oz) -> V3 {
 				return {model.m[0]*ox + model.m[4]*oy + model.m[8]*oz,
 				        model.m[1]*ox + model.m[5]*oy + model.m[9]*oz,
 				        model.m[2]*ox + model.m[6]*oy + model.m[10]*oz};
 			};
 
-			// Find min/max along the chosen axis in object space
 			float axisMin =  1e30f;
 			float axisMax = -1e30f;
 			for (const auto &v : workMesh.vertices)
@@ -154,148 +170,19 @@ struct MeshGenerator : public GeneratorTyped<MeshGenerator, PathSet>
 			float axisRange = axisMax - axisMin;
 			if (axisRange < 1e-6f) return;
 
-			// --- Build depth buffer for HLR (shared with wireframe HLR below) ---
-			constexpr float ISO_EPS = 1e-6f;
-			auto cross2d = [](Vec2 a, Vec2 b) -> float {
-				return a.x * b.y - a.y * b.x;
-			};
-			auto barycentricCoords = [&](Vec2 p, Vec2 a, Vec2 b, Vec2 c)
-				-> std::tuple<float, float, float>
-			{
-				Vec2 v0 = b - a, v1 = c - a, v2 = p - a;
-				float d00 = v0.x * v0.x + v0.y * v0.y;
-				float d01 = v0.x * v1.x + v0.y * v1.y;
-				float d11 = v1.x * v1.x + v1.y * v1.y;
-				float d20 = v2.x * v0.x + v2.y * v0.y;
-				float d21 = v2.x * v1.x + v2.y * v1.y;
-				float denom = d00 * d11 - d01 * d01;
-				if (std::fabs(denom) < ISO_EPS)
-					return {-1.0f, -1.0f, -1.0f};
-				float bv = (d11 * d20 - d01 * d21) / denom;
-				float bw = (d00 * d21 - d01 * d20) / denom;
-				float bu = 1.0f - bv - bw;
-				return {bu, bv, bw};
-			};
+			// Build depth buffer for HLR using shared helpers
+			float windingSign = computeWindingSign(workMesh);
 
-			// Detect winding
-			float signedVolume = 0.0f;
-			for (const auto &face : workMesh.faces)
-			{
-				int nv = static_cast<int>(face.indices.size());
-				if (nv < 3) continue;
-				for (int i = 1; i < nv - 1; ++i)
-				{
-					const auto &a = workMesh.vertices[face.indices[0]];
-					const auto &b = workMesh.vertices[face.indices[i]];
-					const auto &c = workMesh.vertices[face.indices[i + 1]];
-					signedVolume += a.x * (b.y * c.z - b.z * c.y)
-					              + a.y * (b.z * c.x - b.x * c.z)
-					              + a.z * (b.x * c.y - b.y * c.x);
-				}
-			}
-			float windingSign = (signedVolume >= 0.0f) ? 1.0f : -1.0f;
+			m_frontTris.clear();
+			buildFrontFacingTris(workMesh, m_transformed, windingSign, project, m_frontTris);
 
-			// Build front-facing projected triangles
-			struct ProjTri { Vec2 p0, p1, p2; float z0, z1, z2; };
-			std::vector<ProjTri> frontTris;
-			frontTris.reserve(workMesh.faces.size());
+			DepthBufContext dbCtx;
+			computeProjectionBounds(m_transformed, project, dbCtx);
+			if (dbCtx.projW < 1e-6f || dbCtx.projH < 1e-6f) return;
 
-			for (const auto &face : workMesh.faces)
-			{
-				int nv = static_cast<int>(face.indices.size());
-				if (nv < 3) continue;
-				for (int i = 1; i < nv - 1; ++i)
-				{
-					int i0 = face.indices[0], i1 = face.indices[i], i2 = face.indices[i + 1];
-					const V3 &a = transformed[i0];
-					const V3 &b = transformed[i1];
-					const V3 &c = transformed[i2];
-
-					float ex1 = b.x - a.x, ey1 = b.y - a.y;
-					float ex2 = c.x - a.x, ey2 = c.y - a.y;
-					float nz = (ex1 * ey2 - ey1 * ex2) * windingSign;
-					if (nz <= 0.0f) continue;
-
-					int fi0 = i0, fi1 = i1, fi2 = i2;
-					if (windingSign < 0.0f) std::swap(fi1, fi2);
-
-					Vec2 p0 = project(transformed[fi0]);
-					Vec2 p1 = project(transformed[fi1]);
-					Vec2 p2 = project(transformed[fi2]);
-
-					float area2d = cross2d(p1 - p0, p2 - p0);
-					if (std::fabs(area2d) < ISO_EPS) continue;
-
-					ProjTri tri;
-					tri.p0 = p0; tri.p1 = p1; tri.p2 = p2;
-					tri.z0 = transformed[fi0].z;
-					tri.z1 = transformed[fi1].z;
-					tri.z2 = transformed[fi2].z;
-					frontTris.push_back(tri);
-				}
-			}
-
-			// Rasterize depth buffer
-			constexpr int ISO_DBUF_SIZE = 1024;
-			float projMinX = 1e30f, projMinY = 1e30f;
-			float projMaxX = -1e30f, projMaxY = -1e30f;
-			for (const auto &v : transformed)
-			{
-				Vec2 p = project(v);
-				projMinX = std::min(projMinX, p.x);
-				projMinY = std::min(projMinY, p.y);
-				projMaxX = std::max(projMaxX, p.x);
-				projMaxY = std::max(projMaxY, p.y);
-			}
-			float padX = (projMaxX - projMinX) * 0.05f;
-			float padY = (projMaxY - projMinY) * 0.05f;
-			projMinX -= padX; projMinY -= padY;
-			projMaxX += padX; projMaxY += padY;
-			float projW = projMaxX - projMinX;
-			float projH = projMaxY - projMinY;
-			if (projW < ISO_EPS || projH < ISO_EPS) return;
-
-			auto toPixelX = [&](float x) -> int {
-				return std::clamp(static_cast<int>((x - projMinX) / projW * (ISO_DBUF_SIZE - 1)),
-					0, ISO_DBUF_SIZE - 1);
-			};
-			auto toPixelY = [&](float y) -> int {
-				return std::clamp(static_cast<int>((y - projMinY) / projH * (ISO_DBUF_SIZE - 1)),
-					0, ISO_DBUF_SIZE - 1);
-			};
-			auto fromPixelX = [&](int px) -> float {
-				return projMinX + (px + 0.5f) / ISO_DBUF_SIZE * projW;
-			};
-			auto fromPixelY = [&](int py) -> float {
-				return projMinY + (py + 0.5f) / ISO_DBUF_SIZE * projH;
-			};
-
-			std::vector<float> depthBuf(ISO_DBUF_SIZE * ISO_DBUF_SIZE, -1e30f);
-			for (const auto &tri : frontTris)
-			{
-				int px0 = toPixelX(tri.p0.x), py0 = toPixelY(tri.p0.y);
-				int px1 = toPixelX(tri.p1.x), py1 = toPixelY(tri.p1.y);
-				int px2 = toPixelX(tri.p2.x), py2 = toPixelY(tri.p2.y);
-				int minPx = std::min({px0, px1, px2}), maxPx = std::max({px0, px1, px2});
-				int minPy = std::min({py0, py1, py2}), maxPy = std::max({py0, py1, py2});
-				for (int py = minPy; py <= maxPy; ++py)
-				{
-					for (int px = minPx; px <= maxPx; ++px)
-					{
-						Vec2 pt{fromPixelX(px), fromPixelY(py)};
-						auto [u, v, w] = barycentricCoords(pt, tri.p0, tri.p1, tri.p2);
-						if (u >= 0.0f && v >= 0.0f && w >= 0.0f)
-						{
-							float z = u * tri.z0 + v * tri.z1 + w * tri.z2;
-							int idx = py * ISO_DBUF_SIZE + px;
-							if (z > depthBuf[idx]) depthBuf[idx] = z;
-						}
-					}
-				}
-			}
+			rasterizeDepthBuffer(m_frontTris, dbCtx);
 
 			float DEPTH_EPS = m_parameters.at("depthBias").value;
-			constexpr int NUM_SAMPLES = 8;
 
 			// For each slice plane, intersect with every triangle and collect segments
 			for (int s = 1; s < numSlices; ++s)
@@ -303,7 +190,6 @@ struct MeshGenerator : public GeneratorTyped<MeshGenerator, PathSet>
 				float t = static_cast<float>(s) / numSlices;
 				float planeVal = axisMin + t * axisRange;
 
-				// Segment with view-space Z for depth testing
 				struct Seg3 { Vec2 a, b; float za, zb; };
 				std::vector<Seg3> segments;
 
@@ -326,7 +212,6 @@ struct MeshGenerator : public GeneratorTyped<MeshGenerator, PathSet>
 						float a1 = getAxis(ov1);
 						float a2 = getAxis(ov2);
 
-						// Interpolate in object space, transform, return projected + Z
 						struct ProjZ { Vec2 p; float z; };
 						auto lerpTransformProject = [&](const ObjMesh::Vec3 &va, const ObjMesh::Vec3 &vb, float et) -> ProjZ {
 							float ox = va.x + et * (vb.x - va.x);
@@ -369,28 +254,13 @@ struct MeshGenerator : public GeneratorTyped<MeshGenerator, PathSet>
 					}
 				}
 
-				// Depth-test each segment: sample along the segment, skip if occluded
+				// Depth-test each segment
 				std::vector<Seg3> visibleSegments;
 				if (hlr)
 				{
 					for (const auto &seg : segments)
 					{
-						bool anyVisible = false;
-						for (int ns = 0; ns < NUM_SAMPLES; ++ns)
-						{
-							float st = static_cast<float>(ns) / (NUM_SAMPLES - 1);
-							float segZ = seg.za + st * (seg.zb - seg.za);
-							Vec2 pt = seg.a + (seg.b - seg.a) * st;
-							int px = toPixelX(pt.x);
-							int py = toPixelY(pt.y);
-							float bufZ = depthBuf[py * ISO_DBUF_SIZE + px];
-							if (bufZ <= segZ + DEPTH_EPS)
-							{
-								anyVisible = true;
-								break;
-							}
-						}
-						if (anyVisible)
+						if (isSegmentVisible(seg.a, seg.b, seg.za, seg.zb, dbCtx, DEPTH_EPS))
 							visibleSegments.push_back(seg);
 					}
 				}
@@ -399,58 +269,8 @@ struct MeshGenerator : public GeneratorTyped<MeshGenerator, PathSet>
 					visibleSegments = std::move(segments);
 				}
 
-				// Chain contiguous segments into polylines by matching endpoints
-				constexpr float CHAIN_EPS = 1e-4f;
-				auto dist2 = [](Vec2 a, Vec2 b) {
-					float dx = a.x - b.x, dy = a.y - b.y;
-					return dx * dx + dy * dy;
-				};
-				std::vector<bool> used(visibleSegments.size(), false);
-
-				for (size_t si = 0; si < visibleSegments.size(); ++si)
-				{
-					if (used[si]) continue;
-					used[si] = true;
-
-					Path path;
-					path.closed = false;
-					path.points.push_back(visibleSegments[si].a);
-					path.points.push_back(visibleSegments[si].b);
-
-					bool grew = true;
-					while (grew)
-					{
-						grew = false;
-						for (size_t sj = 0; sj < visibleSegments.size(); ++sj)
-						{
-							if (used[sj]) continue;
-							Vec2 back = path.points.back();
-							Vec2 front = path.points.front();
-							if (dist2(back, visibleSegments[sj].a) < CHAIN_EPS)
-							{
-								path.points.push_back(visibleSegments[sj].b);
-								used[sj] = true; grew = true;
-							}
-							else if (dist2(back, visibleSegments[sj].b) < CHAIN_EPS)
-							{
-								path.points.push_back(visibleSegments[sj].a);
-								used[sj] = true; grew = true;
-							}
-							else if (dist2(front, visibleSegments[sj].b) < CHAIN_EPS)
-							{
-								path.points.insert(path.points.begin(), visibleSegments[sj].a);
-								used[sj] = true; grew = true;
-							}
-							else if (dist2(front, visibleSegments[sj].a) < CHAIN_EPS)
-							{
-								path.points.insert(path.points.begin(), visibleSegments[sj].b);
-								used[sj] = true; grew = true;
-							}
-						}
-					}
-
-					out.paths.push_back(std::move(path));
-				}
+				// Chain contiguous segments into polylines using spatial hashing
+				chainSegments(visibleSegments, out);
 			}
 			return;
 		}
@@ -460,8 +280,8 @@ struct MeshGenerator : public GeneratorTyped<MeshGenerator, PathSet>
 		{
 			for (const auto &edge : workMesh.edges)
 			{
-				Vec2 a = project(transformed[edge.a]);
-				Vec2 b = project(transformed[edge.b]);
+				Vec2 a = project(m_transformed[edge.a]);
+				Vec2 b = project(m_transformed[edge.b]);
 				Path p;
 				p.closed = false;
 				p.points.push_back(a);
@@ -471,218 +291,38 @@ struct MeshGenerator : public GeneratorTyped<MeshGenerator, PathSet>
 			return;
 		}
 
-		// --- Hidden line removal ---
+		// --- Hidden line removal (wireframe) ---
+		float windingSign = computeWindingSign(workMesh);
 
-		constexpr float EPS = 1e-6f;
+		m_frontTris.clear();
+		buildFrontFacingTris(workMesh, m_transformed, windingSign, project, m_frontTris);
 
-		// 2D cross product (perp dot)
-		auto cross2d = [](Vec2 a, Vec2 b) -> float
-		{
-			return a.x * b.y - a.y * b.x;
-		};
+		DepthBufContext dbCtx;
+		computeProjectionBounds(m_transformed, project, dbCtx);
+		if (dbCtx.projW < 1e-6f || dbCtx.projH < 1e-6f) return;
 
-		// Barycentric coordinates of p in triangle (a,b,c)
-		auto barycentricCoords = [&](Vec2 p, Vec2 a, Vec2 b, Vec2 c)
-			-> std::tuple<float, float, float>
-		{
-			Vec2 v0 = b - a, v1 = c - a, v2 = p - a;
-			float d00 = v0.x * v0.x + v0.y * v0.y;
-			float d01 = v0.x * v1.x + v0.y * v1.y;
-			float d11 = v1.x * v1.x + v1.y * v1.y;
-			float d20 = v2.x * v0.x + v2.y * v0.y;
-			float d21 = v2.x * v1.x + v2.y * v1.y;
-			float denom = d00 * d11 - d01 * d01;
-			if (std::fabs(denom) < EPS)
-				return {-1.0f, -1.0f, -1.0f};
-			float v = (d11 * d20 - d01 * d21) / denom;
-			float w = (d00 * d21 - d01 * d20) / denom;
-			float u = 1.0f - v - w;
-			return {u, v, w};
-		};
+		rasterizeDepthBuffer(m_frontTris, dbCtx);
 
-		// Step A: Build projected front-facing triangles
-		struct ProjTri
-		{
-			Vec2 p0, p1, p2;
-			float z0, z1, z2;
-			int vi0, vi1, vi2;
-			Vec2 bmin, bmax;
-		};
-
-		// Detect winding order via signed volume of the original mesh.
-		// This is view-independent (pure rotation preserves handedness).
-		float signedVolume = 0.0f;
-		for (const auto &face : workMesh.faces)
-		{
-			int nv = static_cast<int>(face.indices.size());
-			if (nv < 3) continue;
-			for (int i = 1; i < nv - 1; ++i)
-			{
-				const auto &a = workMesh.vertices[face.indices[0]];
-				const auto &b = workMesh.vertices[face.indices[i]];
-				const auto &c = workMesh.vertices[face.indices[i + 1]];
-				signedVolume += a.x * (b.y * c.z - b.z * c.y)
-				              + a.y * (b.z * c.x - b.x * c.z)
-				              + a.z * (b.x * c.y - b.y * c.x);
-			}
-		}
-		// Positive signed volume = CCW outward normals; negative = CW
-		float windingSign = (signedVolume >= 0.0f) ? 1.0f : -1.0f;
-
-		std::vector<ProjTri> frontTris;
-		frontTris.reserve(workMesh.faces.size());
-
-		for (const auto &face : workMesh.faces)
-		{
-			int nv = static_cast<int>(face.indices.size());
-			if (nv < 3) continue;
-
-			// Fan-triangulate the face
-			for (int i = 1; i < nv - 1; ++i)
-			{
-				int i0 = face.indices[0];
-				int i1 = face.indices[i];
-				int i2 = face.indices[i + 1];
-
-				const V3 &a = transformed[i0];
-				const V3 &b = transformed[i1];
-				const V3 &c = transformed[i2];
-
-				// Camera-space face normal z-component
-				float ex1 = b.x - a.x, ey1 = b.y - a.y;
-				float ex2 = c.x - a.x, ey2 = c.y - a.y;
-				float nz = (ex1 * ey2 - ey1 * ex2) * windingSign;
-
-				if (nz <= 0.0f) continue; // back-facing
-
-				// If winding was flipped, swap two vertices so the projected
-				// triangle is CCW (required for Cyrus-Beck clipping)
-				int fi0 = i0, fi1 = i1, fi2 = i2;
-				if (windingSign < 0.0f) std::swap(fi1, fi2);
-
-				Vec2 p0 = project(transformed[fi0]);
-				Vec2 p1 = project(transformed[fi1]);
-				Vec2 p2 = project(transformed[fi2]);
-
-				// Degenerate triangle check in 2D
-				float area2d = cross2d(p1 - p0, p2 - p0);
-				if (std::fabs(area2d) < EPS) continue;
-
-				ProjTri tri;
-				tri.p0 = p0; tri.p1 = p1; tri.p2 = p2;
-				tri.z0 = transformed[fi0].z;
-				tri.z1 = transformed[fi1].z;
-				tri.z2 = transformed[fi2].z;
-				tri.vi0 = fi0; tri.vi1 = fi1; tri.vi2 = fi2;
-
-				// 2D bounding box
-				tri.bmin.x = std::min({p0.x, p1.x, p2.x});
-				tri.bmin.y = std::min({p0.y, p1.y, p2.y});
-				tri.bmax.x = std::max({p0.x, p1.x, p2.x});
-				tri.bmax.y = std::max({p0.y, p1.y, p2.y});
-
-				frontTris.push_back(tri);
-			}
-		}
-
-		// Step B: Rasterize front-facing triangles into a software depth buffer
-		constexpr int DBUF_SIZE = 1024;
-
-		// Find projected bounding box of all vertices
-		float projMinX =  1e30f, projMinY =  1e30f;
-		float projMaxX = -1e30f, projMaxY = -1e30f;
-		for (const auto &v : transformed)
-		{
-			Vec2 p = project(v);
-			projMinX = std::min(projMinX, p.x);
-			projMinY = std::min(projMinY, p.y);
-			projMaxX = std::max(projMaxX, p.x);
-			projMaxY = std::max(projMaxY, p.y);
-		}
-		float padX = (projMaxX - projMinX) * 0.05f;
-		float padY = (projMaxY - projMinY) * 0.05f;
-		projMinX -= padX; projMinY -= padY;
-		projMaxX += padX; projMaxY += padY;
-		float projW = projMaxX - projMinX;
-		float projH = projMaxY - projMinY;
-		if (projW < EPS || projH < EPS) return;
-
-		// Map projected coords <-> pixel coords
-		auto toPixelX = [&](float x) -> int {
-			return std::clamp(static_cast<int>((x - projMinX) / projW * (DBUF_SIZE - 1)),
-				0, DBUF_SIZE - 1);
-		};
-		auto toPixelY = [&](float y) -> int {
-			return std::clamp(static_cast<int>((y - projMinY) / projH * (DBUF_SIZE - 1)),
-				0, DBUF_SIZE - 1);
-		};
-		auto fromPixelX = [&](int px) -> float {
-			return projMinX + (px + 0.5f) / DBUF_SIZE * projW;
-		};
-		auto fromPixelY = [&](int py) -> float {
-			return projMinY + (py + 0.5f) / DBUF_SIZE * projH;
-		};
-
-		// Initialize depth buffer (higher z = closer to camera)
-		std::vector<float> depthBuf(DBUF_SIZE * DBUF_SIZE, -1e30f);
-
-		// Rasterize each front-facing triangle
-		for (const auto &tri : frontTris)
-		{
-			int px0 = toPixelX(tri.p0.x), py0 = toPixelY(tri.p0.y);
-			int px1 = toPixelX(tri.p1.x), py1 = toPixelY(tri.p1.y);
-			int px2 = toPixelX(tri.p2.x), py2 = toPixelY(tri.p2.y);
-
-			int minPx = std::min({px0, px1, px2});
-			int maxPx = std::max({px0, px1, px2});
-			int minPy = std::min({py0, py1, py2});
-			int maxPy = std::max({py0, py1, py2});
-
-			for (int py = minPy; py <= maxPy; ++py)
-			{
-				for (int px = minPx; px <= maxPx; ++px)
-				{
-					Vec2 pt{fromPixelX(px), fromPixelY(py)};
-					auto [u, v, w] = barycentricCoords(pt, tri.p0, tri.p1, tri.p2);
-					if (u >= 0.0f && v >= 0.0f && w >= 0.0f)
-					{
-						float z = u * tri.z0 + v * tri.z1 + w * tri.z2;
-						int idx = py * DBUF_SIZE + px;
-						if (z > depthBuf[idx]) depthBuf[idx] = z;
-					}
-				}
-			}
-		}
-
-		// Step C: Test each edge against depth buffer with multiple samples.
-		// If ANY sample is visible, emit the edge.
 		float DEPTH_EPS = m_parameters.at("depthBias").value;
-		constexpr int NUM_SAMPLES = 8;
 
-		for (const auto &edge : workMesh.edges)
-		{
-			const V3 &va = transformed[edge.a];
-			const V3 &vb = transformed[edge.b];
+		// Parallel edge visibility testing
+		std::vector<uint8_t> visible(workMesh.edges.size(), 0);
+		parallel::parallel_for(0, workMesh.edges.size(), [&](size_t i) {
+			const auto &edge = workMesh.edges[i];
+			const V3 &va = m_transformed[edge.a];
+			const V3 &vb = m_transformed[edge.b];
 			Vec2 pa = project(va);
 			Vec2 pb = project(vb);
+			if (isSegmentVisible(pa, pb, va.z, vb.z, dbCtx, DEPTH_EPS))
+				visible[i] = 1;
+		});
 
-			bool anyVisible = false;
-			for (int s = 0; s < NUM_SAMPLES; ++s)
-			{
-				float t = static_cast<float>(s) / (NUM_SAMPLES - 1);
-				float edgeZ = va.z + t * (vb.z - va.z);
-				Vec2 pt = pa + (pb - pa) * t;
-				int px = toPixelX(pt.x);
-				int py = toPixelY(pt.y);
-				float bufZ = depthBuf[py * DBUF_SIZE + px];
-				if (bufZ <= edgeZ + DEPTH_EPS)
-				{
-					anyVisible = true;
-					break;
-				}
-			}
-			if (!anyVisible) continue;
-
+		for (size_t i = 0; i < workMesh.edges.size(); ++i)
+		{
+			if (!visible[i]) continue;
+			const auto &edge = workMesh.edges[i];
+			Vec2 pa = project(m_transformed[edge.a]);
+			Vec2 pb = project(m_transformed[edge.b]);
 			Path p;
 			p.closed = false;
 			p.points.push_back(pa);
@@ -717,8 +357,23 @@ struct MeshGenerator : public GeneratorTyped<MeshGenerator, PathSet>
 			return false;
 		}
 		m_preview.setMesh(&m_mesh);
+		m_lodBuilt = false;
+		m_lodLevels.clear();
+		buildLODs();
 		m_version.fetch_add(1);
 		return true;
+	}
+
+	void buildLODs() const
+	{
+		if (m_lodBuilt) return;
+		m_lodBuilt = true;
+		if (m_mesh.faces.size() < LOD_THRESHOLD) return;
+
+		// Build 2 LOD levels: 75% decimation and 94% decimation
+		m_lodLevels.resize(2);
+		m_lodLevels[0] = MeshDecimator::decimate(m_mesh, 0.75f);
+		m_lodLevels[1] = MeshDecimator::decimate(m_mesh, 0.94f);
 	}
 
 	void onStringParameterChanged(const std::string &key) override
@@ -733,4 +388,440 @@ private:
 	ObjMesh m_mesh;
 	mutable ObjMesh m_decimatedCache;
 	mutable MeshPreviewWidget m_preview;
+
+	// Pre-computed LOD levels for large meshes
+	static constexpr size_t LOD_THRESHOLD = 100000; // faces to trigger LOD
+	mutable std::vector<ObjMesh> m_lodLevels;       // [0]=25%, [1]=6% of original
+	mutable bool m_lodBuilt{false};
+
+	// ── Shared HLR types and reusable buffers ──────────────────────────
+
+	struct V3 { float x, y, z; };
+
+	struct ProjTri
+	{
+		Vec2 p0, p1, p2;
+		float z0, z1, z2;
+	};
+
+	static constexpr int DBUF_SIZE = 1024;
+	static constexpr int NUM_SAMPLES = 8;
+	static constexpr float EPS = 1e-6f;
+
+	struct DepthBufContext
+	{
+		float projMinX, projMinY, projMaxX, projMaxY;
+		float projW, projH;
+		std::vector<float> depthBuf;
+
+		int toPixelX(float x) const
+		{
+			return std::clamp(static_cast<int>((x - projMinX) / projW * (DBUF_SIZE - 1)),
+				0, DBUF_SIZE - 1);
+		}
+		int toPixelY(float y) const
+		{
+			return std::clamp(static_cast<int>((y - projMinY) / projH * (DBUF_SIZE - 1)),
+				0, DBUF_SIZE - 1);
+		}
+		float fromPixelX(int px) const
+		{
+			return projMinX + (px + 0.5f) / DBUF_SIZE * projW;
+		}
+		float fromPixelY(int py) const
+		{
+			return projMinY + (py + 0.5f) / DBUF_SIZE * projH;
+		}
+	};
+
+	// Reusable buffers to avoid per-call allocation
+	mutable std::vector<V3> m_transformed;
+	mutable std::vector<ProjTri> m_frontTris;
+	mutable DepthBufferGPU m_gpuDepth;
+
+	// ── Shared HLR helper methods ──────────────────────────────────────
+
+	static float computeWindingSign(const ObjMesh &mesh)
+	{
+		float signedVolume = 0.0f;
+		for (const auto &face : mesh.faces)
+		{
+			int nv = static_cast<int>(face.indices.size());
+			if (nv < 3) continue;
+			for (int i = 1; i < nv - 1; ++i)
+			{
+				const auto &a = mesh.vertices[face.indices[0]];
+				const auto &b = mesh.vertices[face.indices[i]];
+				const auto &c = mesh.vertices[face.indices[i + 1]];
+				signedVolume += a.x * (b.y * c.z - b.z * c.y)
+				              + a.y * (b.z * c.x - b.x * c.z)
+				              + a.z * (b.x * c.y - b.y * c.x);
+			}
+		}
+		return (signedVolume >= 0.0f) ? 1.0f : -1.0f;
+	}
+
+	template <typename ProjectFn>
+	static void buildFrontFacingTris(
+		const ObjMesh &mesh,
+		const std::vector<V3> &transformed,
+		float windingSign,
+		ProjectFn &&project,
+		std::vector<ProjTri> &outTris)
+	{
+		outTris.reserve(mesh.faces.size());
+
+		for (const auto &face : mesh.faces)
+		{
+			int nv = static_cast<int>(face.indices.size());
+			if (nv < 3) continue;
+
+			for (int i = 1; i < nv - 1; ++i)
+			{
+				int i0 = face.indices[0];
+				int i1 = face.indices[i];
+				int i2 = face.indices[i + 1];
+
+				const V3 &a = transformed[i0];
+				const V3 &b = transformed[i1];
+				const V3 &c = transformed[i2];
+
+				float ex1 = b.x - a.x, ey1 = b.y - a.y;
+				float ex2 = c.x - a.x, ey2 = c.y - a.y;
+				float nz = (ex1 * ey2 - ey1 * ex2) * windingSign;
+				if (nz <= 0.0f) continue;
+
+				int fi0 = i0, fi1 = i1, fi2 = i2;
+				if (windingSign < 0.0f) std::swap(fi1, fi2);
+
+				Vec2 p0 = project(transformed[fi0]);
+				Vec2 p1 = project(transformed[fi1]);
+				Vec2 p2 = project(transformed[fi2]);
+
+				float area2d = (p1.x - p0.x) * (p2.y - p0.y)
+				             - (p1.y - p0.y) * (p2.x - p0.x);
+				if (std::fabs(area2d) < EPS) continue;
+
+				outTris.push_back({p0, p1, p2,
+					transformed[fi0].z, transformed[fi1].z, transformed[fi2].z});
+			}
+		}
+	}
+
+	template <typename ProjectFn>
+	static void computeProjectionBounds(
+		const std::vector<V3> &transformed,
+		ProjectFn &&project,
+		DepthBufContext &ctx)
+	{
+		ctx.projMinX =  1e30f; ctx.projMinY =  1e30f;
+		ctx.projMaxX = -1e30f; ctx.projMaxY = -1e30f;
+		for (const auto &v : transformed)
+		{
+			Vec2 p = project(v);
+			ctx.projMinX = std::min(ctx.projMinX, p.x);
+			ctx.projMinY = std::min(ctx.projMinY, p.y);
+			ctx.projMaxX = std::max(ctx.projMaxX, p.x);
+			ctx.projMaxY = std::max(ctx.projMaxY, p.y);
+		}
+		float padX = (ctx.projMaxX - ctx.projMinX) * 0.05f;
+		float padY = (ctx.projMaxY - ctx.projMinY) * 0.05f;
+		ctx.projMinX -= padX; ctx.projMinY -= padY;
+		ctx.projMaxX += padX; ctx.projMaxY += padY;
+		ctx.projW = ctx.projMaxX - ctx.projMinX;
+		ctx.projH = ctx.projMaxY - ctx.projMinY;
+	}
+
+	static std::tuple<float, float, float> barycentricCoords(
+		Vec2 p, Vec2 a, Vec2 b, Vec2 c)
+	{
+		Vec2 v0 = b - a, v1 = c - a, v2 = p - a;
+		float d00 = v0.x * v0.x + v0.y * v0.y;
+		float d01 = v0.x * v1.x + v0.y * v1.y;
+		float d11 = v1.x * v1.x + v1.y * v1.y;
+		float d20 = v2.x * v0.x + v2.y * v0.y;
+		float d21 = v2.x * v1.x + v2.y * v1.y;
+		float denom = d00 * d11 - d01 * d01;
+		if (std::fabs(denom) < EPS)
+			return {-1.0f, -1.0f, -1.0f};
+		float bv = (d11 * d20 - d01 * d21) / denom;
+		float bw = (d00 * d21 - d01 * d20) / denom;
+		float bu = 1.0f - bv - bw;
+		return {bu, bv, bw};
+	}
+
+	// Try GPU-accelerated depth buffer first, fall back to software rasterization
+	void rasterizeDepthBuffer(
+		const std::vector<ProjTri> &frontTris,
+		DepthBufContext &ctx) const
+	{
+		if (rasterizeDepthBufferGPU(frontTris, ctx))
+			return;
+		rasterizeDepthBufferSoftware(frontTris, ctx);
+	}
+
+	bool rasterizeDepthBufferGPU(
+		const std::vector<ProjTri> &frontTris,
+		DepthBufContext &ctx) const
+	{
+		// Build triangle vertex array for GPU
+		std::vector<DepthBufferGPU::TriVert> triVerts;
+		triVerts.reserve(frontTris.size() * 3);
+
+		float zMin =  1e30f, zMax = -1e30f;
+		for (const auto &tri : frontTris)
+		{
+			zMin = std::min({zMin, tri.z0, tri.z1, tri.z2});
+			zMax = std::max({zMax, tri.z0, tri.z1, tri.z2});
+		}
+		float zPad = (zMax - zMin) * 0.01f;
+		if (zPad < 1e-6f) zPad = 0.01f;
+		zMin -= zPad;
+		zMax += zPad;
+
+		for (const auto &tri : frontTris)
+		{
+			triVerts.push_back({tri.p0.x, tri.p0.y, tri.z0});
+			triVerts.push_back({tri.p1.x, tri.p1.y, tri.z1});
+			triVerts.push_back({tri.p2.x, tri.p2.y, tri.z2});
+		}
+
+		if (!m_gpuDepth.render(triVerts, ctx.projMinX, ctx.projMinY,
+		                       ctx.projMaxX, ctx.projMaxY, zMin, zMax))
+			return false;
+
+		// Convert GPU depth buffer (GL depth [0,1]) back to view-space Z
+		const auto &gpuData = m_gpuDepth.depthData();
+		ctx.depthBuf.resize(DBUF_SIZE * DBUF_SIZE);
+		for (int i = 0; i < DBUF_SIZE * DBUF_SIZE; ++i)
+		{
+			float glDepth = gpuData[i];
+			if (glDepth >= 1.0f)
+				ctx.depthBuf[i] = -1e30f; // no triangle here
+			else
+				ctx.depthBuf[i] = m_gpuDepth.depthToViewZ(glDepth);
+		}
+		return true;
+	}
+
+	// Scanline rasterizer: walks only pixels inside each triangle.
+	// Uses edge walking with incremental Z interpolation — no per-pixel
+	// barycentric computation needed. ~2-4x faster than bbox + bary test.
+	static void rasterizeDepthBufferSoftware(
+		const std::vector<ProjTri> &frontTris,
+		DepthBufContext &ctx)
+	{
+		ctx.depthBuf.resize(DBUF_SIZE * DBUF_SIZE);
+		std::fill(ctx.depthBuf.begin(), ctx.depthBuf.end(), -1e30f);
+
+		for (const auto &tri : frontTris)
+		{
+			// Convert to pixel coordinates (as floats for sub-pixel precision)
+			float fx0 = (tri.p0.x - ctx.projMinX) / ctx.projW * (DBUF_SIZE - 1);
+			float fy0 = (tri.p0.y - ctx.projMinY) / ctx.projH * (DBUF_SIZE - 1);
+			float fx1 = (tri.p1.x - ctx.projMinX) / ctx.projW * (DBUF_SIZE - 1);
+			float fy1 = (tri.p1.y - ctx.projMinY) / ctx.projH * (DBUF_SIZE - 1);
+			float fx2 = (tri.p2.x - ctx.projMinX) / ctx.projW * (DBUF_SIZE - 1);
+			float fy2 = (tri.p2.y - ctx.projMinY) / ctx.projH * (DBUF_SIZE - 1);
+
+			// Sort vertices by Y (v0.y <= v1.y <= v2.y)
+			float vx[3] = {fx0, fx1, fx2};
+			float vy[3] = {fy0, fy1, fy2};
+			float vz[3] = {tri.z0, tri.z1, tri.z2};
+
+			// Bubble sort 3 elements by y
+			if (vy[0] > vy[1]) { std::swap(vx[0], vx[1]); std::swap(vy[0], vy[1]); std::swap(vz[0], vz[1]); }
+			if (vy[1] > vy[2]) { std::swap(vx[1], vx[2]); std::swap(vy[1], vy[2]); std::swap(vz[1], vz[2]); }
+			if (vy[0] > vy[1]) { std::swap(vx[0], vx[1]); std::swap(vy[0], vy[1]); std::swap(vz[0], vz[1]); }
+
+			int yMin = std::max(0, static_cast<int>(std::ceil(vy[0])));
+			int yMid = std::clamp(static_cast<int>(std::ceil(vy[1])), 0, DBUF_SIZE - 1);
+			int yMax = std::min(DBUF_SIZE - 1, static_cast<int>(std::floor(vy[2])));
+
+			if (yMin > yMax) continue;
+
+			// Precompute edge slopes
+			float dy02 = vy[2] - vy[0];
+			float dy01 = vy[1] - vy[0];
+			float dy12 = vy[2] - vy[1];
+
+			if (dy02 < 1e-6f) continue; // degenerate
+
+			float invDy02 = 1.0f / dy02;
+			float dxdy02 = (vx[2] - vx[0]) * invDy02;
+			float dzdy02 = (vz[2] - vz[0]) * invDy02;
+
+			// Top half: v0 to v1
+			if (dy01 > 1e-6f)
+			{
+				float invDy01 = 1.0f / dy01;
+				float dxdy01 = (vx[1] - vx[0]) * invDy01;
+				float dzdy01 = (vz[1] - vz[0]) * invDy01;
+
+				for (int py = yMin; py < yMid && py <= yMax; ++py)
+				{
+					float t = static_cast<float>(py) - vy[0];
+					float xA = vx[0] + t * dxdy02;
+					float zA = vz[0] + t * dzdy02;
+					float xB = vx[0] + t * dxdy01;
+					float zB = vz[0] + t * dzdy01;
+
+					if (xA > xB) { std::swap(xA, xB); std::swap(zA, zB); }
+
+					int pxMin = std::max(0, static_cast<int>(std::ceil(xA)));
+					int pxMax = std::min(DBUF_SIZE - 1, static_cast<int>(std::floor(xB)));
+					if (pxMin > pxMax) continue;
+
+					float span = xB - xA;
+					float dzdx = (span > 1e-6f) ? (zB - zA) / span : 0.0f;
+					float z = zA + (pxMin - xA) * dzdx;
+
+					float *row = &ctx.depthBuf[py * DBUF_SIZE];
+					for (int px = pxMin; px <= pxMax; ++px, z += dzdx)
+					{
+						if (z > row[px]) row[px] = z;
+					}
+				}
+			}
+
+			// Bottom half: v1 to v2
+			if (dy12 > 1e-6f)
+			{
+				float invDy12 = 1.0f / dy12;
+				float dxdy12 = (vx[2] - vx[1]) * invDy12;
+				float dzdy12 = (vz[2] - vz[1]) * invDy12;
+
+				int startY = std::max(yMin, yMid);
+				for (int py = startY; py <= yMax; ++py)
+				{
+					float t02 = static_cast<float>(py) - vy[0];
+					float xA = vx[0] + t02 * dxdy02;
+					float zA = vz[0] + t02 * dzdy02;
+
+					float t12 = static_cast<float>(py) - vy[1];
+					float xB = vx[1] + t12 * dxdy12;
+					float zB = vz[1] + t12 * dzdy12;
+
+					if (xA > xB) { std::swap(xA, xB); std::swap(zA, zB); }
+
+					int pxMin = std::max(0, static_cast<int>(std::ceil(xA)));
+					int pxMax = std::min(DBUF_SIZE - 1, static_cast<int>(std::floor(xB)));
+					if (pxMin > pxMax) continue;
+
+					float span = xB - xA;
+					float dzdx = (span > 1e-6f) ? (zB - zA) / span : 0.0f;
+					float z = zA + (pxMin - xA) * dzdx;
+
+					float *row = &ctx.depthBuf[py * DBUF_SIZE];
+					for (int px = pxMin; px <= pxMax; ++px, z += dzdx)
+					{
+						if (z > row[px]) row[px] = z;
+					}
+				}
+			}
+		}
+	}
+
+	static bool isSegmentVisible(
+		Vec2 pa, Vec2 pb, float za, float zb,
+		const DepthBufContext &ctx, float depthEps)
+	{
+		for (int s = 0; s < NUM_SAMPLES; ++s)
+		{
+			float t = static_cast<float>(s) / (NUM_SAMPLES - 1);
+			float segZ = za + t * (zb - za);
+			Vec2 pt = pa + (pb - pa) * t;
+			int px = ctx.toPixelX(pt.x);
+			int py = ctx.toPixelY(pt.y);
+			float bufZ = ctx.depthBuf[py * DBUF_SIZE + px];
+			if (bufZ <= segZ + depthEps)
+				return true;
+		}
+		return false;
+	}
+
+	// Chain contiguous segments into polylines using spatial hashing
+	// instead of O(n^2) nested scanning
+	template <typename SegType>
+	static void chainSegments(const std::vector<SegType> &segments, PathSet &out)
+	{
+		if (segments.empty()) return;
+
+		constexpr float CHAIN_EPS = 1e-4f;
+		constexpr float INV_EPS = 1.0f / CHAIN_EPS;
+
+		auto quantize = [&](Vec2 p) -> int64_t {
+			int32_t qx = static_cast<int32_t>(std::round(p.x * INV_EPS));
+			int32_t qy = static_cast<int32_t>(std::round(p.y * INV_EPS));
+			return (static_cast<int64_t>(qx) << 32) | static_cast<int64_t>(static_cast<uint32_t>(qy));
+		};
+
+		// Build spatial hash: endpoint -> list of (segment index, which end: 0=a, 1=b)
+		std::unordered_map<int64_t, std::vector<std::pair<int, int>>> endpointMap;
+		endpointMap.reserve(segments.size() * 2);
+		for (size_t i = 0; i < segments.size(); ++i)
+		{
+			endpointMap[quantize(segments[i].a)].push_back({static_cast<int>(i), 0});
+			endpointMap[quantize(segments[i].b)].push_back({static_cast<int>(i), 1});
+		}
+
+		std::vector<bool> used(segments.size(), false);
+
+		for (size_t si = 0; si < segments.size(); ++si)
+		{
+			if (used[si]) continue;
+			used[si] = true;
+
+			std::deque<Vec2> chain;
+			chain.push_back(segments[si].a);
+			chain.push_back(segments[si].b);
+
+			// Grow from back
+			bool grew = true;
+			while (grew)
+			{
+				grew = false;
+				int64_t key = quantize(chain.back());
+				auto it = endpointMap.find(key);
+				if (it == endpointMap.end()) continue;
+				for (auto &[idx, end] : it->second)
+				{
+					if (used[idx]) continue;
+					used[idx] = true;
+					grew = true;
+					if (end == 0)
+						chain.push_back(segments[idx].b);
+					else
+						chain.push_back(segments[idx].a);
+					break;
+				}
+			}
+
+			// Grow from front
+			grew = true;
+			while (grew)
+			{
+				grew = false;
+				int64_t key = quantize(chain.front());
+				auto it = endpointMap.find(key);
+				if (it == endpointMap.end()) continue;
+				for (auto &[idx, end] : it->second)
+				{
+					if (used[idx]) continue;
+					used[idx] = true;
+					grew = true;
+					if (end == 1)
+						chain.push_front(segments[idx].a);
+					else
+						chain.push_front(segments[idx].b);
+					break;
+				}
+			}
+
+			Path path;
+			path.closed = false;
+			path.points.assign(chain.begin(), chain.end());
+			out.paths.push_back(std::move(path));
+		}
+	}
 };

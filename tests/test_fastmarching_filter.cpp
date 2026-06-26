@@ -79,6 +79,36 @@ TEST(FastMarchingFilter, BrightnessControlsRingDensity)
 	    << "dark/slow side should pack more contour detail than the bright side";
 }
 
+// Raising maxSpeed makes bright regions clear out: the wave crosses them so
+// fast that the travel-time map stays flat there, so fewer contour lines land
+// in the bright half.
+TEST(FastMarchingFilter, HigherMaxSpeedClearsBrightAreas)
+{
+	const int n = 101;
+	Bitmap in = makeSolidBitmap(n, n, 0);
+	for (int y = 0; y < n; ++y)
+		for (int x = 0; x < n; ++x)
+			in.pixels[static_cast<size_t>(y) * n + x] = (x < n / 2) ? 235 : 40;
+
+	const float midX = static_cast<float>(n) * 0.5f;
+	auto brightVertCount = [&](float maxSpeed) {
+		FastMarchingFilter filter;
+		filter.setParameter("levelSpacing", 0.05f);
+		filter.setParameter("maxSpeed", maxSpeed);
+		PathSet out;
+		filter.applyTyped(in, out);
+		int bright = 0;
+		for (const Path &p : out.paths)
+			for (const Vec2 &v : p.points)
+				if (v.x < midX) ++bright;
+		return bright;
+	};
+
+	int slow = brightVertCount(1.0f);
+	int fast = brightVertCount(32.0f);
+	EXPECT_LT(fast, slow) << "higher max speed should thin out lines in bright areas";
+}
+
 TEST(FastMarchingFilter, EmptyImageProducesNoPaths)
 {
 	Bitmap in; // 0x0

@@ -47,6 +47,13 @@ public:
     // Write an ASCII line, automatically appending a carriage return ("\r").
     bool writeLine(std::string_view asciiNoCR, std::string *errorOut = nullptr);
 
+    // Read a line from the serial port (up to '\r' or '\n'), with timeout in ms.
+    // Returns true if a line was read, false on timeout or error.
+    bool readLine(std::string &lineOut, int timeoutMs = 2000, std::string *errorOut = nullptr);
+
+    // Drain all pending data from the receive buffer (discard unread responses).
+    void drainReceiveBuffer();
+
     const SerialState &state() const { return m_state; }
 
     // Enumerate COM ports with vendor/product IDs (Windows). Returns empty on failure.

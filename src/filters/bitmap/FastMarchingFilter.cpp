@@ -106,6 +106,7 @@ void FastMarchingFilter::applyTyped(const Bitmap &in, PathSet &out) const
 
 	const float px = in.pixel_size_mm;
 	const float minSpeed = std::clamp(m_parameters.at("minSpeed").value, 0.01f, 1.0f);
+	const float maxSpeed = std::max(m_parameters.at("maxSpeed").value, minSpeed);
 	const float contrast = m_parameters.at("contrast").value;
 	const bool invert = m_parameters.at("invert").value > 0.5f;
 	const float spacing = std::max(m_parameters.at("levelSpacing").value, 0.005f);
@@ -122,7 +123,7 @@ void FastMarchingFilter::applyTyped(const Bitmap &in, PathSet &out) const
 		float b = in.pixels[i] / 255.0f;
 		if (invert) b = 1.0f - b;
 		b = std::pow(std::clamp(b, 0.0f, 1.0f), contrast);
-		float speed = minSpeed + (1.0f - minSpeed) * b;
+		float speed = minSpeed + (maxSpeed - minSpeed) * b;
 		slow[i] = 1.0f / speed;
 	}
 

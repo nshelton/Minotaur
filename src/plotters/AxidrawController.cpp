@@ -84,6 +84,43 @@ bool AxiDrawController::sendCmd(const std::string &cmd, std::string *errorOut) {
         LOG(ERROR) << "AxiDraw writeLine failed: " << err;
         return false;
     }
+
+    // Read back the EBB response to confirm command was received.
+    // The EBB responds with "OK" for most commands, or data lines followed by "OK".
+    // We read lines until we get "OK" or hit a timeout.
+    std::string response;
+    m_lastResponse.clear();
+    const int kMaxResponseLines = 10;
+    for (int i = 0; i < kMaxResponseLines; ++i) {
+        std::string line;
+        if (!m_serial.readLine(line, 5000, &err)) {
+            LOG(WARNING) << "No response from EBB for command '" << cmd << "': " << err;
+            if (errorOut) *errorOut = "No response from EBB: " + err;
+            return false;
+        }
+        if (line == "OK") {
+            return true;
+        }
+        // Accumulate non-OK response lines (e.g., query results)
+        if (!m_lastResponse.empty()) m_lastResponse += "\n";
+        m_lastResponse += line;
+    }
+
+    LOG(WARNING) << "EBB did not respond with OK for command '" << cmd << "', got: " << m_lastResponse;
+    if (errorOut) *errorOut = "Unexpected EBB response: " + m_lastResponse;
+    return false;
+}
+
+bool AxiDrawController::queryStepPosition(int &aStepsOut, int &bStepsOut, std::string *errorOut) {
+    if (!sendCmd("QS", errorOut)) return false;
+    // QS response format: "a_steps,b_steps" (before the OK line, captured in m_lastResponse)
+    int a = 0, b = 0;
+    if (sscanf(m_lastResponse.c_str(), "%d,%d", &a, &b) != 2) {
+        if (errorOut) *errorOut = "Failed to parse QS response: " + m_lastResponse;
+        return false;
+    }
+    aStepsOut = a;
+    bStepsOut = b;
     return true;
 }
 

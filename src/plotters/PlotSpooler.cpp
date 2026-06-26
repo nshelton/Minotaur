@@ -577,6 +577,9 @@ void PlotSpooler::run()
 {
     LOG(INFO) << "PlotSpooler worker started";
 
+    // Drain any stale data from the serial receive buffer before starting
+    m_serial.drainReceiveBuffer();
+
     // Try to configure servo on start (safe if already configured)
     std::string err;
     if (!m_axidraw.initialize(&err))
@@ -594,9 +597,11 @@ void PlotSpooler::run()
     const int kLowWaterMs = 300;
     const int kHighWaterMs = 1200;
 
-    // Keepalive: prevent USB suspend after long idle periods
-    auto lastCommandTime = Clock::now();
-    const auto kKeepaliveInterval = std::chrono::minutes(5); // Send keepalive every 5 minutes
+    // Cumulative step position tracking for periodic verification
+    int cumulativeA = 0;
+    int cumulativeB = 0;
+    int commandsSinceVerify = 0;
+    const int kVerifyEveryNCommands = 500; // Verify position every 500 stepper moves
 
     while (!m_cancel.load())
     {
@@ -608,22 +613,6 @@ void PlotSpooler::run()
                       { return !m_paused.load() || m_cancel.load(); });
             if (m_cancel.load())
                 break;
-        }
-
-        // Keepalive: send harmless command if too much time has elapsed
-        auto now = Clock::now();
-        if (now - lastCommandTime > kKeepaliveInterval)
-        {
-            // Send a harmless query command (QM - Query Motor) to keep connection alive
-            if (!m_axidraw.sendCmd("QM", &err))
-            {
-                LOG(WARNING) << "Keepalive command failed: " << err;
-            }
-            else
-            {
-                LOG(INFO) << "Keepalive sent to prevent USB suspend";
-            }
-            lastCommandTime = now;
         }
 
         Cmd cmd;
@@ -768,11 +757,15 @@ void PlotSpooler::run()
         }
 
         m_stats.commandsSent++;
-        lastCommandTime = Clock::now(); // Update keepalive timer
 
         // Process stepper move stats and queue refill
         if (cmd.kind == CmdKind::StepperMove)
         {
+            // Track cumulative step position for verification
+            cumulativeA += cmd.aSteps;
+            cumulativeB += cmd.bSteps;
+            commandsSinceVerify++;
+
             // Convert CoreXY steps to mm for progress if pen is down
             if (penDownActive)
             {
@@ -817,10 +810,46 @@ void PlotSpooler::run()
                     refillQueueLocked(kHighWaterMs, kLowWaterMs);
                 }
             }
+
+            // Periodic position verification: query EBB step position and compare
+            if (commandsSinceVerify >= kVerifyEveryNCommands)
+            {
+                commandsSinceVerify = 0;
+                // Wait for current move to finish before querying
+                std::this_thread::sleep_for(Ms(std::max(1, sleepDurationMs)));
+                sleepDurationMs = 0; // Already waited
+
+                int hwA = 0, hwB = 0;
+                std::string qsErr;
+                if (m_axidraw.queryStepPosition(hwA, hwB, &qsErr))
+                {
+                    int driftA = std::abs(hwA - cumulativeA);
+                    int driftB = std::abs(hwB - cumulativeB);
+                    if (driftA > 2 || driftB > 2) // Allow tiny rounding tolerance
+                    {
+                        LOG(ERROR) << "POSITION DRIFT DETECTED! Expected A=" << cumulativeA
+                                   << " B=" << cumulativeB << " but EBB reports A=" << hwA
+                                   << " B=" << hwB << " (drift A=" << driftA << " B=" << driftB << ")";
+                        // Don't abort - log the error so we can diagnose, but the plot is
+                        // already in trouble if this fires. Future: could halt here.
+                    }
+                    else
+                    {
+                        LOG(INFO) << "Position verified OK: A=" << hwA << " B=" << hwB;
+                    }
+                }
+                else
+                {
+                    LOG(WARNING) << "Position verification failed: " << qsErr;
+                }
+            }
         }
 
         // Wait for command to complete (works for all command types)
-        std::this_thread::sleep_for(Ms(std::max(1, sleepDurationMs)));
+        if (sleepDurationMs > 0)
+        {
+            std::this_thread::sleep_for(Ms(std::max(1, sleepDurationMs)));
+        }
     }
 
     // Best-effort pen up and motors off at end (unless cancelled early)

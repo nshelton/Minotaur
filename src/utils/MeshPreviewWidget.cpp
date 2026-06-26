@@ -264,15 +264,26 @@ void MeshPreviewWidget::render(int width, int height)
 	Mat4 model = Mat4::rotationX(m_rotX) * Mat4::rotationY(m_rotY) * Mat4::rotationZ(m_rotZ);
 	Mat4 mvp   = proj * view * model;
 
-	// Upload edge vertices
-	std::vector<Vtx> verts;
-	verts.reserve(m_mesh->edges.size() * 2);
-	for (const auto &edge : m_mesh->edges)
+	// Only re-upload edge geometry when mesh data changes
+	if (m_vboDirty)
 	{
-		const auto &a = m_mesh->vertices[edge.a];
-		const auto &b = m_mesh->vertices[edge.b];
-		verts.push_back({a.x, a.y, a.z});
-		verts.push_back({b.x, b.y, b.z});
+		std::vector<Vtx> verts;
+		verts.reserve(m_mesh->edges.size() * 2);
+		for (const auto &edge : m_mesh->edges)
+		{
+			const auto &a = m_mesh->vertices[edge.a];
+			const auto &b = m_mesh->vertices[edge.b];
+			verts.push_back({a.x, a.y, a.z});
+			verts.push_back({b.x, b.y, b.z});
+		}
+
+		glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
+		glBufferData(GL_ARRAY_BUFFER,
+			static_cast<GLsizeiptr>(verts.size() * sizeof(Vtx)),
+			verts.data(), GL_STATIC_DRAW);
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		m_vertCount = static_cast<GLsizei>(verts.size());
+		m_vboDirty = false;
 	}
 
 	glUseProgram(m_program);
@@ -280,13 +291,8 @@ void MeshPreviewWidget::render(int width, int height)
 	glUniform4f(m_uColor, 0.8f, 0.8f, 0.8f, 1.0f);
 
 	glBindVertexArray(m_vao);
-	glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
-	glBufferData(GL_ARRAY_BUFFER,
-		static_cast<GLsizeiptr>(verts.size() * sizeof(Vtx)),
-		verts.data(), GL_DYNAMIC_DRAW);
-
 	glLineWidth(1.0f);
-	glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(verts.size()));
+	glDrawArrays(GL_LINES, 0, m_vertCount);
 
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
