@@ -93,10 +93,12 @@ add_executable(filter_tests
   tests/test_levels_filter.cpp
   tests/test_trace_filter.cpp
   tests/test_simplify_filter.cpp
+  tests/test_fastmarching_filter.cpp
   src/filters/bitmap/BlurFilter.cpp
   src/filters/bitmap/ThresholdFilter.cpp
   src/filters/bitmap/LevelsFilter.cpp
   src/filters/bitmap/TraceFilter.cpp
+  src/filters/bitmap/FastMarchingFilter.cpp
   src/filters/pathset/SimplifyFilter.cpp
 )
 

@@ -26,6 +26,7 @@
 #include "filters/bitmap/ChannelMixerFilter.h"
 #include "filters/bitmap/ColorPickerFilter.h"
 #include "filters/bitmap/ConcentricOutlineFilter.h"
+#include "filters/bitmap/FastMarchingFilter.h"
 #include "filters/bitmap/FlowFieldHatchFilter.h"
 #include "filters/bitmap/FlowSnakeFilter.h"
 #include "filters/bitmap/RotateFilter.h"
@@ -147,6 +148,13 @@ void FilterRegistry::initDefaults()
 		LayerKind::PathSet,
 		[]()
 		{ return std::make_unique<ConcentricOutlineFilter>(); }});
+
+	reg.registerFilter(FilterInfo{
+		"Fast Marching",
+		LayerKind::Bitmap,
+		LayerKind::PathSet,
+		[]()
+		{ return std::make_unique<FastMarchingFilter>(); }});
 
 	reg.registerFilter(FilterInfo{
 		"Blobs",
