@@ -3,14 +3,21 @@
   "version-string": "0.1.0",
   "builtin-baseline": "b472291f295551b7127359ea38fdd2ca092f6f1b",
   "dependencies": [
-    "glfw3",
-    "glad",
-    { "name": "imgui", "features": ["glfw-binding", "opengl3-binding"] },
-    "fmt",
-    "glog",
-    "nlohmann-json",
     "gtest",
-    "curl"
-  ]
+    "glog"
+  ],
+  "default-features": ["app"],
+  "features": {
+    "app": {
+      "description": "GUI application dependencies (not needed for tests)",
+      "dependencies": [
+        "glfw3",
+        "glad",
+        { "name": "imgui", "features": ["glfw-binding", "opengl3-binding"] },
+        "fmt",
+        "nlohmann-json",
+        "curl"
+      ]
+    }
+  }
 }
-

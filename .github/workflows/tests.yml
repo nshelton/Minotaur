@@ -22,6 +22,7 @@ jobs:
         run: |
           cmake -B build \
             -DBUILD_APP=OFF \
+            -DVCPKG_MANIFEST_NO_DEFAULT_FEATURES=ON \
             -DCMAKE_TOOLCHAIN_FILE=/tmp/vcpkg/scripts/buildsystems/vcpkg.cmake \
             -DCMAKE_CXX_STANDARD=17
 
