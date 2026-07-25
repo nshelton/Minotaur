@@ -11,3 +11,5 @@ CMakeUserPresets.json
 
 # Local working project data (large binary-in-JSON, not source)
 page.json
+# vcpkg manifest-mode install root (when vcpkg is run outside build/)
+vcpkg_installed/
