@@ -1,6 +1,7 @@
 #pragma once
 
 #include <glad/glad.h>
+#include <cstdint>
 #include <unordered_map>
 #include <vector>
 #include "core/Core.h"
@@ -13,9 +14,11 @@ public:
 
     void clear();
 
-    // Ensure texture exists for bitmap of an entity, then queue a quad to draw
-    void addBitmap(int entityId, const Bitmap &bm, const Mat3 &localToPage);
-    void addColorImage(int entityId, const ColorImage &ci, const Mat3 &localToPage);
+    // Ensure texture exists for bitmap of an entity, then queue a quad to draw.
+    // version identifies the pixel content; the texture is re-uploaded only when
+    // it differs from the last uploaded version (or on first create / resize).
+    void addBitmap(int entityId, const Bitmap &bm, const Mat3 &localToPage, uint64_t version);
+    void addColorImage(int entityId, const ColorImage &ci, const Mat3 &localToPage, uint64_t version);
 
     void draw(const Mat3 &mm_to_ndc);
 
@@ -34,6 +37,7 @@ private:
         size_t w{0};
         size_t h{0};
         bool isColor{false};
+        uint64_t uploadedVersion{0};
     };
 
     GLuint m_programGray{0};
@@ -50,8 +54,8 @@ private:
 
     static GLuint compileShader(GLenum type, const char *src);
     static GLuint linkProgram(GLuint vs, GLuint fs);
-    void ensureTexture(int entityId, const Bitmap &bm);
-    void ensureColorTexture(int entityId, const ColorImage &ci);
+    void ensureTexture(int entityId, const Bitmap &bm, uint64_t version);
+    void ensureColorTexture(int entityId, const ColorImage &ci, uint64_t version);
 };
 
 

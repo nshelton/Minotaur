@@ -5,6 +5,28 @@
 #include "filters/Types.h"
 #include "core/Theme.h"
 
+namespace
+{
+// Derive a content version for an entity's rendered (filter-chain output) image.
+// It changes on any payload edit, filter add/remove, enable/disable, or parameter
+// change, so the GL texture is only re-uploaded when the pixels actually change.
+// Computed from the filter chain's generation counters (positional encoding of
+// baseGen, filter count, and final filter generation; injective for realistic
+// values). MUST be read before FilterChain::output() so the recorded version is
+// never newer than the uploaded pixels (avoids a stale frame under the rare race
+// where the background worker publishes between the two reads).
+uint64_t entityImageVersion(const Entity &entity)
+{
+   const FilterChain &fc = entity.filterChain;
+   size_t n = fc.size();
+   uint64_t v = fc.baseGen();
+   v = v * 1000003ull + static_cast<uint64_t>(n);
+   if (n > 0)
+      v = v * 1000003ull + fc.layerCacheAt(n - 1).gen;
+   return v;
+}
+}
+
 Renderer::Renderer()
 {
    m_lines.init();
@@ -33,6 +55,9 @@ void Renderer::beginFrame(const Camera &camera, const PageModel &page, const Int
          continue;
       }
       auto transform = entity.localToPage;
+      // Read the content version before output() so it can never be newer than
+      // the pixels we upload below (see entityImageVersion).
+      const uint64_t imgVersion = entityImageVersion(entity);
       const LayerPtr layer = entity.filterChain.output();
 
       if (isPathSetLayer(layer))
@@ -70,17 +95,17 @@ void Renderer::beginFrame(const Camera &camera, const PageModel &page, const Int
          if (const Bitmap *bmptr = asBitmapConstPtr(layer))
          {
             const Bitmap &bm = *bmptr;
-            m_images.addBitmap(id, bm, transform);
+            m_images.addBitmap(id, bm, transform, imgVersion);
          }
          else if (const ColorImage *ciptr = asColorImageConstPtr(layer))
          {
             const ColorImage &ci = *ciptr;
-            m_images.addColorImage(id, ci, transform);
+            m_images.addColorImage(id, ci, transform, imgVersion);
          }
          else if (const FloatImage *fiptr = asFloatImageConstPtr(layer))
          {
             const FloatImage &fi = *fiptr;
-            m_floatImages.addFloatImage(id, fi, transform);
+            m_floatImages.addFloatImage(id, fi, transform, imgVersion);
          }
          else
          {

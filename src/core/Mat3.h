@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <cmath>
 #include "core/Vec2.h"
 
 struct Mat3
@@ -169,6 +170,10 @@ struct Mat3
 
         // inverse of 2x2
         float det = a * d - b * c;
+
+        // singular/degenerate transform: return point unchanged
+        if (std::abs(det) < 1e-8f)
+            return p;
 
         float invDet = 1.0f / det;
 

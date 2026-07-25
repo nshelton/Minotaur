@@ -653,7 +653,10 @@ void PlotSpooler::run()
             break;
         case CmdKind::PathDone:
             // Marker: this path has been fully sent to the plotter
-            m_stats.sentPathIndex = cmd.pathIndex + 1;
+            {
+                std::lock_guard<std::mutex> lk(m_mutex);
+                m_stats.sentPathIndex = cmd.pathIndex + 1;
+            }
             continue; // no hardware command, skip sleep
         }
 
@@ -756,7 +759,10 @@ void PlotSpooler::run()
             break;
         }
 
-        m_stats.commandsSent++;
+        {
+            std::lock_guard<std::mutex> lk(m_mutex);
+            m_stats.commandsSent++;
+        }
 
         // Process stepper move stats and queue refill
         if (cmd.kind == CmdKind::StepperMove)
@@ -767,6 +773,7 @@ void PlotSpooler::run()
             commandsSinceVerify++;
 
             // Convert CoreXY steps to mm for progress if pen is down
+            float donePenDownDeltaMm = 0.0f;
             if (penDownActive)
             {
                 const float a = static_cast<float>(cmd.aSteps);
@@ -775,12 +782,13 @@ void PlotSpooler::run()
                 const float dySteps = 0.5f * (a + b);
                 const float dxMm = dxSteps / static_cast<float>(kStepsPerMm);
                 const float dyMm = dySteps / static_cast<float>(kStepsPerMm);
-                m_stats.donePenDownMm += std::hypot(dxMm, dyMm);
+                donePenDownDeltaMm = std::hypot(dxMm, dyMm);
             }
 
             // Decrease queued time and top up if needed
             {
                 std::lock_guard<std::mutex> lk(m_mutex);
+                m_stats.donePenDownMm += donePenDownDeltaMm;
                 const int dt = std::max(1, cmd.durationMs);
                 m_queuedMs = std::max(0, m_queuedMs - dt);
                 m_stats.queuedMs = std::max(0, m_stats.queuedMs - dt);

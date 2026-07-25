@@ -13,6 +13,18 @@
 #include "Types.h"
 #include "Filter.h"
 
+inline const char *layerKindName(LayerKind k)
+{
+	switch (k)
+	{
+	case LayerKind::Bitmap: return "Bitmap";
+	case LayerKind::PathSet: return "PathSet";
+	case LayerKind::FloatImage: return "FloatImage";
+	case LayerKind::ColorImage: return "ColorImage";
+	}
+	return "Unknown";
+}
+
 struct LayerCache
 {
 	LayerPtr data;
@@ -116,20 +128,33 @@ public:
 			lc.valid = false;
 	}
 
+	// Returns the index of the appended filter, or SIZE_MAX if the filter's
+	// input kind is incompatible with the upstream output (nothing is added).
 	size_t addFilter(std::unique_ptr<FilterBase> f)
 	{
 		waitForEval();
 
-		// Validate chain typing
+		// Validate chain typing (release-safe: asserts compile out, so guard at runtime)
+		LayerKind upstreamKind;
+		bool haveUpstream;
 		if (m_filters.empty())
 		{
-			if (m_base)
-				assert(f->inputKind() == m_base->kind());
+			haveUpstream = static_cast<bool>(m_base);
+			upstreamKind = m_base ? m_base->kind() : LayerKind::PathSet;
 		}
 		else
 		{
-			auto prevOut = m_filters.back()->outputKind();
-			assert(prevOut == f->inputKind());
+			haveUpstream = true;
+			upstreamKind = m_filters.back()->outputKind();
+		}
+
+		if (haveUpstream && f->inputKind() != upstreamKind)
+		{
+			LOG(ERROR) << "addFilter: type mismatch for \"" << f->name()
+			           << "\" expected input " << layerKindName(upstreamKind)
+			           << " but filter accepts " << layerKindName(f->inputKind())
+			           << "; not adding";
+			return static_cast<size_t>(-1);
 		}
 
 		m_filters.emplace_back(std::move(f));
@@ -274,12 +299,24 @@ public:
 		if (enabled)
 		{
 			if (!canEnableFilterAtIndex(index))
+			{
+				FilterBase *f = m_filters[index].get();
+				LOG(ERROR) << "setFilterEnabled: enabling \"" << f->name()
+				           << "\" (in " << layerKindName(f->inputKind())
+				           << " -> out " << layerKindName(f->outputKind())
+				           << ") would break chain typing; leaving disabled";
 				return;
+			}
 		}
 		else
 		{
 			if (!canDisableFilterAtIndex(index))
+			{
+				FilterBase *f = m_filters[index].get();
+				LOG(ERROR) << "setFilterEnabled: disabling \"" << f->name()
+				           << "\" would leave a downstream consumer with an incompatible upstream kind; leaving enabled";
 				return;
+			}
 		}
 
 		m_enabled[index] = enabled;
@@ -451,6 +488,15 @@ public:
 	std::vector<std::unique_ptr<FilterBase>> m_filters;
 	mutable std::vector<LayerCache> m_layers;
 	std::vector<bool> m_enabled;
+
+	// THREADING INVARIANT for m_base / m_baseGen:
+	// These are NOT guarded by m_dataMutex. The background worker reads them in
+	// evaluateInto() without any lock. That is race-free ONLY because they are
+	// mutated solely by setBase() (and clear()), each of which first calls
+	// waitForEval() to ensure m_evaluating == false before touching them. The
+	// worker only runs while m_evaluating == true, so a write and a worker read
+	// can never overlap. If you ever mutate m_base/m_baseGen from anywhere that
+	// does not waitForEval() first, you MUST add explicit synchronization here.
 	LayerPtr m_base;
 	mutable uint64_t m_baseGen{0};
 
@@ -507,7 +553,10 @@ private:
 				workerLayers = m_layers;
 			}
 
-			// Run the evaluation on our private copy
+			// Run the evaluation on our private copy.
+			// evaluateInto() reads m_base/m_baseGen WITHOUT m_dataMutex; this is
+			// safe only because setBase()/clear() mutate them while m_evaluating
+			// is false (see THREADING INVARIANT at the m_base declaration).
 			evaluateInto(workerLayers, m_filters.size() - 1);
 
 			// If a new eval was requested during our work, publish anyway

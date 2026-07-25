@@ -56,7 +56,11 @@ public:
 
     bool isRunning() const { return m_running.load(); }
     bool isPaused() const { return m_paused.load(); }
-    Stats stats() const { return m_stats; }
+    Stats stats() const
+    {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        return m_stats;
+    }
 
     // Access to ordered paths for visualization (returns empty if not running)
     const std::vector<Path> &getOrderedPaths() const;

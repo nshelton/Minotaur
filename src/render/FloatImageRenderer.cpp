@@ -1,4 +1,5 @@
 #include "FloatImageRenderer.h"
+#include "GLCheck.h"
 
 #include <iostream>
 
@@ -124,6 +125,7 @@ void main(){
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 4, (void *)(2 * sizeof(float)));
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+    CHECK_GL();
     return true;
 }
 
@@ -152,7 +154,7 @@ void FloatImageRenderer::clear()
     m_quads.clear();
 }
 
-void FloatImageRenderer::ensureTexture(int entityId, const FloatImage &img)
+void FloatImageRenderer::ensureTexture(int entityId, const FloatImage &img, uint64_t version)
 {
     auto it = m_textures.find(entityId);
     bool needCreate = (it == m_textures.end()) || (it->second.w != img.width_px) || (it->second.h != img.height_px);
@@ -174,21 +176,29 @@ void FloatImageRenderer::ensureTexture(int entityId, const FloatImage &img)
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, (GLsizei)img.width_px, (GLsizei)img.height_px, 0, GL_RED, GL_FLOAT, img.pixels.data());
         glBindTexture(GL_TEXTURE_2D, 0);
+        CHECK_GL();
 
-        m_textures[entityId] = TexInfo{tex, img.width_px, img.height_px};
+        // glTexImage2D already uploaded the pixels; record the version and return.
+        m_textures[entityId] = TexInfo{tex, img.width_px, img.height_px, version};
+        return;
     }
 
-    // Always upload latest pixel data in case content changed without size change
-    GLuint tex = m_textures[entityId].tex;
-    glBindTexture(GL_TEXTURE_2D, tex);
+    // Existing texture, same size: re-upload only when content changed.
+    TexInfo &ti = it->second;
+    if (ti.uploadedVersion == version)
+        return;
+
+    glBindTexture(GL_TEXTURE_2D, ti.tex);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, (GLsizei)img.width_px, (GLsizei)img.height_px, GL_RED, GL_FLOAT, img.pixels.data());
     glBindTexture(GL_TEXTURE_2D, 0);
+    CHECK_GL();
+    ti.uploadedVersion = version;
 }
 
-void FloatImageRenderer::addFloatImage(int entityId, const FloatImage &img, const Mat3 &localToPage)
+void FloatImageRenderer::addFloatImage(int entityId, const FloatImage &img, const Mat3 &localToPage, uint64_t version)
 {
-    ensureTexture(entityId, img);
+    ensureTexture(entityId, img, version);
     BoundingBox bb = img.aabb();
     Quad q;
     q.pMin = localToPage.apply(bb.min);

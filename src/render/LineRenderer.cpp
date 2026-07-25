@@ -1,4 +1,5 @@
 ﻿#include "LineRenderer.h"
+#include "GLCheck.h"
 
 #include <iostream>
 
@@ -108,6 +109,7 @@ void main(){
     glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(GLVertex), (void *)(2 * sizeof(float)));
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+    CHECK_GL();
     return true;
 }
 

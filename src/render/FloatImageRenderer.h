@@ -1,6 +1,7 @@
 #pragma once
 
 #include <glad/glad.h>
+#include <cstdint>
 #include <unordered_map>
 #include <vector>
 #include "core/Core.h"
@@ -13,8 +14,10 @@ public:
 
     void clear();
 
-    // Ensure texture exists for float image of an entity, then queue a quad to draw
-    void addFloatImage(int entityId, const FloatImage &img, const Mat3 &localToPage);
+    // Ensure texture exists for float image of an entity, then queue a quad to draw.
+    // version identifies the pixel content; the texture is re-uploaded only when
+    // it differs from the last uploaded version (or on first create / resize).
+    void addFloatImage(int entityId, const FloatImage &img, const Mat3 &localToPage, uint64_t version);
 
     void draw(const Mat3 &mm_to_ndc);
 
@@ -33,6 +36,7 @@ private:
         GLuint tex{0};
         size_t w{0};
         size_t h{0};
+        uint64_t uploadedVersion{0};
     };
 
     GLuint m_program{0};
@@ -48,7 +52,7 @@ private:
 
     static GLuint compileShader(GLenum type, const char *src);
     static GLuint linkProgram(GLuint vs, GLuint fs);
-    void ensureTexture(int entityId, const FloatImage &img);
+    void ensureTexture(int entityId, const FloatImage &img, uint64_t version);
 };
 
 

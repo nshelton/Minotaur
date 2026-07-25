@@ -1,4 +1,5 @@
 #include "BitmapRenderer.h"
+#include "GLCheck.h"
 
 #include <iostream>
 
@@ -137,6 +138,7 @@ void main(){
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 4, (void *)(2 * sizeof(float)));
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+    CHECK_GL();
     return true;
 }
 
@@ -168,7 +170,7 @@ void BitmapRenderer::clear()
     m_quads.clear();
 }
 
-void BitmapRenderer::ensureTexture(int entityId, const Bitmap &bm)
+void BitmapRenderer::ensureTexture(int entityId, const Bitmap &bm, uint64_t version)
 {
     auto it = m_textures.find(entityId);
     bool needCreate = (it == m_textures.end()) || (it->second.w != bm.width_px) || (it->second.h != bm.height_px) || it->second.isColor;
@@ -190,19 +192,27 @@ void BitmapRenderer::ensureTexture(int entityId, const Bitmap &bm)
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, bm.width_px, bm.height_px, 0, GL_RED, GL_UNSIGNED_BYTE, bm.pixels.data());
         glBindTexture(GL_TEXTURE_2D, 0);
+        CHECK_GL();
 
-        m_textures[entityId] = TexInfo{tex, static_cast<size_t>(bm.width_px), static_cast<size_t>(bm.height_px), false};
+        // glTexImage2D already uploaded the pixels; record the version and return.
+        m_textures[entityId] = TexInfo{tex, static_cast<size_t>(bm.width_px), static_cast<size_t>(bm.height_px), false, version};
+        return;
     }
 
-    // Always upload latest pixel data in case content changed without size change
-    GLuint tex = m_textures[entityId].tex;
-    glBindTexture(GL_TEXTURE_2D, tex);
+    // Existing texture, same size/type: re-upload only when content changed.
+    TexInfo &ti = it->second;
+    if (ti.uploadedVersion == version)
+        return;
+
+    glBindTexture(GL_TEXTURE_2D, ti.tex);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, bm.width_px, bm.height_px, GL_RED, GL_UNSIGNED_BYTE, bm.pixels.data());
     glBindTexture(GL_TEXTURE_2D, 0);
+    CHECK_GL();
+    ti.uploadedVersion = version;
 }
 
-void BitmapRenderer::ensureColorTexture(int entityId, const ColorImage &ci)
+void BitmapRenderer::ensureColorTexture(int entityId, const ColorImage &ci, uint64_t version)
 {
     auto it = m_textures.find(entityId);
     bool needCreate = (it == m_textures.end()) || (it->second.w != ci.width_px) || (it->second.h != ci.height_px) || !it->second.isColor;
@@ -224,21 +234,29 @@ void BitmapRenderer::ensureColorTexture(int entityId, const ColorImage &ci)
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, static_cast<int>(ci.width_px), static_cast<int>(ci.height_px), 0, GL_RGB, GL_UNSIGNED_BYTE, ci.pixels.data());
         glBindTexture(GL_TEXTURE_2D, 0);
+        CHECK_GL();
 
-        m_textures[entityId] = TexInfo{tex, ci.width_px, ci.height_px, true};
+        // glTexImage2D already uploaded the pixels; record the version and return.
+        m_textures[entityId] = TexInfo{tex, ci.width_px, ci.height_px, true, version};
+        return;
     }
 
-    // Always upload latest pixel data in case content changed without size change
-    GLuint tex = m_textures[entityId].tex;
-    glBindTexture(GL_TEXTURE_2D, tex);
+    // Existing texture, same size/type: re-upload only when content changed.
+    TexInfo &ti = it->second;
+    if (ti.uploadedVersion == version)
+        return;
+
+    glBindTexture(GL_TEXTURE_2D, ti.tex);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, static_cast<int>(ci.width_px), static_cast<int>(ci.height_px), GL_RGB, GL_UNSIGNED_BYTE, ci.pixels.data());
     glBindTexture(GL_TEXTURE_2D, 0);
+    CHECK_GL();
+    ti.uploadedVersion = version;
 }
 
-void BitmapRenderer::addBitmap(int entityId, const Bitmap &bm, const Mat3 &localToPage)
+void BitmapRenderer::addBitmap(int entityId, const Bitmap &bm, const Mat3 &localToPage, uint64_t version)
 {
-    ensureTexture(entityId, bm);
+    ensureTexture(entityId, bm, version);
     BoundingBox bb = bm.aabb();
     Quad q;
     q.pMin = localToPage.apply(bb.min);
@@ -248,9 +266,9 @@ void BitmapRenderer::addBitmap(int entityId, const Bitmap &bm, const Mat3 &local
     m_quads.push_back(q);
 }
 
-void BitmapRenderer::addColorImage(int entityId, const ColorImage &ci, const Mat3 &localToPage)
+void BitmapRenderer::addColorImage(int entityId, const ColorImage &ci, const Mat3 &localToPage, uint64_t version)
 {
-    ensureColorTexture(entityId, ci);
+    ensureColorTexture(entityId, ci, version);
     BoundingBox bb = ci.aabb();
     Quad q;
     q.pMin = localToPage.apply(bb.min);
