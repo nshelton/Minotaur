@@ -11,6 +11,7 @@
 #include "filters/bitmap/TraceBlobsFilter.h"
 #include "filters/bitmap/CannyFilter.h"
 #include "filters/bitmap/LineHatchFilter.h"
+#include "filters/bitmap/HatchV2Filter.h"
 #include "filters/bitmap/SkeletonizeFilter.h"
 #include "filters/bitmap/ClaheFilter.h"
 #include "filters/bitmap/BitmapToFloatFilter.h"
@@ -127,6 +128,13 @@ void FilterRegistry::initDefaults()
 		LayerKind::PathSet,
 		[]()
 		{ return std::make_unique<LineHatchFilter>(); }});
+
+	reg.registerFilter(FilterInfo{
+		"Hatch V2 (Serpentine)",
+		LayerKind::Bitmap,
+		LayerKind::PathSet,
+		[]()
+		{ return std::make_unique<HatchV2Filter>(); }});
 
 	reg.registerFilter(FilterInfo{
 		"Flow Field Hatch",
