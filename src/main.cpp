@@ -9,7 +9,8 @@ int main(int argc, char *argv[]) {
     FilterRegistry::initDefaults();
     GeneratorRegistry::initDefaults();
     App app(2200, 1600, "Minotaur");
-    std::string projectPath = (argc > 1) ? argv[1] : "page.json";
+    // Empty path -> MainScreen resolves to the standard projects directory
+    std::string projectPath = (argc > 1) ? argv[1] : "";
     MainScreen screen(projectPath);
     app.run(screen);
     return 0;

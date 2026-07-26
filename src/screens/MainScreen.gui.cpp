@@ -1,6 +1,7 @@
 #include "MainScreen.h"
 #include <string>
 #include <cmath>
+#include <filesystem>
 #include <fmt/format.h>
 #include "filters/FilterChain.h"
 #include "filters/FilterRegistry.h"
@@ -9,8 +10,147 @@
 #include "generators/mesh/MeshGenerator.h"
 #include "core/Theme.h"
 
+static std::string humanFileSize(uint64_t bytes)
+{
+    if (bytes < 1024)
+        return fmt::format("{} B", bytes);
+    if (bytes < 1024ull * 1024ull)
+        return fmt::format("{:.1f} KB", bytes / 1024.0);
+    return fmt::format("{:.1f} MB", bytes / (1024.0 * 1024.0));
+}
+
+void MainScreen::drawProjectsPanel()
+{
+    if (ImGui::Begin("Projects"))
+    {
+        // Refresh the cached directory listing when something changed it
+        if (m_projectListDirty)
+        {
+            m_projectList = projects::listProjects();
+            m_projectListDirty = false;
+        }
+
+        const std::string currentName = std::filesystem::path(m_projectPath).stem().string();
+        ImGui::Text("Current: %s", currentName.c_str());
+        ImGui::TextDisabled("%s", m_projectPath.c_str());
+
+        if (ImGui::Button("Save"))
+        {
+            saveCurrentProject();
+        }
+        ImGui::SameLine();
+
+        ImGui::SetNextItemWidth(160.0f);
+        ImGui::InputTextWithHint("##projectname", "project name",
+                                 m_projectNameBuf, sizeof(m_projectNameBuf));
+        ImGui::SameLine();
+        {
+            const bool haveName = (m_projectNameBuf[0] != '\0');
+            if (!haveName) ImGui::BeginDisabled();
+            if (ImGui::Button("Save As"))
+            {
+                m_projectPath = projects::pathForName(m_projectNameBuf);
+                saveCurrentProject();
+                m_projectNameBuf[0] = '\0';
+            }
+            if (!haveName) ImGui::EndDisabled();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("New"))
+        {
+            createNewProject(m_projectNameBuf);
+            m_projectNameBuf[0] = '\0';
+        }
+
+        ImGui::Separator();
+        ImGui::Text("%d project(s) in library", static_cast<int>(m_projectList.size()));
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Refresh"))
+        {
+            m_projectListDirty = true;
+        }
+
+        if (ImGui::BeginTable("ProjectsTable", 4,
+                              ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV |
+                              ImGuiTableFlags_ScrollY, ImVec2(0, 260)))
+        {
+            ImGui::TableSetupScrollFreeze(0, 1);
+            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Modified", ImGuiTableColumnFlags_WidthFixed, 120.0f);
+            ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed, 70.0f);
+            ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 110.0f);
+            ImGui::TableHeadersRow();
+
+            for (const auto &info : m_projectList)
+            {
+                const bool isCurrent = (info.path == m_projectPath);
+                ImGui::TableNextRow();
+                ImGui::PushID(info.path.c_str());
+
+                ImGui::TableSetColumnIndex(0);
+                if (isCurrent)
+                    ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.6f, 1.0f), "%s (open)", info.name.c_str());
+                else
+                    ImGui::TextUnformatted(info.name.c_str());
+
+                ImGui::TableSetColumnIndex(1);
+                ImGui::TextUnformatted(info.modifiedString.c_str());
+
+                ImGui::TableSetColumnIndex(2);
+                ImGui::TextUnformatted(humanFileSize(info.sizeBytes).c_str());
+
+                ImGui::TableSetColumnIndex(3);
+                if (isCurrent) ImGui::BeginDisabled();
+                if (ImGui::SmallButton("Open"))
+                {
+                    openProject(info.path);
+                }
+                ImGui::SameLine();
+                if (ImGui::SmallButton("x"))
+                {
+                    m_pendingDeletePath = info.path;
+                }
+                if (isCurrent) ImGui::EndDisabled();
+
+                ImGui::PopID();
+            }
+            ImGui::EndTable();
+        }
+
+        // Delete confirmation
+        if (!m_pendingDeletePath.empty() && !ImGui::IsPopupOpen("Delete Project?"))
+        {
+            ImGui::OpenPopup("Delete Project?");
+        }
+        if (ImGui::BeginPopupModal("Delete Project?", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+        {
+            const std::string delName = std::filesystem::path(m_pendingDeletePath).stem().string();
+            ImGui::Text("Delete project '%s'?", delName.c_str());
+            ImGui::TextDisabled("This cannot be undone.");
+            ImGui::Separator();
+            if (ImGui::Button("Delete", ImVec2(120, 0)))
+            {
+                projects::deleteProject(m_pendingDeletePath);
+                m_pendingDeletePath.clear();
+                m_projectListDirty = true;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel", ImVec2(120, 0)))
+            {
+                m_pendingDeletePath.clear();
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
+    }
+    ImGui::End();
+}
+
 void MainScreen::onGui()
 {
+    drawProjectsPanel();
+
     if (ImGui::Begin("Controls"))
     {
         ImGui::Text("Viewport");
