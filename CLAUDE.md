@@ -75,6 +75,7 @@ src/
     SerialController.h/cpp  # Cross-platform USB serial (Win/macOS/Linux)
   utils/
     Serialization.h/cpp     # JSON project save/load (entities, filters, camera, plotter)
+    ProjectStore.h/cpp      # Standard projects dir (~/Documents/Minotaur/Projects), listing, delete
     ImageLoader.h/cpp       # Image loading (WIC on Windows, stb_image elsewhere)
     ImageCompression.h/cpp  # RLE + Base64 compression for bitmap serialization
     KdTree2D.h              # 2D spatial index (wraps nanoflann)
@@ -277,7 +278,11 @@ CoreXY kinematics: A = dx + dy, B = dx - dy (stepper motor mapping).
 
 ## Serialization
 
-Project state saves to JSON (`page.json`) via `src/utils/Serialization.cpp`.
+Project state saves to JSON via `src/utils/Serialization.cpp`. Projects live in a
+standard directory (`~/Documents/Minotaur/Projects`, see `src/utils/ProjectStore.cpp`);
+the default project is `default.json` there, a legacy `./page.json` is migrated on
+first launch, and an explicit path can still be passed as `argv[1]`. The "Projects"
+panel lists, opens, saves-as, creates, and deletes projects in that directory.
 Saved state includes: all entities (with payload data), filter chains (filter type
 name + parameters + enabled state), generator state (type name + float/string params),
 camera position/zoom, plotter config. Bitmap data uses RLE + Base64 compression.

@@ -6,8 +6,10 @@
 #include "generators/pathset/SvgGenerator.h"
 #include "utils/ImageLoader.h"
 #include "utils/Clipboard.h"
+#include <filesystem>
 #include <iostream>
 #include <glog/logging.h>
+#include <fmt/format.h>
 #include "utils/Serialization.h"
 #include "plotters/PlotterConfig.h"
 
@@ -17,26 +19,112 @@ void MainScreen::onAttach(App &app)
     google::SetStderrLogging(google::GLOG_INFO);
 
     m_app = &app;
+
+    // No explicit path on the CLI: use the standard projects directory
+    if (m_projectPath.empty())
+        m_projectPath = projects::defaultProjectPath();
+
+    if (!loadProjectFrom(m_projectPath))
+    {
+        // Legacy fallback: older builds saved page.json in the working directory.
+        // Load it if present, but keep saving to the standard location.
+        bool migrated = false;
+        if (m_projectPath == projects::defaultProjectPath() &&
+            std::filesystem::exists("page.json"))
+        {
+            migrated = loadProjectFrom("page.json");
+            if (migrated)
+                LOG(INFO) << "Migrated legacy page.json; will save to " << m_projectPath;
+        }
+        if (!migrated)
+        {
+            // Fallback demo content
+            m_page.addGeneratedEntity(
+                std::make_unique<CircleGenerator>(),
+                Vec2(297.0f / 2.0f, 420.0f / 2.0f));
+        }
+    }
+}
+
+bool MainScreen::loadProjectFrom(const std::string &path)
+{
     std::string err;
     serialization::RenderSettings rs;
-    if (!serialization::loadProject(m_page, m_camera, rs, m_plotter.config(), m_projectPath, &err))
+    if (!serialization::loadProject(m_page, m_camera, rs, m_plotter.config(), path, &err))
     {
         if (!err.empty())
         {
-            LOG(WARNING) << "Failed to load page.json: " << err;
+            LOG(WARNING) << "Failed to load project '" << path << "': " << err;
         }
-        // Fallback demo content
-        m_page.addGeneratedEntity(
-            std::make_unique<CircleGenerator>(),
-            Vec2(297.0f / 2.0f, 420.0f / 2.0f));
+        return false;
+    }
+    m_renderer.setLineWidth(rs.lineWidth);
+    m_renderer.setNodeDiameterPx(rs.nodeDiameter);
+    // Sync AxiDraw state from loaded plotter config
+    m_plotter.syncStateFromConfig();
+    return true;
+}
+
+bool MainScreen::saveCurrentProject()
+{
+    std::string err;
+    // Keep pen positions in sync with the last known AxiDraw state
+    m_plotter.syncConfigFromState();
+    serialization::RenderSettings rs{m_renderer.lineWidth(), m_renderer.nodeDiameterPx()};
+    if (!serialization::saveProject(m_page, m_camera, rs, m_plotter.config(), m_projectPath, &err))
+    {
+        LOG(ERROR) << "Failed to save project '" << m_projectPath << "': " << err;
+        return false;
+    }
+    LOG(INFO) << "Saved project: " << m_projectPath;
+    m_projectListDirty = true;
+    return true;
+}
+
+void MainScreen::openProject(const std::string &path)
+{
+    if (path == m_projectPath)
+        return;
+
+    // Persist the current project before switching so nothing is lost
+    saveCurrentProject();
+
+    m_interaction.DeselectEntity();
+    m_interaction.ClearHover();
+    m_genStringBufs.clear();
+
+    if (loadProjectFrom(path))
+    {
+        m_projectPath = path;
+        LOG(INFO) << "Opened project: " << path;
     }
     else
     {
-        m_renderer.setLineWidth(rs.lineWidth);
-        m_renderer.setNodeDiameterPx(rs.nodeDiameter);
-        // Sync AxiDraw state from loaded plotter config
-        m_plotter.syncStateFromConfig();
+        // loadProject may have cleared entities before failing; restore the
+        // previous project (it was just saved above)
+        loadProjectFrom(m_projectPath);
     }
+}
+
+void MainScreen::createNewProject(const std::string &name)
+{
+    // Persist the current project before switching so nothing is lost
+    saveCurrentProject();
+
+    m_interaction.DeselectEntity();
+    m_interaction.ClearHover();
+    m_genStringBufs.clear();
+    m_page.entities.clear();
+    m_camera.reset();
+
+    // Pick a non-colliding path so New never overwrites an existing project
+    const std::string base = name.empty() ? "untitled" : name;
+    std::string path = projects::pathForName(base);
+    for (int i = 2; std::filesystem::exists(path); ++i)
+        path = projects::pathForName(fmt::format("{}-{}", base, i));
+
+    m_projectPath = path;
+    saveCurrentProject();
 }
 
 void MainScreen::onResize(int width, int height)
@@ -124,14 +212,7 @@ void MainScreen::onRender()
 void MainScreen::onDetach()
 {
     m_renderer.shutdown();
-    std::string err;
-    // Keep pen positions in sync with the last known AxiDraw state
-    m_plotter.syncConfigFromState();
-    serialization::RenderSettings rs{m_renderer.lineWidth(), m_renderer.nodeDiameterPx()};
-    if (!serialization::saveProject(m_page, m_camera, rs, m_plotter.config(), m_projectPath, &err))
-    {
-        LOG(ERROR) << "Failed to save page.json: " << err;
-    }
+    saveCurrentProject();
 }
 
 void MainScreen::onFilesDropped(const std::vector<std::string>& paths)
