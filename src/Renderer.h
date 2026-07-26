@@ -35,6 +35,11 @@ public:
     float lineWidth() const { return m_lines.lineWidth(); }
     float nodeDiameterPx() const { return m_nodeDiameterPx; }
 
+    // Dark mode: dark background, no page fill, layer colors as authored.
+    // Light mode: gray background, white page, layer colors inverted (ink black).
+    void setDarkMode(bool dark);
+    bool darkMode() const { return m_darkMode; }
+
     void shutdown();
 
     int totalVertices() const { return static_cast<int>(m_lines.totalVertices()); }
@@ -47,6 +52,8 @@ private:
     BitmapRenderer m_images{};
     FloatImageRenderer m_floatImages{};
     float m_nodeDiameterPx{8.0f};
+    bool m_darkMode{true};
+    Bitmap m_pageFill{}; // 1x1 white bitmap stretched over the page in light mode
 
     void renderPage(const Camera &camera, const PageModel &page);
     void drawRect(const Vec2 &min, const Vec2 &max, const Color &col);
