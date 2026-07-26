@@ -48,6 +48,12 @@ void MainScreen::onGui()
             m_interaction.SetShowPathNodes(showNodes);
         }
 
+        bool darkMode = m_renderer.darkMode();
+        if (ImGui::Checkbox("Dark Mode", &darkMode))
+        {
+            m_renderer.setDarkMode(darkMode);
+        }
+
         ImGui::Separator();
         {
             Vec2 center = Vec2(m_page.page_width_mm, m_page.page_height_mm) * 0.5f;

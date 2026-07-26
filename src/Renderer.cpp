@@ -27,11 +27,33 @@ uint64_t entityImageVersion(const Entity &entity)
 }
 }
 
+namespace
+{
+// Reserved BitmapRenderer texture id for the page fill quad. Entity ids are
+// non-negative, so a negative id can never collide with one.
+constexpr int kPageFillTexId = -1;
+
+const Color kDarkBackground{0.1f, 0.1f, 0.12f, 1.0f};
+const Color kLightBackground{0.5f, 0.5f, 0.5f, 1.0f};
+}
+
 Renderer::Renderer()
 {
    m_lines.init();
    m_images.init();
    m_floatImages.init();
+
+   m_pageFill.width_px = 1;
+   m_pageFill.height_px = 1;
+   m_pageFill.pixel_size_mm = 1.0f;
+   m_pageFill.pixels = {255};
+}
+
+void Renderer::setDarkMode(bool dark)
+{
+   m_darkMode = dark;
+   const Color &bg = dark ? kDarkBackground : kLightBackground;
+   glClearColor(bg.r, bg.g, bg.b, bg.a);
 }
 
 void Renderer::render(const Camera &camera, const PageModel &page, const InteractionState &uiState)
@@ -69,6 +91,12 @@ void Renderer::beginFrame(const Camera &camera, const PageModel &page, const Int
          for (const auto &path : ps.paths)
          {
             Color pathCol = entity.color;
+            if (!m_darkMode)
+            {
+               // Light mode: invert the layer color so default white ink
+               // renders black on the white page.
+               pathCol = Color(1.0f - pathCol.r, 1.0f - pathCol.g, 1.0f - pathCol.b, pathCol.a);
+            }
             for (size_t i = 1; i < path.points.size(); ++i)
             {
                m_lines.addLine(transform * path.points[i - 1], transform * path.points[i], pathCol);
@@ -209,7 +237,16 @@ void Renderer::shutdown()
 
 void Renderer::renderPage(const Camera &camera, const PageModel &page)
 {
-   Color outlineCol = Color(0.8f, 0.8f, 0.8f, 1.0f);
+   if (!m_darkMode)
+   {
+      // White page fill, drawn before any entity so it sits underneath.
+      // The 1x1 white bitmap is stretched over the full page extent.
+      Mat3 pageScale = Mat3::scale(page.page_width_mm, page.page_height_mm);
+      m_images.addBitmap(kPageFillTexId, m_pageFill, pageScale, 1);
+   }
+
+   Color outlineCol = m_darkMode ? Color(0.8f, 0.8f, 0.8f, 1.0f)
+                                 : Color(0.35f, 0.35f, 0.35f, 1.0f);
    // outline
 
    drawRect(Vec2(0.0f, 0.0f), Vec2(page.page_width_mm, page.page_height_mm), outlineCol);
@@ -219,7 +256,8 @@ void Renderer::renderPage(const Camera &camera, const PageModel &page)
    drawRect(Vec2(0.0f, 0.0f), Vec2(279.4f, 215.9f), outlineCol);
 
    // grid lines every 10mm
-   Color gridCol = Color(0.3f, 0.3f, 0.3f, 1.0f);
+   Color gridCol = m_darkMode ? Color(0.3f, 0.3f, 0.3f, 1.0f)
+                              : Color(0.85f, 0.85f, 0.85f, 1.0f);
    for (float x = 10.0f; x < page.page_width_mm; x += 10.0f)
    {
       m_lines.addLine(Vec2(x, 0.0f), Vec2(x, page.page_height_mm), gridCol);
