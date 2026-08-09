@@ -6,10 +6,20 @@
 
 class LineRenderer {
 public:
+    // How line/point color combines with what is already in the framebuffer.
+    // Additive suits a dark background (ink emits light, overlaps brighten);
+    // Subtractive suits a light background (ink absorbs light, overlaps darken).
+    // The two are exact mirrors: for a saturated background the single-stroke
+    // result of Additive on black equals Subtractive on white with the same
+    // color, so no per-mode color tweaking is needed for path ink.
+    enum class BlendMode { Additive, Subtractive };
+
     bool init();
     void shutdown();
 
     void clear();
+    void setBlendMode(BlendMode m) { m_blendMode = m; }
+    BlendMode blendMode() const { return m_blendMode; }
     void setLineWidth(float w) { m_lineWidth = w; }
     void setPointRadiusMm(float r) { m_pointRadiusMm = r; }
     void setPointDiameterPx(float d) { m_pointDiameterPx = d; }
@@ -34,6 +44,7 @@ private:
     GLuint m_uPointSizePx{0};
     GLuint m_uIsPointPass{0};
 
+    BlendMode m_blendMode{BlendMode::Additive};
     float m_lineWidth{1.0f};
     float m_pointRadiusMm{1.5f};
     float m_pointDiameterPx{0.0f};

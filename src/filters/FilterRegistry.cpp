@@ -26,11 +26,13 @@
 #include "filters/bitmap/VoronoiStipplingFilter.h"
 #include "filters/bitmap/ChannelMixerFilter.h"
 #include "filters/bitmap/ColorPickerFilter.h"
+#include "filters/bitmap/CmykSeparationFilter.h"
 #include "filters/bitmap/ConcentricOutlineFilter.h"
 #include "filters/bitmap/FastMarchingFilter.h"
 #include "filters/bitmap/FlowFieldHatchFilter.h"
 #include "filters/bitmap/FlowSnakeFilter.h"
 #include "filters/bitmap/RotateFilter.h"
+#include "filters/bitmap/ColorAdapters.h"
 
 namespace
 {
@@ -289,4 +291,26 @@ void FilterRegistry::initDefaults()
 		LayerKind::Bitmap,
 		[]()
 		{ return std::make_unique<ColorPickerFilter>(); }});
+
+	reg.registerFilter(FilterInfo{
+		"CMYK Separation",
+		LayerKind::ColorImage,
+		LayerKind::Bitmap,
+		[]()
+		{ return std::make_unique<CmykSeparationFilter>(); }});
+
+	// Grayscale filters lifted onto RGB by running per channel
+	reg.registerFilter(FilterInfo{
+		perChannelColorName<BlurFilter>(),
+		LayerKind::ColorImage,
+		LayerKind::ColorImage,
+		[]()
+		{ return std::make_unique<PerChannelColorFilter<BlurFilter>>(); }});
+
+	reg.registerFilter(FilterInfo{
+		perChannelColorName<LevelsFilter>(),
+		LayerKind::ColorImage,
+		LayerKind::ColorImage,
+		[]()
+		{ return std::make_unique<PerChannelColorFilter<LevelsFilter>>(); }});
 }

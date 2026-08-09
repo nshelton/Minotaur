@@ -35,8 +35,9 @@ public:
     float lineWidth() const { return m_lines.lineWidth(); }
     float nodeDiameterPx() const { return m_nodeDiameterPx; }
 
-    // Dark mode: dark background, no page fill, layer colors as authored.
-    // Light mode: gray background, white page, layer colors inverted (ink black).
+    // Dark mode: dark background, no page fill, ink blends additively.
+    // Light mode: gray background, white page, ink blends subtractively so the
+    // same pen colors draw dark on the page.
     void setDarkMode(bool dark);
     bool darkMode() const { return m_darkMode; }
 
@@ -44,8 +45,9 @@ public:
 
     int totalVertices() const { return static_cast<int>(m_lines.totalVertices()); }
 
-    // Add a line directly to the renderer (for overlays like plot progress)
-    void addLine(Vec2 a, Vec2 b, Color c) { m_lines.addLine(a, b, c); }
+    // Add an overlay line directly to the renderer (e.g. plot progress). The
+    // color is treated as UI chrome, not ink, so it looks the same in both modes.
+    void addLine(Vec2 a, Vec2 b, Color c) { m_lines.addLine(a, b, uiColor(c)); }
 
 private:
     LineRenderer m_lines{};
@@ -54,6 +56,10 @@ private:
     float m_nodeDiameterPx{8.0f};
     bool m_darkMode{true};
     Bitmap m_pageFill{}; // 1x1 white bitmap stretched over the page in light mode
+
+    // Map a UI chrome color so it renders as authored under the current
+    // blend mode (identity in dark mode, inverted in light mode).
+    Color uiColor(const Color &c) const;
 
     void renderPage(const Camera &camera, const PageModel &page);
     void drawRect(const Vec2 &min, const Vec2 &max, const Color &col);

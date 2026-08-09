@@ -54,6 +54,21 @@ void Renderer::setDarkMode(bool dark)
    m_darkMode = dark;
    const Color &bg = dark ? kDarkBackground : kLightBackground;
    glClearColor(bg.r, bg.g, bg.b, bg.a);
+   // Ink adds light on a dark background and removes it on a light one, so a
+   // white pen color draws white in dark mode and black on the white page in
+   // light mode, with overlapping strokes accumulating either way.
+   m_lines.setBlendMode(dark ? LineRenderer::BlendMode::Additive
+                             : LineRenderer::BlendMode::Subtractive);
+}
+
+Color Renderer::uiColor(const Color &c) const
+{
+   if (m_darkMode)
+      return c;
+   // Light mode blends subtractively, which flips whatever is drawn. UI
+   // chrome (grid, outlines, selection, handles) has an intended on-screen
+   // color rather than an ink density, so pre-invert it to cancel the flip.
+   return Color(1.0f - c.r, 1.0f - c.g, 1.0f - c.b, c.a);
 }
 
 void Renderer::render(const Camera &camera, const PageModel &page, const InteractionState &uiState)
@@ -90,13 +105,9 @@ void Renderer::beginFrame(const Camera &camera, const PageModel &page, const Int
          const PathSet &ps = *psPtr;
          for (const auto &path : ps.paths)
          {
-            Color pathCol = entity.color;
-            if (!m_darkMode)
-            {
-               // Light mode: invert the layer color so default white ink
-               // renders black on the white page.
-               pathCol = Color(1.0f - pathCol.r, 1.0f - pathCol.g, 1.0f - pathCol.b, pathCol.a);
-            }
+            // Path ink is passed through as authored; the blend mode decides
+            // whether it lightens or darkens the page.
+            const Color pathCol = entity.color;
             for (size_t i = 1; i < path.points.size(); ++i)
             {
                m_lines.addLine(transform * path.points[i - 1], transform * path.points[i], pathCol);
@@ -258,6 +269,7 @@ void Renderer::renderPage(const Camera &camera, const PageModel &page)
    // grid lines every 10mm
    Color gridCol = m_darkMode ? Color(0.3f, 0.3f, 0.3f, 1.0f)
                               : Color(0.85f, 0.85f, 0.85f, 1.0f);
+   gridCol = uiColor(gridCol);
    for (float x = 10.0f; x < page.page_width_mm; x += 10.0f)
    {
       m_lines.addLine(Vec2(x, 0.0f), Vec2(x, page.page_height_mm), gridCol);
@@ -270,10 +282,11 @@ void Renderer::renderPage(const Camera &camera, const PageModel &page)
 
 void Renderer::drawRect(const Vec2 &min, const Vec2 &max, const Color &col)
 {
-   m_lines.addLine(Vec2(min.x, min.y), Vec2(max.x, min.y), col);
-   m_lines.addLine(Vec2(max.x, min.y), Vec2(max.x, max.y), col);
-   m_lines.addLine(Vec2(max.x, max.y), Vec2(min.x, max.y), col);
-   m_lines.addLine(Vec2(min.x, max.y), Vec2(min.x, min.y), col);
+   const Color c = uiColor(col);
+   m_lines.addLine(Vec2(min.x, min.y), Vec2(max.x, min.y), c);
+   m_lines.addLine(Vec2(max.x, min.y), Vec2(max.x, max.y), c);
+   m_lines.addLine(Vec2(max.x, max.y), Vec2(min.x, max.y), c);
+   m_lines.addLine(Vec2(min.x, max.y), Vec2(min.x, min.y), c);
 }
 
 void Renderer::drawHandle(const Vec2 &center, float sizeMm, const Color &col)
@@ -288,13 +301,14 @@ void Renderer::drawCircle(const Vec2 &center, float radiusMm, const Color &col)
    if (segments < 3)
       return;
    float twoPi = 6.28318530718f;
+   const Color c = uiColor(col);
    Vec2 prev = Vec2(center.x + radiusMm, center.y);
    for (int i = 1; i <= segments; ++i)
    {
       float t = (float)i / (float)segments;
       float ang = t * twoPi;
       Vec2 cur = Vec2(center.x + radiusMm * cosf(ang), center.y + radiusMm * sinf(ang));
-      m_lines.addLine(prev, cur, col);
+      m_lines.addLine(prev, cur, c);
       prev = cur;
    }
 }

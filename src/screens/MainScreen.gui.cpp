@@ -506,8 +506,9 @@ void MainScreen::onGui()
                     return c;
                 };
 
-                const bool inBitmap = (f->inputKind() == LayerKind::Bitmap);
-                const bool outBitmap = (f->outputKind() == LayerKind::Bitmap);
+                // Treat every raster kind (Bitmap/Float/Color) as bitmap-colored
+                const bool inBitmap = (f->inputKind() != LayerKind::PathSet);
+                const bool outBitmap = (f->outputKind() != LayerKind::PathSet);
                 Color cin = inBitmap ? theme::BitmapColor : theme::PathsetColor;
                 Color cout = outBitmap ? theme::BitmapColor : theme::PathsetColor;
 

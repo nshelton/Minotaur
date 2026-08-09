@@ -154,9 +154,12 @@ void LineRenderer::draw( const Mat3 &mm_to_ndc)
     glUniformMatrix3fv(m_uProjMat, 1, GL_FALSE, mm_to_ndc.m);
     glUniform1i(m_uIsPointPass, 0);
 
-    // Additive blending: src color scaled by src alpha, added to dest
+    // src color scaled by src alpha, then added to (dark mode) or removed from
+    // (light mode) the destination.
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+    glBlendEquation(m_blendMode == BlendMode::Subtractive ? GL_FUNC_REVERSE_SUBTRACT
+                                                        : GL_FUNC_ADD);
 
     // Draw lines
     if (!m_vertices.empty())
@@ -207,6 +210,9 @@ void LineRenderer::draw( const Mat3 &mm_to_ndc)
         glUniform1i(m_uIsPointPass, 0);
     }
 
+    // Restore the default equation so a subtractive frame cannot leak into
+    // ImGui's draw pass.
+    glBlendEquation(GL_FUNC_ADD);
     glDisable(GL_BLEND);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);

@@ -1,6 +1,7 @@
 build
 .claude/worktrees
 CMakeUserPresets.json
+.cache
 
 # OS / editor cruft
 .DS_Store
@@ -13,3 +14,4 @@ CMakeUserPresets.json
 page.json
 # vcpkg manifest-mode install root (when vcpkg is run outside build/)
 vcpkg_installed/
+

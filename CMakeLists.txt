@@ -94,6 +94,11 @@ add_executable(filter_tests
   tests/test_trace_filter.cpp
   tests/test_simplify_filter.cpp
   tests/test_fastmarching_filter.cpp
+  tests/test_cmyk_separation.cpp
+  tests/test_color_adapters.cpp
+  tests/test_timestamp_generator.cpp
+  src/utils/VectorFont.cpp
+  src/filters/bitmap/CmykSeparationFilter.cpp
   src/filters/bitmap/BlurFilter.cpp
   src/filters/bitmap/ThresholdFilter.cpp
   src/filters/bitmap/LevelsFilter.cpp
@@ -103,6 +108,6 @@ add_executable(filter_tests
 )
 
 target_include_directories(filter_tests PRIVATE src)
-target_link_libraries(filter_tests PRIVATE GTest::gtest GTest::gtest_main glog::glog)
+target_link_libraries(filter_tests PRIVATE GTest::gtest GTest::gtest_main glog::glog fmt::fmt)
 
 add_test(NAME filter_tests COMMAND filter_tests)

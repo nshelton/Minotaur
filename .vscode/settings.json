@@ -3,6 +3,7 @@
   "cmake.configureOnOpen": true,
   "cmake.configurePreset": "macos-local",
   "cmake.buildPreset": "macos-local-debug",
+  "cmake.cmakePath": "/Applications/CMake.app/Contents/bin/cmake",
   "cmake.configureEnvironment": {
     "VCPKG_ROOT": "${env:VCPKG_ROOT}"
   },
